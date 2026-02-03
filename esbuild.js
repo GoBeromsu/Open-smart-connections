@@ -2,7 +2,7 @@ import esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
-import { build_smart_env_config } from 'obsidian-smart-env/build_smart_env_config.js';
+import { build_smart_env_config } from './lib/obsidian-smart-env/build_smart_env_config.js';
 import { create_banner } from './src/utils/banner.js';
 
 const roots = [
@@ -131,6 +131,27 @@ esbuild.build({
   treeShaking: true,
   platform: 'node',
   preserveSymlinks: true,
+  alias: {
+    'smart-blocks': './lib/jsbrains/smart-blocks',
+    'smart-chat-model': './lib/jsbrains/smart-chat-model',
+    'smart-collections': './lib/jsbrains/smart-collections',
+    'smart-embed-model': './lib/jsbrains/smart-embed-model',
+    'smart-entities': './lib/jsbrains/smart-entities',
+    'smart-environment': './lib/jsbrains/smart-environment',
+    'smart-file-system': './lib/jsbrains/smart-fs',
+    'smart-fs': './lib/jsbrains/smart-fs',
+    'smart-http-request': './lib/jsbrains/smart-http-request',
+    'smart-model': './lib/jsbrains/smart-model',
+    'smart-notices': './lib/jsbrains/smart-notices',
+    'smart-settings': './lib/jsbrains/smart-settings',
+    'smart-sources': './lib/jsbrains/smart-sources',
+    'smart-utils': './lib/jsbrains/smart-utils',
+    'smart-view': './lib/jsbrains/smart-view',
+    'obsidian-smart-env': './lib/obsidian-smart-env',
+    'smart-chat-obsidian': './lib/smart-chat-obsidian',
+    'smart-context-obsidian': './lib/smart-context-obsidian',
+    'smart-plugins-obsidian': './lib/smart-plugins-obsidian',
+  },
   external: [
     'electron',
     'obsidian',

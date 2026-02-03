@@ -1,0 +1,177 @@
+/**
+ * completion.css
+ * 
+ * Styles for the container that holds a single "completion" sequence (user + context + assistant).
+ */
+
+.smart-chat-completion-sequence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  user-select: text;
+  container-type: inline-size;
+  &:not(:has(.smart-chat-message)) {
+    flex-grow: 1;
+  }
+}
+
+
+@keyframes messageEntry {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/**
+ * message_assistant.css
+ * 
+ * Styles for an assistant message bubble.
+ */
+
+.smart-chat-message.assistant {
+  align-self: flex-start;
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  position: relative;
+}
+
+.smart-chat-message.assistant .smart-chat-message-actions {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+/* "Sexier" gradient button styling. */
+.smart-chat-message-copy-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 0.35rem 0.6rem;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.smart-chat-message-copy-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-m);
+  background-color: var(--interactive-accent-hover);
+}
+
+.smart-chat-message-copy-button:active {
+  transform: translateY(0px);
+  box-shadow: var(--shadow-xs);
+}
+
+
+/**
+ * message_user.css
+ * 
+ * Styles for a user message bubble.
+ */
+
+.smart-chat-message.user {
+  align-self: flex-end;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/**
+ * message_system.css
+ * 
+ * Styles for a system (prompt) message. 
+ * This is displayed in a smaller, dim style (not a bubble).
+ */
+
+.smart-chat-message{
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: var(--radius-m);
+  padding: var(--size-4-3);
+  line-height: var(--line-height-normal);
+  font-size: var(--font-text-size);
+  animation: messageEntry var(--anim-duration-fast) var(--anim-motion-smooth);
+  box-shadow: var(--shadow-s);
+
+  .smart-chat-message-content {
+    &> p {
+      margin: 0;
+    }
+  }
+
+  &.system, &.action {
+    display: block !important;
+    background: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 0 var(--size-4-3) 0;
+    padding: 0 !important;
+    color: var(--text-faint);
+    font-size: var(--font-ui-small);
+
+    .smart-chat-message-content {
+      background: none !important;
+      padding: 0 !important;
+      margin: 0;
+      box-shadow: none !important;
+      color: var(--text-faint);
+      font-size: var(--font-ui-small);
+    }
+  }
+  &.system::before {
+    content: "System: ";
+    font-weight: bold;
+    font-size: var(--font-ui-smaller);
+  }
+  &.action::before {
+    content: "Action: ";
+    font-weight: bold;
+    font-size: var(--font-ui-smaller);
+  }
+}
+
+/**
+ * Only apply max-width: 70% if container is > 600px */
+@container (min-width: 600px) {
+  .smart-chat-message {
+    max-width: 70%;
+  }
+}
+
+/**
+ * context_builder.css
+ * 
+ * Styles for the in-between context-review block, letting user select or deselect context items.
+ */
+
+.sc-context-builder.smart-chat-message {
+  align-self: center;
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+  flex-direction: column;
+  gap: var(--size-4-2);
+  max-width: 95%;
+}
+
+/* .smart-chat-completion-sequence:has(.smart-chat-message.user), */
+.smart-chat-completion-sequence:has(.sc-context-done),
+.smart-chat-completion-sequence:has(.smart-chat-message.assistant){
+  .sc-tree-remove,
+  .sc-tree-connections,
+  .sc-tree-links,
+  .sc-context-actions {
+    display: none;
+  }
+}

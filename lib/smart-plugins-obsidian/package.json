@@ -1,0 +1,6 @@
+{
+  "name": "smart-plugins-obsidian",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "utils.js"
+}
