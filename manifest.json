@@ -1,10 +1,10 @@
 {
   "id": "smart-connections",
   "name": "Smart Connections",
-  "author": "Brian Petro",
+  "author": "GoBeromsu",
   "description": "Chat with your notes & see links to related content with Local or Remote models.",
   "minAppVersion": "1.1.0",
-  "authorUrl": "https://wfhbrian.com",
+  "authorUrl": "https://github.com/GoBeromsu/obsidian-smart-connections",
   "isDesktopOnly": false,
-  "version": "3.0.79"
+  "version": "3.1.0"
 }

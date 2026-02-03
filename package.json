@@ -1,6 +1,6 @@
 {
-  "name": "obsidian-smart-connections",
-  "version": "3.0.80",
+  "name": "smart-connections-obsidian",
+  "version": "3.1.0",
   "type": "module",
   "description": "Link and chat with your notes using ChatGPT and embedding artificial intelligence from OpenAI.",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brianpetro/obsidian-smart-connections.git"
+    "url": "git+https://github.com/GoBeromsu/obsidian-smart-connections.git"
   },
   "keywords": [
     "Obsidian",
@@ -21,12 +21,12 @@
     "Embeddings",
     "Notes"
   ],
-  "author": "🌴 Brian (Brian Petro)",
+  "author": "GoBeromsu",
   "license": "SEE LICENSE IN LICENSE",
   "bugs": {
-    "url": "https://github.com/brianpetro/obsidian-smart-connections/issues"
+    "url": "https://github.com/GoBeromsu/obsidian-smart-connections/issues"
   },
-  "homepage": "https://smartconnections.app",
+  "homepage": "https://github.com/GoBeromsu/obsidian-smart-connections",
   "devDependencies": {
     "@xenova/transformers": "latest",
     "archiver": "^6.0.1",
