@@ -1,0 +1,10 @@
+{
+  "id": "smart-chat",
+  "name": "Smart Chat",
+  "version": "1.0.0",
+  "minAppVersion": "0.13.0",
+  "description": "Chat with your notes using 100s of models using the same local-first Smart Environment as Smart Connections.",
+  "author": "🌴 Brian",
+  "authorUrl": "https://smartconnections.app",
+  "isDesktopOnly": false
+}

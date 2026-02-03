@@ -1,0 +1,52 @@
+.expandable-system-message {
+  transition: max-height 0.2s cubic-bezier(.4,0,.2,1), background 0.15s;
+}
+.expandable-system-message.collapsed {
+  cursor: pointer;
+}
+.expandable-system-message.collapsed:hover,
+.expandable-system-message.collapsed:focus {
+  background: var(--background-modifier-hover);
+  /* Removed outline/border */
+}
+.expandable-system-message:focus {
+  outline: 1.5px solid var(--background-modifier-border-focus, #888);
+}
+
+/* Gradient overlay and indicator bar for collapsed state */
+.expand-indicator-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2.5em;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    /* Use background-primary with alpha for both stops */
+    rgba(var(--background-primary), 0) 0%,
+    rgba(var(--background-primary), 0.95) 80%
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1;
+}
+
+.expand-indicator-bar .expand-indicator {
+  pointer-events: auto;
+  background: var(--background-primary, #fff);
+  border-radius: 0.7em;
+  font-size: 0.95em;
+  padding: 0.1em 0.7em;
+  margin-bottom: 0.3em;
+  font-weight: 500;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.expandable-system-message.collapsed + .expand-indicator-bar .expand-indicator:hover,
+.expandable-system-message.collapsed + .expand-indicator-bar .expand-indicator:focus {
+  background: var(--background-modifier-hover, #f0f0f0);
+  color: var(--text-normal, #333);
+}

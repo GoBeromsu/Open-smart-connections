@@ -1,0 +1,9 @@
+@media (max-width: 768px) {
+  .smart-chat-model-settings-container {
+    .setting-item{
+      flex-direction: column;
+      align-items: baseline;
+    }
+  }
+}
+
