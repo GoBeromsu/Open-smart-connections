@@ -1,5 +1,5 @@
 import { ItemView, MarkdownRenderer } from 'obsidian';
-import release_notes_md from '../../releases/latest_release.md' with { type: 'markdown' };
+import release_notes_md from '../../releases/1.0.1.md' with { type: 'markdown' };
 
 export class ReleaseNotesView extends ItemView {
   static get view_type()    { return 'smart-release-notes-view'; }
