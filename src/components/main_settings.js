@@ -1,18 +1,9 @@
-import { StoryModal } from 'obsidian-smart-env/modals/story.js';
-import { open_url_externally } from 'obsidian-smart-env/utils/open_url_externally.js';
 import { toggle_plugin_ribbon_icon } from "../utils/toggle_plugin_ribbon_icon.js";
 
 async function build_html(scope_plugin) {
   return `
     <div id="smart-connections-settings">
       <div data-user-agreement></div>
-
-      <div id="smart-connections-getting-started-container">
-        <button class="sc-getting-started-button">Getting started guide</button>
-        <button class="sc-report-bug-button">Report a bug</button>
-        <button class="sc-request-feature-button">Request a feature</button>
-        <button class="sc-share-workflow-button">Share workflow ⭐</button>
-      </div>
 
       <div data-connections-settings-container>
         <h2>Connections view</h2>
@@ -23,12 +14,6 @@ async function build_html(scope_plugin) {
       </div>
 
       <div data-smart-settings="env"></div>
-      <h2>More Smart Plugins</h2>
-      <div class="sc-other-plugins">
-        <button class="sc-smart-context-button">Quickly copy notes many notes to clipboard</button>
-        <button class="sc-smart-chatgpt-button">Embed &amp; bookmark chat threads to notes</button>
-        <button class="sc-smart-templates-button">Smart note generation with context + templates</button>
-      </div>
     </div>
   `;
 }
@@ -113,63 +98,6 @@ export async function post_process(scope_plugin, frag) {
     );
     ribbon_container.appendChild(ribbon_frag);
   }
-
-  /* header external links */
-  const header_link = frag.querySelector('#header-callout a');
-  if (header_link) {
-    header_link.addEventListener('click', (e) => {
-      e.preventDefault();
-      open_url_externally(scope_plugin, header_link.href);
-    });
-  }
-
-  /* supporter callout */
-  const supporter_callout = await scope_plugin.env.render_component(
-    'supporter_callout',
-    scope_plugin
-  );
-  frag.appendChild(supporter_callout);
-
-  /* buttons */
-  frag.querySelector('.sc-getting-started-button')?.addEventListener('click', () => {
-    StoryModal.open(scope_plugin, {
-      title: 'Getting Started With Smart Connections',
-      url: 'https://smartconnections.app/story/smart-connections-getting-started/?utm_source=sc-op-settings'
-    });
-  });
-
-  frag.querySelector('.sc-report-bug-button')?.addEventListener('click', () => {
-    open_url_externally(
-      scope_plugin,
-      'https://github.com/brianpetro/obsidian-smart-connections/issues/new?template=bug_report.yml'
-    );
-  });
-
-  frag.querySelector('.sc-request-feature-button')?.addEventListener('click', () => {
-    open_url_externally(
-      scope_plugin,
-      'https://github.com/brianpetro/obsidian-smart-connections/issues/new?template=feature_request.yml'
-    );
-  });
-
-  frag.querySelector('.sc-share-workflow-button')?.addEventListener('click', () => {
-    open_url_externally(
-      scope_plugin,
-      'https://github.com/brianpetro/obsidian-smart-connections/discussions/new?category=showcase'
-    );
-  });
-
-  frag.querySelector('.sc-smart-context-button')?.addEventListener('click', () => {
-    open_url_externally(scope_plugin, 'https://obsidian.md/plugins?id=smart-context');
-  });
-
-  frag.querySelector('.sc-smart-chatgpt-button')?.addEventListener('click', () => {
-    open_url_externally(scope_plugin, 'https://obsidian.md/plugins?id=smart-chatgpt');
-  });
-
-  frag.querySelector('.sc-smart-templates-button')?.addEventListener('click', () => {
-    open_url_externally(scope_plugin, 'https://obsidian.md/plugins?id=smart-templates');
-  });
 
   return frag;
 }
