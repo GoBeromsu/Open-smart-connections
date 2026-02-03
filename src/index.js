@@ -15,7 +15,6 @@ import { ConnectionsView } from "./views/connections_view.js";
 import { ScLookupView } from "./views/sc_lookup.obsidian.js";
 import { SmartChatsView } from "./views/smart_chat.obsidian.js";
 import { SmartChatGPTView } from "./views/sc_chatgpt.obsidian.js";
-import { SmartPrivateChatView } from "./views/sc_private_chat.obsidian.js";
 import { SmartChatView } from "smart-chat-obsidian/src/smart_chat.obsidian.js";
 import { smart_env_config as smart_chat_env_config } from "smart-chat-obsidian/smart_env.config.js";
 import { smart_env_config as smart_context_env_config } from "smart-context-obsidian/smart_env.config.js";

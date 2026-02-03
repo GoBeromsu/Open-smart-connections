@@ -31,18 +31,43 @@ The build creates `.hotreload` files in destination plugins for Obsidian hot rel
 
 ## Architecture
 
-### Dependencies
+### Library Structure (lib/)
 
-This plugin depends on local packages from sibling directories:
-- `../jsbrains/*` - Core Smart Environment modules (smart-collections, smart-entities, smart-sources, smart-blocks, smart-embed-model, etc.)
-- `../obsidian-smart-env` - Obsidian-specific Smart Environment integration
-- `../smart-context-obsidian` - Context handling for Obsidian
+All dependencies are consolidated into `lib/` with a clean module structure:
 
-### Plugin Structure
+```
+lib/
+├── core/                    # Core utilities and base classes
+│   ├── utils/              # Utility functions (hash, deep, path, format, math, async, error)
+│   ├── adapters/           # Base adapter classes
+│   ├── collections/        # Collection framework (from smart-collections)
+│   ├── fs/                 # File system abstraction (from smart-fs)
+│   ├── http/               # HTTP request handling (from smart-http-request)
+│   ├── settings/           # Settings management (from smart-settings)
+│   └── view/               # View rendering (from smart-view)
+├── models/                  # AI model integrations
+│   ├── smart_model.js      # Base model class
+│   ├── chat/               # Chat model adapters (OpenAI, Anthropic, etc.)
+│   └── embed/              # Embedding model adapters (Transformers, OpenAI, etc.)
+├── entities/                # Content entities
+│   ├── smart_entity.js     # Base entity class
+│   ├── smart_entities.js   # Entity collection
+│   ├── sources/            # Source files (markdown, media, etc.)
+│   └── blocks/             # Content blocks within sources
+├── environment/             # Smart Environment runtime
+│   ├── smart_env.js        # Environment orchestrator
+│   └── notices/            # Notification system
+└── obsidian/                # Obsidian-specific integrations
+    ├── smart_env.js        # Obsidian SmartEnv extension
+    ├── chat/               # Chat UI for Obsidian
+    └── context/            # Context handling
+```
+
+### Plugin Structure (src/)
 
 ```
 src/
-├── main.js              # Plugin entry, extends SmartPlugin from obsidian-smart-env
+├── index.js             # Plugin entry, extends SmartPlugin
 ├── collections/         # Collection classes (ConnectionsLists)
 ├── items/               # Item classes (ConnectionsList)
 ├── components/          # Renderable UI components (connections-view, connections-list, lookup)

@@ -2,7 +2,7 @@ import esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
-import { build_smart_env_config } from './lib/obsidian-smart-env/build_smart_env_config.js';
+import { build_smart_env_config } from './lib/obsidian/build_smart_env_config.js';
 import { create_banner } from './src/utils/banner.js';
 
 const roots = [
@@ -132,25 +132,29 @@ esbuild.build({
   platform: 'node',
   preserveSymlinks: true,
   alias: {
-    'smart-blocks': './lib/jsbrains/smart-blocks',
-    'smart-chat-model': './lib/jsbrains/smart-chat-model',
-    'smart-collections': './lib/jsbrains/smart-collections',
-    'smart-embed-model': './lib/jsbrains/smart-embed-model',
-    'smart-entities': './lib/jsbrains/smart-entities',
-    'smart-environment': './lib/jsbrains/smart-environment',
-    'smart-file-system': './lib/jsbrains/smart-fs',
-    'smart-fs': './lib/jsbrains/smart-fs',
-    'smart-http-request': './lib/jsbrains/smart-http-request',
-    'smart-model': './lib/jsbrains/smart-model',
-    'smart-notices': './lib/jsbrains/smart-notices',
-    'smart-settings': './lib/jsbrains/smart-settings',
-    'smart-sources': './lib/jsbrains/smart-sources',
-    'smart-utils': './lib/jsbrains/smart-utils',
-    'smart-view': './lib/jsbrains/smart-view',
-    'obsidian-smart-env': './lib/obsidian-smart-env',
-    'smart-chat-obsidian': './lib/smart-chat-obsidian',
-    'smart-context-obsidian': './lib/smart-context-obsidian',
-    'smart-plugins-obsidian': './lib/smart-plugins-obsidian',
+    // Core modules
+    'smart-collections': './lib/core/collections',
+    'smart-fs': './lib/core/fs',
+    'smart-file-system': './lib/core/fs',
+    'smart-http-request': './lib/core/http',
+    'smart-settings': './lib/core/settings',
+    'smart-utils': './lib/core/utils',
+    'smart-view': './lib/core/view',
+    // Models
+    'smart-model': './lib/models',
+    'smart-chat-model': './lib/models/chat',
+    'smart-embed-model': './lib/models/embed',
+    // Entities
+    'smart-entities': './lib/entities',
+    'smart-sources': './lib/entities/sources',
+    'smart-blocks': './lib/entities/blocks',
+    // Environment
+    'smart-environment': './lib/environment',
+    'smart-notices': './lib/environment/notices',
+    // Obsidian
+    'obsidian-smart-env': './lib/obsidian',
+    'smart-chat-obsidian': './lib/obsidian/chat',
+    'smart-context-obsidian': './lib/obsidian/context',
   },
   external: [
     'electron',
