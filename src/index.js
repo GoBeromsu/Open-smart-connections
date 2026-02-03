@@ -9,6 +9,7 @@ const {
 import { SmartEnv } from 'obsidian-smart-env';
 import { smart_env_config } from "./smart_env.config.js";
 import { smart_env_config as built_smart_env_config } from "../smart_env.config.js";
+import { smart_env_config as obsidian_smart_env_config } from 'obsidian-smart-env/smart_env.config.js';
 
 import { ConnectionsView } from "./views/connections_view.js";
 import { ScLookupView } from "./views/sc_lookup.obsidian.js";
@@ -57,6 +58,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   get smart_env_config() {
     if(!this._smart_env_config){
       const merged_env_config = merge_env_config(built_smart_env_config, smart_env_config);
+      merge_env_config(merged_env_config, obsidian_smart_env_config);
       merge_env_config(merged_env_config, smart_chat_env_config);
       merge_env_config(merged_env_config, smart_context_env_config);
       this._smart_env_config = {
