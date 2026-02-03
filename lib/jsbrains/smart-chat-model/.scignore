@@ -1,0 +1,5 @@
+dist/
+schemas/*.json
+schema.js
+adapters/*.test.js
+# adapters/
