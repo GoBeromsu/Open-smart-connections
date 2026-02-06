@@ -1,10 +1,10 @@
-# CLAUDE.md
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+> Git strategy, branch naming, commit convention, and release management are defined in the **root CLAUDE.md**. This file covers plugin-specific details only.
 
 ## Project Overview
 
-Smart Connections is an Obsidian plugin that uses local embeddings to surface semantically related notes. It provides a Connections view showing notes related to the current file and a Lookup view for semantic search across the vault.
+Open Smart Connections is an Obsidian plugin that uses local embeddings to surface semantically related notes. It provides a Connections view showing notes related to the current file and a Lookup view for semantic search across the vault.
 
 ## Build Commands
 
@@ -33,18 +33,18 @@ The build creates `.hotreload` files in destination plugins for Obsidian hot rel
 
 ### Library Structure (lib/)
 
-All dependencies are consolidated into `lib/` with a clean module structure:
+All dependencies are consolidated into `lib/` with a unified module structure. The library uses a single root package.json - individual packages no longer have their own package.json files.
 
 ```
 lib/
 ├── core/                    # Core utilities and base classes
 │   ├── utils/              # Utility functions (hash, deep, path, format, math, async, error)
 │   ├── adapters/           # Base adapter classes
-│   ├── collections/        # Collection framework (from smart-collections)
-│   ├── fs/                 # File system abstraction (from smart-fs)
-│   ├── http/               # HTTP request handling (from smart-http-request)
-│   ├── settings/           # Settings management (from smart-settings)
-│   └── view/               # View rendering (from smart-view)
+│   ├── collections/        # Collection framework
+│   ├── fs/                 # File system abstraction
+│   ├── http/               # HTTP request handling
+│   ├── settings/           # Settings management
+│   └── view/               # View rendering
 ├── models/                  # AI model integrations
 │   ├── smart_model.js      # Base model class
 │   ├── chat/               # Chat model adapters (OpenAI, Anthropic, etc.)
@@ -86,6 +86,25 @@ src/
 
 Components export a `render` function and optionally `settings_config`. Actions export action functions and optional `pre_process`.
 
+### Error Handling with SmartNotice
+
+Use the `SmartNotice` utility for centralized error handling and user notifications:
+- Provides consistent error messaging across the plugin
+- Handles both transient notices and persistent error states
+- Integrates with the Obsidian notification system
+- Supports different severity levels (info, warning, error)
+
+Example usage:
+```javascript
+import { SmartNotice } from './lib/environment/notices/smart_notice.js';
+
+// Show a notice to the user
+SmartNotice.show('Operation completed successfully');
+
+// Show an error notice
+SmartNotice.error('Failed to load embeddings');
+```
+
 ### Views vs Components
 
 - **Views** (`src/views/`): Obsidian ItemView subclasses that register with the workspace
@@ -116,7 +135,32 @@ npx ava src/utils/pause_controls.test.js --verbose
 - `src/items/connections_list.js` - ConnectionsList item with scoring pipeline
 - `esbuild.js` - Build configuration with CSS and markdown plugins
 
+## Future Plans
+
+The project is planning a TypeScript conversion to improve type safety and developer experience. When contributing new code, consider:
+- Using JSDoc type annotations where possible
+- Following patterns that will translate well to TypeScript
+- Keeping modules small and focused for easier conversion
+
 ## Resources
 
-- Repository: https://github.com/brianpetro/obsidian-smart-connections
 - Obsidian Plugin API Docs: https://docs.obsidian.md/Home
+
+## CDP Testing
+
+Use `obsidian-cdp` skill for Playwright CDP automation:
+- Enable plugin: `enablePlugin(id)` + `enabledPlugins.add()` + `saveConfig()`
+- Check settings: `window.app.plugins.plugins['open-smart-connections'].settings`
+- Verify plugin load status with `verify-plugin.mjs`
+- Capture UI state with `screenshot.mjs`
+
+## Current Known Issues
+
+- Chat model config conflict: `open_router` vs `ollama`, model_key `"undefined"` problem
+- `90. Settings` folder caught by folder_exclusions
+- After `enablePlugin()`, the `enabledPlugins` Set requires manual sync
+
+## Hot Reload
+
+- `DESTINATION_VAULTS` in `.env` auto-copies builds to vault on build
+- `.hotreload` file triggers Obsidian change detection
