@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--cdp-endpoint",
+        "ws://localhost:9222",
+        "--console-level",
+        "debug",
+        "--caps",
+        "vision"
+      ]
+    }
+  }
+}
