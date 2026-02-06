@@ -6,7 +6,7 @@ import { smart_env_config as built_smart_env_config } from "../smart_env.config.
 import { smart_env_config as obsidian_smart_env_config } from 'obsidian-smart-env/smart_env.config.js';
 
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from "./views/connections_view.js";
-import { OscSettingsTab } from "./settings_tab.js";
+import { OscSettingsTab } from "./settings_tab.ts";
 import { open_note } from "obsidian-smart-env/utils/open_note.js";
 import { merge_env_config } from "obsidian-smart-env";
 import { add_smart_dice_icon } from "./utils/add_icons.js";
