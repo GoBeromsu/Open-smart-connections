@@ -1,67 +1,115 @@
-# Smart Connections (Community Fork)
+# Open Smart Connections
 
-An Obsidian plugin that uses local AI embeddings to find semantically related notes.
+An Obsidian plugin that uses AI embeddings to surface semantically related notes. Works offline with local models, or connect to any major embedding provider.
 
-> This is a community-maintained fork of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro.
+> Community-maintained fork of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro, rebuilt for stability and extensibility.
 
-## Why This Fork?
+## Quick Start
 
-The original Smart Connections has been an invaluable tool for the Obsidian community. However, starting from version 4.x, [several issues](https://github.com/brianpetro/obsidian-smart-connections/issues) have been reported that affect core functionality:
+### Install from Release
 
-- Embedding model compatibility issues
-- Configuration and settings problems
-- Performance degradation in large vaults
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/GoBeromsu/Open-smart-connections/releases/latest)
+2. Create `.obsidian/plugins/open-smart-connections/` in your vault
+3. Copy the three files into that folder
+4. Enable **Open Smart Connections** in Settings > Community Plugins
 
-This community fork aims to:
-- **Maintain stability** for users who depend on Smart Connections daily
-- **Fix critical bugs** that impact core functionality
-- **Preserve the original vision** of a privacy-first, local-first semantic search tool
-
-## Features
-
-- **Zero-setup**: Local AI models for embeddings, no API key required
-- **Private & offline**: Your data stays on your device
-- **Mobile support**: Works on iOS and Android
-- **Multiple model options**: Supports local models via Ollama, LM Studio, and HuggingFace transformers.js
-- **Lightweight**: ~1 MB bundle with minimal dependencies
-
-## Installation
-
-### Manual Installation
-
-1. Download the latest release from the [Releases](../../releases) page
-2. Extract to your vault's `.obsidian/plugins/smart-connections/` directory
-3. Enable the plugin in Obsidian Settings > Community Plugins
-
-### From Source
+### Build from Source
 
 ```bash
-git clone https://github.com/GoBeromsu/obsidian-smart-connections.git
-cd obsidian-smart-connections
+git clone https://github.com/GoBeromsu/Open-smart-connections.git
+cd Open-smart-connections
 npm install
 npm run build
 ```
 
-Copy the `dist/` contents to your vault's plugin directory.
+Copy `dist/` contents to your vault's `.obsidian/plugins/open-smart-connections/` directory.
+
+### Development
+
+```bash
+# Set your test vault in .env
+echo 'DESTINATION_VAULTS=../../Obsidian/YourVault' > .env
+
+# Watch mode — auto-rebuilds and hot-reloads on save
+npm run build:watch
+```
+
+## Features
+
+- **Zero-setup local embeddings** — runs TaylorAI/bge-micro-v2 in-browser via transformers.js, no API key needed
+- **7 embedding providers** — Transformers (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter
+- **Dynamic model selection** — settings UI auto-discovers models from API providers
+- **Dimension change detection** — warns and re-embeds when switching to a model with different vector dimensions
+- **Privacy-first** — your notes never leave your device with local models
+- **Mobile support** — works on iOS and Android
+- **Connections View** — see related notes as you navigate your vault
+- **Semantic search** — find notes by meaning, not just keywords
+
+## Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| Platform | Obsidian Plugin API |
+| Language | TypeScript, JavaScript |
+| Bundler | esbuild |
+| Embeddings | transformers.js (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter |
+| Testing | AVA |
+
+## Project Structure
+
+```
+obsidian-smart-connections/
+├── src/                        # Plugin source
+│   ├── index.js                # Plugin entry point
+│   ├── settings_tab.ts         # Settings UI with provider/model selection
+│   ├── views/                  # Obsidian ItemView wrappers
+│   └── utils/                  # Helper functions
+├── lib/                        # Unified library (no separate package.json)
+│   ├── core/                   # Utilities, adapters, collections, fs, http
+│   ├── models/                 # AI model integrations
+│   │   ├── embed/              # Embedding adapters (7 providers)
+│   │   └── chat/               # Chat model adapters
+│   ├── entities/               # Content entities (sources, blocks)
+│   ├── environment/            # SmartEnv runtime
+│   └── obsidian/               # Obsidian-specific integrations
+├── dist/                       # Build output (gitignored)
+├── esbuild.js                  # Build configuration
+├── tsconfig.json               # TypeScript config
+└── manifest.json               # Obsidian plugin manifest
+```
+
+## Embedding Providers
+
+| Provider | Type | Models | API Key |
+|----------|------|--------|---------|
+| Transformers | Local (in-browser) | bge-micro-v2, bge-small, nomic-embed, jina-v2 | No |
+| OpenAI | API | text-embedding-3-small/large, ada-002, + dim variants | Yes |
+| Ollama | Local (server) | Any pulled embedding model | No |
+| Gemini | API | gemini-embedding-001 | Yes |
+| LM Studio | Local (server) | Any loaded embedding model | No |
+| Upstage | API | embedding-query, embedding-passage | Yes |
+| OpenRouter | API | Auto-discovered embedding models | Yes |
 
 ## Usage
 
-1. Enable Smart Connections from Obsidian's Community Plugins
-2. Open the Connections view (ribbon icon or command palette)
-3. The plugin will automatically begin creating embeddings using a local model
-4. View related notes as you navigate your vault
+1. Open Settings > Open Smart Connections
+2. Choose an **embedding provider** (default: Transformers local)
+3. Select a **model** from the dropdown
+4. For API providers, enter your API key
+5. Open the **Connections** view from the ribbon or command palette
+6. Navigate your vault — related notes appear automatically
 
 ## Contributing
 
-Contributions are welcome! Please:
-
 1. Fork this repository
-2. Create a feature branch
-3. Submit a pull request with a clear description
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `refactor:`, etc.)
+4. Run `npm run build` to verify
+5. Submit a pull request
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** (GPL-3.0), the same license as the original Smart Connections.
+**GNU General Public License v3.0** (GPL-3.0)
 
 ### Attribution
 
@@ -74,6 +122,7 @@ Per GPL-3.0 Section 5, this modified version is clearly marked as different from
 
 ## Links
 
+- [Releases](https://github.com/GoBeromsu/Open-smart-connections/releases)
 - [Original Repository](https://github.com/brianpetro/obsidian-smart-connections)
 - [Original Documentation](https://smartconnections.app/)
 - [Obsidian](https://obsidian.md/)
