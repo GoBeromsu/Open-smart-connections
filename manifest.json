@@ -1,10 +1,10 @@
 {
   "id": "open-smart-connections",
   "name": "Open Smart Connections",
-  "author": "GoBeromsu (forked from Brian Petro)",
+  "author": "beomsuKoh (forked from Brian Petro)",
   "description": "Chat with your notes & see links to related content with Local or Remote models.",
   "minAppVersion": "1.1.0",
-  "authorUrl": "https://github.com/GoBeromsu/obsidian-smart-connections",
+  "authorUrl": "https://github.com/beomsuKoh/obsidian-smart-connections",
   "isDesktopOnly": false,
-  "version": "2.0.0"
+  "version": "2.0.1"
 }

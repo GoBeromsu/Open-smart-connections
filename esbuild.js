@@ -85,23 +85,9 @@ fs.copyFileSync(styles_path, path.join(process.cwd(), 'dist', 'styles.css'));
 
 const destination_vaults = process.env.DESTINATION_VAULTS?.split(',') || [];
 
-// get first argument as entry point
-const entry_point = process.argv[2] || 'src/index.js';
-
-// update release_notes.md with version
-const release_notes_path = path.join(process.cwd(), 'src', 'views', 'release_notes_view.js');
-const release_notes_lines = fs.readFileSync(release_notes_path, 'utf8').split('\n');
-const release_notes_version_file_exists = fs.existsSync(path.join(process.cwd(), 'releases', package_json.version + '.md'));
-if(release_notes_version_file_exists) {
-  for(let i = 0; i < release_notes_lines.length; i++) {
-    if(release_notes_lines[i].startsWith('import release_notes_md from')) {
-      release_notes_lines[i] = `import release_notes_md from '../../releases/${package_json.version}.md' with { type: 'markdown' };`;
-      break;
-    }
-  }
-  const updated_release_notes_text = release_notes_lines.join('\n');
-  fs.writeFileSync(release_notes_path, updated_release_notes_text);
-}
+const cli_args = process.argv.slice(2);
+const is_watch = cli_args.includes('--watch');
+const entry_point = cli_args.find((arg) => !arg.startsWith('-')) || 'src/index.js';
 
 // markdown plugin
 const markdown_plugin = {
@@ -118,9 +104,33 @@ const markdown_plugin = {
     });
   }
 };
+const release_file_paths = [manifest_path, styles_path, main_path];
+
+function copy_output_plugin() {
+  return {
+    name: 'copy-output-plugin',
+    setup(build) {
+      build.onEnd((result) => {
+        if (result.errors?.length) return;
+        console.log('Build complete');
+        for (const vault of destination_vaults) {
+          const destDir = path.join(process.cwd(), '..', vault, '.obsidian', 'plugins', manifest_json.id);
+          console.log(`Copying files to ${destDir}`);
+          fs.mkdirSync(destDir, { recursive: true });
+          for (const file_path of release_file_paths) {
+            fs.copyFileSync(file_path, path.join(destDir, path.basename(file_path)));
+          }
+          // Touch hot reload marker on every successful build.
+          fs.writeFileSync(path.join(destDir, '.hotreload'), String(Date.now()));
+          console.log(`Copied files to ${destDir}`);
+        }
+      });
+    },
+  };
+}
 // Build the project
 const copyright_banner = create_banner(package_json);
-esbuild.build({
+const build_options = {
   entryPoints: [entry_point],
   outfile: 'dist/main.js',
   format: 'cjs',
@@ -133,28 +143,34 @@ esbuild.build({
   preserveSymlinks: true,
   alias: {
     // Core modules
-    'smart-collections': './lib/core/collections',
-    'smart-fs': './lib/core/fs',
-    'smart-file-system': './lib/core/fs',
-    'smart-http-request': './lib/core/http',
-    'smart-settings': './lib/core/settings',
-    'smart-utils': './lib/core/utils',
-    'smart-view': './lib/core/view',
+    'smart-collections': path.resolve(process.cwd(), 'lib/core/collections'),
+    'smart-events': path.resolve(process.cwd(), 'lib/core/smart-events'),
+    'smart-fs': path.resolve(process.cwd(), 'lib/core/fs'),
+    'smart-file-system': path.resolve(process.cwd(), 'lib/core/fs'),
+    'smart-http-request': path.resolve(process.cwd(), 'lib/core/http'),
+    'smart-settings': path.resolve(process.cwd(), 'lib/core/settings'),
+    'smart-utils': path.resolve(process.cwd(), 'lib/core/utils'),
+    'smart-view': path.resolve(process.cwd(), 'lib/core/view'),
     // Models
-    'smart-model': './lib/models',
-    'smart-chat-model': './lib/models/chat',
-    'smart-embed-model': './lib/models/embed',
+    'smart-model': path.resolve(process.cwd(), 'lib/models'),
+    'smart-chat-model': path.resolve(process.cwd(), 'lib/models/chat'),
+    'smart-embed-model': path.resolve(process.cwd(), 'lib/models/embed'),
     // Entities
-    'smart-entities': './lib/entities',
-    'smart-sources': './lib/entities/sources',
-    'smart-blocks': './lib/entities/blocks',
+    'smart-entities': path.resolve(process.cwd(), 'lib/entities'),
+    'smart-sources': path.resolve(process.cwd(), 'lib/entities/sources'),
+    'smart-blocks': path.resolve(process.cwd(), 'lib/entities/blocks'),
     // Environment
-    'smart-environment': './lib/environment',
-    'smart-notices': './lib/environment/notices',
+    'smart-environment': path.resolve(process.cwd(), 'lib/environment'),
+    'smart-notices': path.resolve(process.cwd(), 'lib/environment/notices'),
     // Obsidian
-    'obsidian-smart-env': './lib/obsidian',
-    'smart-chat-obsidian': './lib/obsidian/chat',
-    'smart-context-obsidian': './lib/obsidian/context',
+    'obsidian-smart-env': path.resolve(process.cwd(), 'lib/obsidian'),
+    'smart-chat-obsidian': path.resolve(process.cwd(), 'lib/obsidian/chat'),
+    'smart-context-obsidian': path.resolve(process.cwd(), 'lib/obsidian/context'),
+    // Actions
+    'smart-actions': path.resolve(process.cwd(), 'lib/smart-actions'),
+    // Completions & Contexts
+    'smart-completions': path.resolve(process.cwd(), 'lib/completions'),
+    'smart-contexts': path.resolve(process.cwd(), 'lib/contexts'),
   },
   external: [
     'electron',
@@ -168,22 +184,14 @@ esbuild.build({
   define: {
     'process.env.DEFAULT_OPEN_ROUTER_API_KEY': JSON.stringify(process.env.DEFAULT_OPEN_ROUTER_API_KEY || ''),
   },
-  plugins: [css_with_plugin(), markdown_plugin],
+  plugins: [css_with_plugin(), markdown_plugin, copy_output_plugin()],
   banner: { js: copyright_banner },
-}).then(() => {
-  console.log('Build complete');
-  const release_file_paths = [manifest_path, styles_path, main_path];
-  for(let vault of destination_vaults) {
-    const destDir = path.join(process.cwd(), '..', vault, '.obsidian', 'plugins', manifest_json.id);
-    console.log(`Copying files to ${destDir}`);
-    fs.mkdirSync(destDir, { recursive: true });
-    // create .hotreload file if it doesn't exist
-    if(!fs.existsSync(path.join(destDir, '.hotreload'))) {
-      fs.writeFileSync(path.join(destDir, '.hotreload'), '');
-    }
-    release_file_paths.forEach(file_path => {
-      fs.copyFileSync(file_path, path.join(destDir, path.basename(file_path)));
-    });
-    console.log(`Copied files to ${destDir}`);
-  }
-}).catch(() => process.exit(1));
+};
+
+if (is_watch) {
+  const ctx = await esbuild.context(build_options);
+  await ctx.watch();
+  console.log('Watching for changes...');
+} else {
+  await esbuild.build(build_options).catch(() => process.exit(1));
+}

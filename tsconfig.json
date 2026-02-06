@@ -11,9 +11,6 @@
       "smart-sources": ["./lib/entities/sources"],
       "smart-blocks": ["./lib/entities/blocks"],
       "smart-model": ["./lib/models"],
-      "smart-model/*": ["./lib/models/*"],
-      "smart-http-request": ["./lib/core/http"],
-      "smart-http-request/*": ["./lib/core/http/*"],
       "smart-utils": ["./lib/core/utils"],
       "smart-utils/*": ["./lib/core/utils/*"]
     },
