@@ -1,16 +1,19 @@
 {
   "name": "open-smart-connections",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "type": "module",
   "description": "Link and chat with your notes using ChatGPT and embedding artificial intelligence from OpenAI.",
   "scripts": {
     "build": "node esbuild.js",
     "build:watch": "node esbuild.js --watch",
-    "typecheck": "npx tsc --noEmit",
-    "typecheck:watch": "npx tsc --noEmit --watch",
-    "verify:migration": "npm run typecheck && npm run build",
-    "release": "node release.js",
-    "test": "npx ava --verbose"
+    "dev": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src core worker --ext .ts",
+    "lint:fix": "eslint src core worker --ext .ts --fix",
+    "release": "node release.js"
   },
   "repository": {
     "type": "git",
@@ -33,29 +36,25 @@
   "homepage": "https://github.com/beomsuKoh/obsidian-smart-connections",
   "devDependencies": {
     "@huggingface/transformers": "^3.7.2",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitest/ui": "^1.0.0",
     "@xenova/transformers": "latest",
     "archiver": "^6.0.1",
-    "ava": "^6.0.1",
     "axios": "^1.6.7",
     "dotenv": "^16.3.1",
     "esbuild": "^0.25.9",
+    "eslint": "^8.0.0",
     "jsdom": "^24.1.0",
     "sql.js": "^1.12.0",
     "swagger-jsdoc": "^6.2.8",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.0.0"
   },
   "dependencies": {
     "js-tiktoken": "^1.0.19",
     "lucide-static": "^0.414.0",
+    "node-fetch": "^2.7.0",
     "obsidian": "latest"
-  },
-  "ava": {
-    "files": [
-      "*.test.js",
-      "smart-chat/*.test.js",
-      "src/*.test.js",
-      "src/utils/*.test.js"
-    ],
-    "require": []
   }
 }

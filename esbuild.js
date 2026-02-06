@@ -2,14 +2,6 @@ import esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
-import { build_smart_env_config } from './lib/obsidian/build_smart_env_config.js';
-import { create_banner } from './src/utils/banner.js';
-
-const roots = [
-  path.resolve(process.cwd(), 'src'),
-  // path.resolve(process.cwd(), '..', 'smart-context-obsidian', 'src'),
-];
-build_smart_env_config(process.cwd(), roots);
 
 /**
  * Plugin to process CSS files imported with an import attribute:
@@ -87,7 +79,6 @@ const destination_vaults = process.env.DESTINATION_VAULTS?.split(',') || [];
 
 const cli_args = process.argv.slice(2);
 const is_watch = cli_args.includes('--watch');
-const entry_point = cli_args.find((arg) => !arg.startsWith('-')) || 'src/index.js';
 
 // markdown plugin
 const markdown_plugin = {
@@ -104,7 +95,8 @@ const markdown_plugin = {
     });
   }
 };
-const release_file_paths = [manifest_path, styles_path, main_path];
+const worker_path = path.join(process.cwd(), 'dist', 'embed-worker.js');
+const release_file_paths = [manifest_path, styles_path, main_path, worker_path];
 
 function copy_output_plugin() {
   return {
@@ -120,6 +112,10 @@ function copy_output_plugin() {
           for (const file_path of release_file_paths) {
             fs.copyFileSync(file_path, path.join(destDir, path.basename(file_path)));
           }
+          // Copy worker file if it exists
+          if (fs.existsSync(worker_path)) {
+            fs.copyFileSync(worker_path, path.join(destDir, path.basename(worker_path)));
+          }
           // Touch hot reload marker on every successful build.
           fs.writeFileSync(path.join(destDir, '.hotreload'), String(Date.now()));
           console.log(`Copied files to ${destDir}`);
@@ -128,50 +124,22 @@ function copy_output_plugin() {
     },
   };
 }
-// Build the project
-const copyright_banner = create_banner(package_json);
+
+// Build the project (connector code is inlined in transformers.ts, no separate worker needed)
 const build_options = {
-  entryPoints: [entry_point],
-  outfile: 'dist/main.js',
+  entryPoints: {
+    'main': 'src/main.ts',
+  },
+  outdir: 'dist',
+  outExtension: { '.js': '.js' },
   format: 'cjs',
   bundle: true,
   write: true,
-  target: "es2022",
+  target: "es2018",
   logLevel: "info",
   treeShaking: true,
   platform: 'node',
   preserveSymlinks: true,
-  alias: {
-    // Core modules
-    'smart-collections': path.resolve(process.cwd(), 'lib/core/collections'),
-    'smart-events': path.resolve(process.cwd(), 'lib/core/smart-events'),
-    'smart-fs': path.resolve(process.cwd(), 'lib/core/fs'),
-    'smart-file-system': path.resolve(process.cwd(), 'lib/core/fs'),
-    'smart-http-request': path.resolve(process.cwd(), 'lib/core/http'),
-    'smart-settings': path.resolve(process.cwd(), 'lib/core/settings'),
-    'smart-utils': path.resolve(process.cwd(), 'lib/core/utils'),
-    'smart-view': path.resolve(process.cwd(), 'lib/core/view'),
-    // Models
-    'smart-model': path.resolve(process.cwd(), 'lib/models'),
-    'smart-chat-model': path.resolve(process.cwd(), 'lib/models/chat'),
-    'smart-embed-model': path.resolve(process.cwd(), 'lib/models/embed'),
-    // Entities
-    'smart-entities': path.resolve(process.cwd(), 'lib/entities'),
-    'smart-sources': path.resolve(process.cwd(), 'lib/entities/sources'),
-    'smart-blocks': path.resolve(process.cwd(), 'lib/entities/blocks'),
-    // Environment
-    'smart-environment': path.resolve(process.cwd(), 'lib/environment'),
-    'smart-notices': path.resolve(process.cwd(), 'lib/environment/notices'),
-    // Obsidian
-    'obsidian-smart-env': path.resolve(process.cwd(), 'lib/obsidian'),
-    'smart-chat-obsidian': path.resolve(process.cwd(), 'lib/obsidian/chat'),
-    'smart-context-obsidian': path.resolve(process.cwd(), 'lib/obsidian/context'),
-    // Actions
-    'smart-actions': path.resolve(process.cwd(), 'lib/smart-actions'),
-    // Completions & Contexts
-    'smart-completions': path.resolve(process.cwd(), 'lib/completions'),
-    'smart-contexts': path.resolve(process.cwd(), 'lib/contexts'),
-  },
   external: [
     'electron',
     'obsidian',
@@ -185,7 +153,6 @@ const build_options = {
     'process.env.DEFAULT_OPEN_ROUTER_API_KEY': JSON.stringify(process.env.DEFAULT_OPEN_ROUTER_API_KEY || ''),
   },
   plugins: [css_with_plugin(), markdown_plugin, copy_output_plugin()],
-  banner: { js: copyright_banner },
 };
 
 if (is_watch) {

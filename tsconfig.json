@@ -3,32 +3,24 @@
     "baseUrl": ".",
     "outDir": "dist",
     "paths": {
-      "smart-collections": ["./lib/core/collections"],
-      "smart-fs": ["./lib/core/fs"],
-      "smart-file-system": ["./lib/core/fs"],
-      "smart-view": ["./lib/core/view"],
-      "smart-entities": ["./lib/entities"],
-      "smart-sources": ["./lib/entities/sources"],
-      "smart-blocks": ["./lib/entities/blocks"],
-      "smart-model": ["./lib/models"],
-      "smart-utils": ["./lib/core/utils"],
-      "smart-utils/*": ["./lib/core/utils/*"]
+      "core/*": ["./core/*"],
+      "src/*": ["./src/*"]
     },
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
-    "target": "ES2022",
+    "target": "ES2018",
     "allowJs": true,
     "noImplicitAny": true,
     "moduleResolution": "node",
     "isolatedModules": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["DOM", "ES2022"],
+    "lib": ["DOM", "ES2018"],
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "lib/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.js"]
+  "include": ["src/**/*", "core/**/*", "worker/**/*"],
+  "exclude": ["node_modules", "lib", "dist", "**/*.test.ts", "**/*.test.js"]
 }
