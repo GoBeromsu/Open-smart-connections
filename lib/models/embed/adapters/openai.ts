@@ -2,7 +2,8 @@ import {
   SmartEmbedModelApiAdapter,
   SmartEmbedModelRequestAdapter,
   SmartEmbedModelResponseAdapter,
-} from "./_api.js";
+} from "./_api";
+import type { AdapterDefaults, EmbedResult, ModelInfo, SettingsConfigEntry } from '../../types';
 
 /**
  * Adapter for OpenAI's embedding API
@@ -10,7 +11,7 @@ import {
  * @extends SmartEmbedModelApiAdapter
  */
 export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
-  static defaults = {
+  static defaults: AdapterDefaults = {
     adapter: 'openai',
     description: 'OpenAI (API)',
     default_model: 'text-embedding-3-small',
@@ -20,9 +21,9 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
   /**
    * Count tokens in input text using OpenAI's tokenizer
    * @param {string} input - Text to tokenize
-   * @returns {Promise<Object>} Token count result
+   * @returns {Promise<{tokens: number}>} Token count result
    */
-  async count_tokens(input) {
+  async count_tokens(input: string): Promise<{ tokens: number }> {
     if (!this.tiktoken) await this.load_tiktoken();
     return { tokens: this.tiktoken.encode(input).length };
   }
@@ -33,7 +34,7 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
    * @param {string} embed_input - Raw input text
    * @returns {Promise<string|null>} Processed input text
    */
-  async prepare_embed_input(embed_input) {
+  async prepare_embed_input(embed_input: string): Promise<string | null> {
     if (typeof embed_input !== "string") {
       throw new TypeError("embed_input must be a string");
     }
@@ -44,7 +45,7 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
     }
 
     const { tokens } = await this.count_tokens(embed_input);
-    if (tokens <= this.max_tokens) {
+    if (tokens <= (this.max_tokens || 0)) {
       return embed_input;
     }
 
@@ -58,8 +59,9 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
    * @param {number} tokens_ct - Current token count
    * @returns {Promise<string|null>} Trimmed input text
    */
-  async trim_input_to_max_tokens(embed_input, tokens_ct) {
-    const reduce_ratio = (tokens_ct - this.max_tokens) / tokens_ct;
+  async trim_input_to_max_tokens(embed_input: string, tokens_ct: number): Promise<string | null> {
+    const max_tokens = this.max_tokens || 0;
+    const reduce_ratio = (tokens_ct - max_tokens) / tokens_ct;
     const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
     let trimmed_input = embed_input.slice(0, new_length);
     const last_space_index = trimmed_input.lastIndexOf(" ");
@@ -78,45 +80,44 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
 
   /**
    * Get the request adapter class.
-   * @returns {SmartEmbedOpenAIRequestAdapter} The request adapter class
+   * @returns {typeof SmartEmbedOpenAIRequestAdapter} The request adapter class
    */
-  get req_adapter() {
+  get req_adapter(): typeof SmartEmbedOpenAIRequestAdapter {
     return SmartEmbedOpenAIRequestAdapter;
   }
 
   /**
    * Get the response adapter class.
-   * @returns {SmartEmbedOpenAIResponseAdapter} The response adapter class
+   * @returns {typeof SmartEmbedOpenAIResponseAdapter} The response adapter class
    */
-  get res_adapter() {
+  get res_adapter(): typeof SmartEmbedOpenAIResponseAdapter {
     return SmartEmbedOpenAIResponseAdapter;
   }
 
   /** @returns {number} Maximum tokens per input */
-  get max_tokens() {
+  get max_tokens(): number {
     return this.model.data.max_tokens || 8191;
   }
 
-  /** @returns {Object} Settings configuration for OpenAI adapter */
-  get settings_config() {
+  /** @returns {Record<string, SettingsConfigEntry>} Settings configuration for OpenAI adapter */
+  get settings_config(): Record<string, SettingsConfigEntry> {
     return {
       ...super.settings_config,
       "[ADAPTER].api_key": {
         name: "OpenAI API key for embeddings",
         type: "password",
         description: "Required for OpenAI embedding models.",
-        placeholder: "Enter OpenAI API key",
       },
     };
   }
   /**
    * Get available models (hardcoded list)
-   * @returns {Promise<Object>} Map of model objects
+   * @returns {Promise<Record<string, ModelInfo>>} Map of model objects
    */
-  get_models() {
+  get_models(): Promise<Record<string, ModelInfo>> {
     return Promise.resolve(this.models);
   }
-  get models() {
+  get models(): Record<string, ModelInfo> {
     return {
       "text-embedding-3-small": {
         "id": "text-embedding-3-small",
@@ -180,10 +181,10 @@ export class SmartEmbedOpenAIAdapter extends SmartEmbedModelApiAdapter {
 class SmartEmbedOpenAIRequestAdapter extends SmartEmbedModelRequestAdapter {
   /**
    * Prepare request body for OpenAI API
-   * @returns {Object} Request body for API
+   * @returns {Record<string, any>} Request body for API
    */
-  prepare_request_body() {
-    const body = {
+  prepare_request_body(): Record<string, any> {
+    const body: Record<string, any> = {
       model: this.model_id,
       input: this.embed_inputs,
     };
@@ -202,16 +203,16 @@ class SmartEmbedOpenAIRequestAdapter extends SmartEmbedModelRequestAdapter {
 class SmartEmbedOpenAIResponseAdapter extends SmartEmbedModelResponseAdapter {
   /**
    * Parse OpenAI API response
-   * @returns {Array<Object>} Parsed embedding results
+   * @returns {EmbedResult[]} Parsed embedding results
    */
-  parse_response() {
+  parse_response(): EmbedResult[] {
     const resp = this.response;
     if (!resp || !resp.data || !resp.usage) {
       console.error("Invalid response format", resp);
       return [];
     }
     const avg_tokens = resp.usage.total_tokens / resp.data.length;
-    return resp.data.map((item) => ({
+    return resp.data.map((item: any) => ({
       vec: item.embedding,
       tokens: avg_tokens, // OpenAI doesn't provide tokens per item in batch requests
     }));

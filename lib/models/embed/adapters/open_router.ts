@@ -2,7 +2,8 @@ import {
   SmartEmbedModelApiAdapter,
   SmartEmbedModelRequestAdapter,
   SmartEmbedModelResponseAdapter,
-} from "./_api.js";
+} from "./_api";
+import type { AdapterDefaults, EmbedResult, ModelInfo, SettingsConfigEntry } from '../../types';
 
 /**
  * Adapter for OpenRouter's embedding API.
@@ -13,9 +14,9 @@ import {
  * @extends SmartEmbedModelApiAdapter
  */
 export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
-  static key = "open_router";
+  static key: string = "open_router";
 
-  static defaults = {
+  static defaults: AdapterDefaults = {
     description: "OpenRouter (Embeddings)",
     type: "API",
     adapter: "OpenRouterEmbeddings",
@@ -25,16 +26,13 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
     signup_url:
       "https://accounts.openrouter.ai/sign-up?redirect_url=https%3A%2F%2Fopenrouter.ai%2Fkeys",
     streaming: false,
-    api_key: null,
-    batch_size: 50,
-    max_tokens: 8191,
   };
 
   /**
    * Request adapter class
    * @returns {typeof SmartEmbedOpenRouterRequestAdapter}
    */
-  get req_adapter() {
+  get req_adapter(): typeof SmartEmbedOpenRouterRequestAdapter {
     return SmartEmbedOpenRouterRequestAdapter;
   }
 
@@ -42,22 +40,21 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
    * Response adapter class
    * @returns {typeof SmartEmbedOpenRouterResponseAdapter}
    */
-  get res_adapter() {
+  get res_adapter(): typeof SmartEmbedOpenRouterResponseAdapter {
     return SmartEmbedOpenRouterResponseAdapter;
   }
 
   /**
    * Override settings config to label the API key clearly.
-   * @returns {Object} Settings configuration for OpenRouter adapter
+   * @returns {Record<string, SettingsConfigEntry>} Settings configuration for OpenRouter adapter
    */
-  get settings_config() {
+  get settings_config(): Record<string, SettingsConfigEntry> {
     return {
       ...super.settings_config,
       "[ADAPTER].api_key": {
         name: "OpenRouter API key for embeddings",
         type: "password",
         description: "Required for OpenRouter embedding models.",
-        placeholder: "Enter OpenRouter API key",
       },
     };
   }
@@ -65,10 +62,10 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
   /**
    * Estimate token count for input text.
    * OpenRouter does not expose a tokenizer, so we use a character-based heuristic.
-   * @param {string|Object} input
-   * @returns {Promise<{tokens:number}>}
+   * @param {string} input
+   * @returns {Promise<{tokens: number}>}
    */
-  async count_tokens(input) {
+  async count_tokens(input: string): Promise<{ tokens: number }> {
     return { tokens: this.estimate_tokens(input) };
   }
 
@@ -77,14 +74,14 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
    * @param {string} embed_input - Raw input text
    * @returns {Promise<string|null>} Processed input text
    */
-  async prepare_embed_input(embed_input) {
+  async prepare_embed_input(embed_input: string): Promise<string | null> {
     if (typeof embed_input !== "string") {
       throw new TypeError("embed_input must be a string");
     }
     if (embed_input.length === 0) return null;
 
     const { tokens } = await this.count_tokens(embed_input);
-    if (tokens <= this.max_tokens) return embed_input;
+    if (tokens <= (this.max_tokens || 0)) return embed_input;
 
     return await this.trim_input_to_max_tokens(embed_input, tokens);
   }
@@ -93,8 +90,8 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
    * Get the OpenRouter models endpoint.
    * @returns {string} Models endpoint URL
    */
-  get models_endpoint() {
-    return this.constructor.defaults.models_endpoint;
+  get models_endpoint(): string {
+    return (this.constructor as typeof SmartEmbedOpenRouterAdapter).defaults.models_endpoint!;
   }
 
   /**
@@ -102,9 +99,9 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
    * Results are cached in model.data.provider_models and used by the settings UI.
    *
    * @param {boolean} [refresh=false] - Force refresh of model list
-   * @returns {Promise<Object>} Map of model objects keyed by model id
+   * @returns {Promise<Record<string, ModelInfo>>} Map of model objects keyed by model id
    */
-  async get_models(refresh = false) {
+  async get_models(refresh: boolean = false): Promise<Record<string, ModelInfo>> {
     if (!refresh && this.model.data.provider_models) {
       return this.model.data.provider_models;
     }
@@ -114,14 +111,14 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
         "[SmartEmbedOpenRouterAdapter] API key missing; cannot fetch models from OpenRouter."
       );
       // Fallback: minimal single default model so the dropdown is not empty
-      const fallback_id = this.constructor.defaults.default_model;
-      const fallback_models = {
+      const fallback_id = (this.constructor as typeof SmartEmbedOpenRouterAdapter).defaults.default_model!;
+      const fallback_models: Record<string, ModelInfo> = {
         [fallback_id]: {
           id: fallback_id,
           model_name: fallback_id,
           description: "OpenRouter embedding model",
           max_tokens: this.max_tokens,
-          adapter: this.constructor.key,
+          adapter: (this.constructor as typeof SmartEmbedOpenRouterAdapter).key,
         },
       };
       this.model.data.provider_models = fallback_models;
@@ -144,14 +141,14 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
       // Keep any previously loaded models or a minimal fallback
       if (this.model.data.provider_models) return this.model.data.provider_models;
 
-      const fallback_id = this.constructor.defaults.default_model;
-      const fallback_models = {
+      const fallback_id = (this.constructor as typeof SmartEmbedOpenRouterAdapter).defaults.default_model!;
+      const fallback_models: Record<string, ModelInfo> = {
         [fallback_id]: {
           id: fallback_id,
           model_name: fallback_id,
           description: "OpenRouter embedding model",
           max_tokens: this.max_tokens,
-          adapter: this.constructor.key,
+          adapter: (this.constructor as typeof SmartEmbedOpenRouterAdapter).key,
         },
       };
       this.model.data.provider_models = fallback_models;
@@ -163,11 +160,11 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
    * Parse OpenRouter /v1/models response into standard format,
    * but only keep models that look like embeddings.
    *
-   * @param {Object|Array} model_data - Raw models payload from OpenRouter
-   * @returns {Object} Map of model objects keyed by id
+   * @param {any} model_data - Raw models payload from OpenRouter
+   * @returns {Record<string, ModelInfo>} Map of model objects keyed by id
    */
-  parse_model_data(model_data) {
-    let list = [];
+  parse_model_data(model_data: any): Record<string, ModelInfo> {
+    let list: any[] = [];
     if (Array.isArray(model_data?.data)) list = model_data.data;
     else if (Array.isArray(model_data)) list = model_data;
     else {
@@ -178,7 +175,7 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
       return { _: { id: "No models found." } };
     }
 
-    const out = {};
+    const out: Record<string, ModelInfo> = {};
     for (const model of list) {
       const model_id = model.id || model.name;
       if (!model_id) continue;
@@ -189,7 +186,7 @@ export class SmartEmbedOpenRouterAdapter extends SmartEmbedModelApiAdapter {
         model_name: model_id,
         max_tokens: model.context_length || this.max_tokens,
         description: model.name || model.description || `Model: ${model_id}`,
-        adapter: this.constructor.key,
+        adapter: (this.constructor as typeof SmartEmbedOpenRouterAdapter).key,
       };
     }
 
@@ -214,9 +211,9 @@ class SmartEmbedOpenRouterRequestAdapter extends SmartEmbedModelRequestAdapter {
    *   POST /v1/embeddings
    *   { model: string, input: string | string[] }
    *
-   * @returns {Object} Request body for API
+   * @returns {Record<string, any>} Request body for API
    */
-  prepare_request_body() {
+  prepare_request_body(): Record<string, any> {
     return {
       model: this.model_id,
       input: this.embed_inputs,
@@ -242,9 +239,9 @@ class SmartEmbedOpenRouterResponseAdapter extends SmartEmbedModelResponseAdapter
    *   usage?: { prompt_tokens: number, total_tokens: number }
    * }
    *
-   * @returns {Array<{vec:number[], tokens:number|null}>}
+   * @returns {EmbedResult[]}
    */
-  parse_response() {
+  parse_response(): EmbedResult[] {
     const resp = this.response;
     if (!resp || !Array.isArray(resp.data)) {
       console.error(
@@ -254,12 +251,12 @@ class SmartEmbedOpenRouterResponseAdapter extends SmartEmbedModelResponseAdapter
       return [];
     }
 
-    let avg_tokens = null;
+    let avg_tokens: number = 0;
     if (resp.usage?.total_tokens && resp.data.length > 0) {
       avg_tokens = resp.usage.total_tokens / resp.data.length;
     }
 
-    return resp.data.map((item) => {
+    return resp.data.map((item: any) => {
       const vec = item.embedding || item.data || [];
       return {
         vec,
@@ -276,7 +273,7 @@ class SmartEmbedOpenRouterResponseAdapter extends SmartEmbedModelResponseAdapter
  * @param {string} id
  * @returns {boolean}
  */
-const is_embedding_model = (id) => {
+const is_embedding_model = (id: string): boolean => {
   const lower = String(id || "").toLowerCase();
   const segments = lower.split(/[-:/_]/);
   if (segments.some((seg) => ["embed", "embedding", "bge"].includes(seg))) return true;
