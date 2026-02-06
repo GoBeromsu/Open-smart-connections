@@ -5,6 +5,6 @@
   "minAppVersion": "0.13.0",
   "description": "Chat with your notes using 100s of models using the same local-first Smart Environment as Smart Connections.",
   "author": "🌴 Brian",
-  "authorUrl": "https://smartconnections.app",
+  "authorUrl": "https://github.com/GoBeromsu/open-smart-connections",
   "isDesktopOnly": false
 }

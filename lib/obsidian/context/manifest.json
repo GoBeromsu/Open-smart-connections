@@ -5,6 +5,6 @@
   "minAppVersion": "1.0.0",
   "description": "Copy folder contents (Markdown & Canvas files) to the clipboard with a Smart Context approach.",
   "author": "🌴 Brian",
-  "authorUrl": "https://smartconnections.app",
+  "authorUrl": "https://github.com/GoBeromsu/open-smart-connections",
   "isDesktopOnly": false
 }
