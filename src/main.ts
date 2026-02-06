@@ -19,6 +19,7 @@ import { SmartConnectionsSettingsTab } from './settings';
 import { registerCommands } from './commands';
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/ConnectionsView';
 import { ChatView, CHAT_VIEW_TYPE } from './views/ChatView';
+import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
 // Import utilities
 import { add_smart_dice_icon } from './utils/add_icons';
 import { determine_installed_at } from './utils/determine_installed_at';
@@ -93,6 +94,12 @@ export default class SmartConnectionsPlugin extends Plugin {
         (leaf) => new ChatView(leaf, this),
       );
     }
+
+    // Register Lookup view
+    this.registerView(
+      LOOKUP_VIEW_TYPE,
+      (leaf) => new LookupView(leaf, this),
+    );
 
     // Add settings tab
     this.addSettingTab(new SmartConnectionsSettingsTab(this.app, this));

@@ -5,6 +5,8 @@
 
 import type { Plugin } from 'obsidian';
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/connections_view';
+import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
+
 /**
  * Register all plugin commands
  */
@@ -32,6 +34,15 @@ export function registerCommands(plugin: Plugin): void {
       } else {
         ConnectionsView.open(plugin.app.workspace);
       }
+    },
+  });
+
+  // Open lookup view
+  plugin.addCommand({
+    id: 'open-lookup-view',
+    name: 'Open: Smart Lookup',
+    callback: () => {
+      LookupView.open(plugin.app.workspace);
     },
   });
 
