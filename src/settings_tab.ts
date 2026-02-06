@@ -242,7 +242,7 @@ export class OscSettingsTab extends PluginSettingTab {
   private renderModelDropdown(
     containerEl: HTMLElement,
     adapter: any,
-    adapterName: string
+    adapterName: string,
   ): void {
     const modelSetting = new Setting(containerEl)
       .setName('Model')
@@ -271,7 +271,7 @@ export class OscSettingsTab extends PluginSettingTab {
 
     const currentModelKey = this.getConfig(
       `smart_sources.embed_model.${adapterName}.model_key`,
-      ''
+      '',
     );
 
     modelSetting.addDropdown(dropdown => {
@@ -315,11 +315,11 @@ export class OscSettingsTab extends PluginSettingTab {
 
   private renderApiKeyField(
     containerEl: HTMLElement,
-    adapterName: string
+    adapterName: string,
   ): void {
     const currentApiKey = this.getConfig(
       `smart_sources.embed_model.${adapterName}.api_key`,
-      ''
+      '',
     );
 
     new Setting(containerEl)
@@ -338,11 +338,11 @@ export class OscSettingsTab extends PluginSettingTab {
   private renderHostField(
     containerEl: HTMLElement,
     adapterName: string,
-    defaultHost: string
+    defaultHost: string,
   ): void {
     const currentHost = this.getConfig(
       `smart_sources.embed_model.${adapterName}.host`,
-      defaultHost
+      defaultHost,
     );
 
     new Setting(containerEl)
@@ -374,7 +374,7 @@ export class OscSettingsTab extends PluginSettingTab {
   private async handleModelChange(
     newModelKey: string,
     models: Record<string, ModelInfo>,
-    adapterName: string
+    adapterName: string,
   ): Promise<void> {
     const env = this.plugin.env;
     if (!env?.settings || !this.embedModel) return;
@@ -382,7 +382,7 @@ export class OscSettingsTab extends PluginSettingTab {
     // Get old and new model info
     const oldModelKey = this.getConfig(
       `smart_sources.embed_model.${adapterName}.model_key`,
-      ''
+      '',
     );
     const oldModel = models[oldModelKey];
     const newModel = models[newModelKey];
@@ -398,7 +398,7 @@ export class OscSettingsTab extends PluginSettingTab {
 
     if (dimsChanged) {
       new Notice(
-        `Embedding dimensions changed (${oldDims} → ${newDims}). Re-embedding all notes...`
+        `Embedding dimensions changed (${oldDims} → ${newDims}). Re-embedding all notes...`,
       );
     }
 
