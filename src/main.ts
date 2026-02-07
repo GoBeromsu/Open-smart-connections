@@ -36,7 +36,57 @@ import { OpenRouterEmbedAdapter } from '../core/models/embed/adapters/open_route
 import { SourceCollection, BlockCollection, AjsonDataAdapter } from '../core/entities';
 
 // Import embedding pipeline
-import { EmbeddingPipeline } from '../core/search/embedding-pipeline';
+import {
+  EmbeddingPipeline,
+  type EmbedQueueStats,
+} from '../core/search/embedding-pipeline';
+
+export type EmbedStatusState =
+  | 'idle'
+  | 'loading_model'
+  | 'embedding'
+  | 'stopping'
+  | 'paused'
+  | 'error';
+
+export interface EmbeddingRunContext {
+  runId: number;
+  phase: 'running' | 'stopping' | 'paused' | 'completed' | 'failed';
+  reason: string;
+  adapter: string;
+  modelKey: string;
+  dims: number | null;
+  startedAt: number;
+  current: number;
+  total: number;
+  sourceTotal: number;
+  blockTotal: number;
+  saveCount: number;
+  sourceDataDir: string;
+  blockDataDir: string;
+}
+
+export interface EmbedProgressEventPayload {
+  runId: number;
+  phase: EmbeddingRunContext['phase'];
+  reason: string;
+  adapter: string;
+  modelKey: string;
+  dims: number | null;
+  current: number;
+  total: number;
+  percent: number;
+  sourceTotal: number;
+  blockTotal: number;
+  saveCount: number;
+  sourceDataDir: string;
+  blockDataDir: string;
+  startedAt: number;
+  elapsedMs: number;
+  etaMs: number | null;
+  done?: boolean;
+  error?: string;
+}
 
 export default class SmartConnectionsPlugin extends Plugin {
   settings: PluginSettings;
@@ -60,8 +110,15 @@ export default class SmartConnectionsPlugin extends Plugin {
   // Initialization state flags
   ready: boolean = false;
   embed_ready: boolean = false;
-  status_state: 'idle' | 'loading_model' | 'embedding' | 'paused' | 'error' = 'idle';
+  status_state: EmbedStatusState = 'idle';
   init_errors: Array<{ phase: string; error: Error }> = [];
+  embed_run_seq: number = 0;
+  active_embed_run_id: number | null = null;
+  embed_stop_requested: boolean = false;
+  embed_notice?: Notice;
+  embed_notice_last_update = 0;
+  embed_notice_last_percent = 0;
+  current_embed_context: EmbeddingRunContext | null = null;
 
   async onload(): Promise<void> {
     console.log('Loading Smart Connections plugin');
@@ -191,35 +248,8 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initializeEmbedding(): Promise<void> {
     try {
-      // 1. Initialize embed model
-      this.status_state = 'loading_model';
-      this.refreshStatus();
-
-      await this.initEmbedModel();
-      this.syncCollectionEmbeddingContext();
-      const queued_after_sync = this.queueUnembeddedEntities();
-      console.log(
-        `Queued ${queued_after_sync} entities for embedding after model context sync`,
-      );
-
-      // 2. Initialize embedding pipeline
-      await this.initPipeline();
-
-      // Mark as ready — model is loaded, connections view can use cached vectors
-      this.embed_ready = true;
-      this.status_state = 'idle';
-      this.refreshStatus();
-
+      await this.switchEmbeddingModel('Initial embedding setup');
       console.log('Smart Connections embedding ready (Phase 2 complete)');
-
-      // Emit workspace event so views can react
-      this.app.workspace.trigger('smart-connections:embed-ready');
-
-      // 3. Process initial embed queue in background (may take a long time)
-      this.processInitialEmbedQueue().catch(e => {
-        console.error('Background embedding failed:', e);
-      });
-
     } catch (e) {
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
       console.error('Failed to initialize embedding (Phase 2):', e);
@@ -230,6 +260,97 @@ export default class SmartConnectionsPlugin extends Plugin {
 
       // Don't rethrow — Phase 1 is already working
     }
+  }
+
+  getActiveEmbeddingContext(): EmbeddingRunContext | null {
+    if (!this.current_embed_context) return null;
+    return { ...this.current_embed_context };
+  }
+
+  private getCurrentModelInfo(): { adapter: string; modelKey: string; dims: number | null } {
+    const adapter = this.settings?.smart_sources?.embed_model?.adapter ?? 'unknown';
+    const modelKey = this.embed_model?.model_key ?? 'unknown';
+    const dims = this.embed_model?.adapter?.dims ?? null;
+    return { adapter, modelKey, dims };
+  }
+
+  private logEmbed(event: string, context: Partial<EmbedProgressEventPayload> = {}): void {
+    const payload = {
+      event,
+      runId: this.active_embed_run_id,
+      status: this.status_state,
+      ...context,
+    };
+    console.log('[SC][Embed]', payload);
+  }
+
+  private buildEmbedNoticeMessage(ctx: EmbeddingRunContext): string {
+    const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
+    return `Smart Connections: ${ctx.adapter}/${ctx.modelKey} ${ctx.current}/${ctx.total} (${percent}%)`;
+  }
+
+  private clearEmbedNotice(): void {
+    if (this.embed_notice) {
+      this.embed_notice.hide();
+      this.embed_notice = undefined;
+    }
+  }
+
+  private updateEmbedNotice(ctx: EmbeddingRunContext, force: boolean = false): void {
+    const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
+    const now = Date.now();
+    const shouldUpdate =
+      force ||
+      !this.embed_notice ||
+      now - this.embed_notice_last_update >= 3000 ||
+      Math.abs(percent - this.embed_notice_last_percent) >= 5;
+
+    if (!shouldUpdate) return;
+
+    const message = this.buildEmbedNoticeMessage(ctx);
+    if (!this.embed_notice) {
+      this.embed_notice = new Notice(message, 0);
+    } else {
+      this.embed_notice.setMessage(message);
+    }
+    this.embed_notice_last_update = now;
+    this.embed_notice_last_percent = percent;
+  }
+
+  private emitEmbedProgress(
+    ctx: EmbeddingRunContext,
+    opts: { done?: boolean; error?: string } = {},
+  ): void {
+    const elapsedMs = Date.now() - ctx.startedAt;
+    const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
+    const etaMs =
+      ctx.current > 0 && ctx.total > ctx.current
+        ? Math.round((elapsedMs / ctx.current) * (ctx.total - ctx.current))
+        : null;
+
+    const payload: EmbedProgressEventPayload = {
+      runId: ctx.runId,
+      phase: ctx.phase,
+      reason: ctx.reason,
+      adapter: ctx.adapter,
+      modelKey: ctx.modelKey,
+      dims: ctx.dims,
+      current: ctx.current,
+      total: ctx.total,
+      percent,
+      sourceTotal: ctx.sourceTotal,
+      blockTotal: ctx.blockTotal,
+      saveCount: ctx.saveCount,
+      sourceDataDir: ctx.sourceDataDir,
+      blockDataDir: ctx.blockDataDir,
+      startedAt: ctx.startedAt,
+      elapsedMs,
+      etaMs,
+      done: opts.done,
+      error: opts.error,
+    };
+
+    this.app.workspace.trigger('smart-connections:embed-progress' as any, payload);
   }
 
   async loadSettings(): Promise<void> {
@@ -495,6 +616,15 @@ export default class SmartConnectionsPlugin extends Plugin {
       }
     }
 
+    const model = this.getCurrentModelInfo();
+    this.logEmbed('queue-unembedded-entities', {
+      adapter: model.adapter,
+      modelKey: model.modelKey,
+      dims: model.dims,
+      current: queued,
+      total: queued,
+    });
+
     return queued;
   }
 
@@ -505,9 +635,18 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     console.log(`Stopping embedding pipeline: ${reason}`);
     this.embedding_pipeline.halt();
-    this.status_state = 'paused';
+    this.embed_stop_requested = true;
+    this.status_state = 'stopping';
     this.refreshStatus();
+    this.logEmbed('stop-requested', { reason });
+    this.clearEmbedNotice();
     new Notice('Smart Connections: Stopping embedding...');
+
+    if (this.current_embed_context) {
+      this.current_embed_context.phase = 'stopping';
+      this.emitEmbedProgress(this.current_embed_context);
+    }
+
     return true;
   }
 
@@ -517,11 +656,101 @@ export default class SmartConnectionsPlugin extends Plugin {
     const start = Date.now();
     while (this.embedding_pipeline?.is_active()) {
       if (Date.now() - start > timeoutMs) {
+        this.logEmbed('stop-timeout', { reason: `timeoutMs=${timeoutMs}` });
         return false;
       }
       await new Promise((resolve) => window.setTimeout(resolve, 100));
     }
     return true;
+  }
+
+  async resumeEmbedding(reason: string = 'Resume requested'): Promise<void> {
+    if (!this.source_collection || !this.embedding_pipeline) return;
+    this.embed_stop_requested = false;
+    if (Object.keys(this.re_import_queue).length > 0) {
+      await this.runReImport(true);
+      return;
+    }
+    await this.runEmbeddingJob(reason);
+  }
+
+  async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> {
+    const queued = this.queueUnembeddedEntities();
+    if (queued === 0) {
+      this.logEmbed('reembed-skip-empty', { reason });
+      return 0;
+    }
+    await this.runEmbeddingJob(reason);
+    return queued;
+  }
+
+  async switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> {
+    const previous = this.getCurrentModelInfo();
+    this.logEmbed('switch-start', {
+      reason,
+      adapter: previous.adapter,
+      modelKey: previous.modelKey,
+      dims: previous.dims,
+    });
+
+    try {
+      if (this.embedding_pipeline?.is_active()) {
+        this.requestEmbeddingStop(reason);
+        const stopped = await this.waitForEmbeddingToStop(60000);
+        this.logEmbed('switch-stop-result', {
+          reason,
+          adapter: previous.adapter,
+          modelKey: previous.modelKey,
+          dims: previous.dims,
+          error: stopped ? undefined : 'timeout',
+        });
+        if (!stopped) {
+          this.embed_ready = false;
+          this.status_state = 'error';
+          this.refreshStatus();
+          throw new Error('Failed to stop previous embedding run before switch.');
+        }
+      }
+
+      this.status_state = 'loading_model';
+      this.embed_ready = false;
+      this.refreshStatus();
+
+      await this.initEmbedModel();
+      this.syncCollectionEmbeddingContext();
+      const queuedAfterSync = this.queueUnembeddedEntities();
+      await this.initPipeline();
+
+      this.embed_ready = true;
+      this.status_state = 'idle';
+      this.refreshStatus();
+      this.app.workspace.trigger('smart-connections:embed-ready');
+
+      const current = this.getCurrentModelInfo();
+      this.logEmbed('switch-ready', {
+        reason,
+        adapter: current.adapter,
+        modelKey: current.modelKey,
+        dims: current.dims,
+        current: queuedAfterSync,
+        total: queuedAfterSync,
+      });
+
+      if (queuedAfterSync > 0) {
+        void this.runEmbeddingJob(reason).catch((error) => {
+          console.error('Background embedding failed after model switch:', error);
+        });
+      }
+    } catch (error) {
+      this.embed_ready = false;
+      this.status_state = 'error';
+      this.refreshStatus();
+      this.logEmbed('switch-failed', {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   async initCollections(): Promise<void> {
@@ -624,76 +853,176 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async processInitialEmbedQueue(): Promise<void> {
-    if (!this.source_collection || !this.embedding_pipeline) return;
+    await this.runEmbeddingJob('Initial queue');
+  }
 
-    // Get entities needing embedding
+  async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
+    if (!this.source_collection || !this.embedding_pipeline) return null;
+
+    if (this.embedding_pipeline.is_active()) {
+      this.logEmbed('run-skip-active', { reason });
+      return null;
+    }
+
     const sourcesToEmbed = this.source_collection.embed_queue;
     const blocksToEmbed = this.block_collection?.embed_queue || [];
     const entitiesToEmbed = [...sourcesToEmbed, ...blocksToEmbed];
 
     if (entitiesToEmbed.length === 0) {
-      console.log('No entities need embedding');
-      return;
+      this.logEmbed('run-skip-empty', { reason });
+      return null;
     }
 
-    console.log(`Processing initial embed queue: ${entitiesToEmbed.length} entities`);
+    const model = this.getCurrentModelInfo();
+    const runId = ++this.embed_run_seq;
+    const ctx: EmbeddingRunContext = {
+      runId,
+      phase: 'running',
+      reason,
+      adapter: model.adapter,
+      modelKey: model.modelKey,
+      dims: model.dims,
+      startedAt: Date.now(),
+      current: 0,
+      total: entitiesToEmbed.length,
+      sourceTotal: sourcesToEmbed.length,
+      blockTotal: blocksToEmbed.length,
+      saveCount: 0,
+      sourceDataDir: this.source_collection.data_dir,
+      blockDataDir: this.block_collection?.data_dir ?? '',
+    };
 
+    this.active_embed_run_id = runId;
+    this.current_embed_context = ctx;
+    this.embed_stop_requested = false;
     this.status_state = 'embedding';
     this.refreshStatus();
+    this.updateEmbedNotice(ctx, true);
+    this.emitEmbedProgress(ctx);
+    this.logEmbed('run-start', {
+      runId,
+      reason,
+      adapter: ctx.adapter,
+      modelKey: ctx.modelKey,
+      dims: ctx.dims,
+      current: 0,
+      total: ctx.total,
+      sourceTotal: ctx.sourceTotal,
+      blockTotal: ctx.blockTotal,
+      sourceDataDir: ctx.sourceDataDir,
+      blockDataDir: ctx.blockDataDir,
+    });
 
-    new Notice(`Smart Connections: Embedding ${entitiesToEmbed.length} notes...`);
+    let lastLoggedPercent = -1;
 
-    let lastMilestone = 0;
     try {
       const stats = await this.embedding_pipeline.process(entitiesToEmbed, {
         batch_size: 10,
+        max_retries: 3,
         on_progress: (current, total) => {
-          if (this.status_msg) {
-            this.status_msg.setText(`SC: Embedding ${current}/${total}`);
-          }
-          // Emit progress event for ConnectionsView
-          this.app.workspace.trigger('smart-connections:embed-progress' as any, { current, total });
-          // Milestone notices every 1000
-          const milestone = Math.floor(current / 1000) * 1000;
-          if (milestone > lastMilestone && milestone > 0) {
-            lastMilestone = milestone;
-            new Notice(`SC: ${milestone} / ${total} embedded`);
+          if (this.active_embed_run_id !== runId) return;
+          ctx.current = current;
+          ctx.total = total;
+          ctx.phase = this.embed_stop_requested ? 'stopping' : 'running';
+          this.refreshStatus();
+          this.emitEmbedProgress(ctx);
+          this.updateEmbedNotice(ctx);
+
+          const percent = total > 0 ? Math.floor((current / total) * 100) : 0;
+          if (percent >= lastLoggedPercent + 10 || percent === 100) {
+            lastLoggedPercent = percent;
+            this.logEmbed('run-progress', {
+              runId,
+              current,
+              total,
+              percent,
+              adapter: ctx.adapter,
+              modelKey: ctx.modelKey,
+              dims: ctx.dims,
+            });
           }
         },
         on_save: async () => {
-          // Periodic save during embedding
-          await this.source_collection!.data_adapter.save();
+          if (!this.source_collection) return;
+          await this.source_collection.data_adapter.save();
           if (this.block_collection) {
             await this.block_collection.data_adapter.save();
+          }
+          if (this.active_embed_run_id === runId) {
+            ctx.saveCount += 1;
+            this.logEmbed('run-save', {
+              runId,
+              saveCount: ctx.saveCount,
+              sourceDataDir: ctx.sourceDataDir,
+              blockDataDir: ctx.blockDataDir,
+            });
           }
         },
         save_interval: 50,
       });
 
-      console.log('Initial embedding stats:', stats);
-      new Notice(`Smart Connections: Embedding complete! ${stats.success} notes embedded.`);
+      if (this.active_embed_run_id !== runId) {
+        return stats;
+      }
 
-      // Final save after embedding
+      ctx.current = stats.success + stats.failed + stats.skipped;
+      ctx.total = stats.total;
+
       await this.source_collection.data_adapter.save();
       if (this.block_collection) {
         await this.block_collection.data_adapter.save();
       }
-    } catch (error) {
-      console.error('Initial embedding failed:', error);
-      new Notice('Smart Connections: Embedding failed. See console for details.');
-      throw error;
-    } finally {
-      const final_stats = this.embedding_pipeline.get_stats();
+      ctx.saveCount += 1;
 
-      // Emit completion so ConnectionsView can hide the progress bar even on errors.
-      this.app.workspace.trigger('smart-connections:embed-progress' as any, {
-        current: final_stats.success + final_stats.failed + final_stats.skipped,
-        total: final_stats.total,
-        done: true,
+      if (this.embed_stop_requested) {
+        ctx.phase = 'paused';
+        this.status_state = 'paused';
+        new Notice('Smart Connections: Embedding paused.');
+      } else {
+        ctx.phase = 'completed';
+        this.status_state = 'idle';
+        new Notice(`Smart Connections: Embedding complete! ${stats.success} notes embedded.`);
+      }
+
+      this.logEmbed('run-finished', {
+        runId,
+        current: ctx.current,
+        total: ctx.total,
+        adapter: ctx.adapter,
+        modelKey: ctx.modelKey,
+        dims: ctx.dims,
+        saveCount: ctx.saveCount,
       });
 
-      this.status_state = 'idle';
-      this.refreshStatus();
+      return stats;
+    } catch (error) {
+      if (this.active_embed_run_id !== runId) {
+        throw error;
+      }
+      ctx.phase = this.embed_stop_requested ? 'paused' : 'failed';
+      this.status_state = this.embed_stop_requested ? 'paused' : 'error';
+      this.logEmbed('run-failed', {
+        runId,
+        adapter: ctx.adapter,
+        modelKey: ctx.modelKey,
+        dims: ctx.dims,
+        current: ctx.current,
+        total: ctx.total,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      if (!this.embed_stop_requested) {
+        new Notice('Smart Connections: Embedding failed. See console for details.');
+      }
+      throw error;
+    } finally {
+      if (this.active_embed_run_id === runId) {
+        this.emitEmbedProgress(ctx, { done: true });
+        this.current_embed_context = { ...ctx };
+        this.active_embed_run_id = null;
+        this.embed_stop_requested = false;
+        this.clearEmbedNotice();
+        this.refreshStatus();
+      }
     }
   }
 
@@ -808,11 +1137,16 @@ export default class SmartConnectionsPlugin extends Plugin {
     }, delayMs);
   }
 
-  async runReImport(): Promise<void> {
+  async runReImport(forceWhilePaused: boolean = false): Promise<void> {
     this.re_import_halted = false;
 
     if (!this.source_collection || !this.embedding_pipeline) {
       console.warn('Collections or pipeline not initialized');
+      return;
+    }
+
+    if (this.status_state === 'paused' && !forceWhilePaused) {
+      this.logEmbed('reimport-skip-paused');
       return;
     }
 
@@ -852,38 +1186,14 @@ export default class SmartConnectionsPlugin extends Plugin {
         processed_paths.push(path);
       }
 
-      // Get all entities that need embedding
-      const sourcesToEmbed = this.source_collection.embed_queue;
-      const blocksToEmbed = this.block_collection?.embed_queue || [];
-      const entitiesToEmbed = [...sourcesToEmbed, ...blocksToEmbed];
+      const staleQueued = this.queueUnembeddedEntities();
+      this.logEmbed('reimport-queue-ready', {
+        reason: 'run-reimport',
+        current: staleQueued,
+        total: staleQueued,
+      });
 
-      console.log(`Embedding ${entitiesToEmbed.length} entities...`);
-
-      // Run embedding pipeline
-      if (entitiesToEmbed.length > 0) {
-        const stats = await this.embedding_pipeline.process(entitiesToEmbed, {
-          batch_size: 10,
-          max_retries: 3,
-          on_progress: (current, total) => {
-            if (this.status_msg) {
-              this.status_msg.setText(`Embedding ${current}/${total}`);
-            }
-          },
-          on_batch_complete: (batch_num, batch_size) => {
-            console.log(`Completed batch ${batch_num} (${batch_size} items)`);
-          },
-        });
-
-        console.log('Embedding stats:', stats);
-
-        new Notice(`Smart Connections: Re-import complete! ${stats.success} notes embedded.`);
-
-        // Save collections after embedding
-        await this.source_collection.data_adapter.save();
-        if (this.block_collection) {
-          await this.block_collection.data_adapter.save();
-        }
-      }
+      await this.runEmbeddingJob(`Re-import (${queue_paths.length} files)`);
 
       // Remove only processed paths. New items queued during this run must stay in queue.
       processed_paths.forEach((path) => {
@@ -940,10 +1250,17 @@ export default class SmartConnectionsPlugin extends Plugin {
   refreshStatus(): void {
     if (!this.status_msg || !this.status_container) return;
 
+    const model = this.getCurrentModelInfo();
+    const modelTag = `${model.adapter}/${model.modelKey}`;
+    const ctx = this.current_embed_context;
+
     switch (this.status_state) {
       case 'idle':
         this.status_msg.setText('SC: Ready');
-        this.status_container.setAttribute('title', 'Smart Connections is ready');
+        this.status_container.setAttribute(
+          'title',
+          `Smart Connections is ready\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
+        );
         break;
       case 'loading_model':
         this.status_msg.setText('SC: Loading model...');
@@ -951,15 +1268,31 @@ export default class SmartConnectionsPlugin extends Plugin {
         break;
       case 'embedding': {
         const stats = this.embedding_pipeline?.get_stats();
-        const current = stats ? stats.success + stats.failed : 0;
-        const total = stats?.total || 0;
-        this.status_msg.setText(`SC: Embedding ${current}/${total}`);
-        this.status_container.setAttribute('title', 'Click to pause embedding');
+        const current = ctx?.current ?? (stats ? stats.success + stats.failed : 0);
+        const total = ctx?.total ?? stats?.total ?? 0;
+        this.status_msg.setText(`SC: Embedding ${current}/${total} (${modelTag})`);
+        this.status_container.setAttribute(
+          'title',
+          `Click to stop embedding\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nSource: ${ctx?.sourceDataDir ?? this.source_collection?.data_dir ?? '-'}\nBlocks: ${ctx?.blockDataDir ?? this.block_collection?.data_dir ?? '-'}`,
+        );
+        break;
+      }
+      case 'stopping': {
+        const current = ctx?.current ?? 0;
+        const total = ctx?.total ?? 0;
+        this.status_msg.setText(`SC: Stopping ${current}/${total} (${modelTag})`);
+        this.status_container.setAttribute(
+          'title',
+          'Stopping after current batch. Click to open Connections view.',
+        );
         break;
       }
       case 'paused':
-        this.status_msg.setText('SC: Paused');
-        this.status_container.setAttribute('title', 'Click to resume embedding');
+        this.status_msg.setText(`SC: Paused (${modelTag})`);
+        this.status_container.setAttribute(
+          'title',
+          'Click to resume embedding for queued entities.',
+        );
         break;
       case 'error':
         this.status_msg.setText('SC: Error');
@@ -971,13 +1304,11 @@ export default class SmartConnectionsPlugin extends Plugin {
   handleStatusBarClick(): void {
     switch (this.status_state) {
       case 'embedding':
+      case 'stopping':
         this.requestEmbeddingStop('Status bar click');
         break;
       case 'paused':
-        // Resume embedding — re-trigger the embed queue
-        this.status_state = 'embedding';
-        this.refreshStatus();
-        this.runReImport();
+        void this.resumeEmbedding('Status bar resume');
         break;
       case 'error':
         // Open settings
@@ -1078,6 +1409,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     console.log('Unloading Smart Connections plugin');
+    this.clearEmbedNotice();
 
     // Clear timeouts
     if (this.re_import_timeout) {

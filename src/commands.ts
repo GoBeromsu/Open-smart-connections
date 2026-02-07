@@ -52,10 +52,35 @@ export function registerCommands(plugin: Plugin): void {
     name: 'Refresh embeddings',
     callback: async () => {
       const p = plugin as any;
-      if (p.source_collection && p.embedding_pipeline && !p.embedding_pipeline.is_active()) {
-        p.queueUnembeddedEntities?.();
-        await p.processInitialEmbedQueue();
-      }
+      if (!p.source_collection || !p.embedding_pipeline) return;
+      await p.reembedStaleEntities?.('Command: Refresh embeddings');
+    },
+  });
+
+  plugin.addCommand({
+    id: 'stop-embedding',
+    name: 'Stop embedding',
+    callback: () => {
+      const p = plugin as any;
+      p.requestEmbeddingStop?.('Command: Stop embedding');
+    },
+  });
+
+  plugin.addCommand({
+    id: 'resume-embedding',
+    name: 'Resume embedding',
+    callback: async () => {
+      const p = plugin as any;
+      await p.resumeEmbedding?.('Command: Resume embedding');
+    },
+  });
+
+  plugin.addCommand({
+    id: 'reembed-stale-entities',
+    name: 'Re-embed stale entities',
+    callback: async () => {
+      const p = plugin as any;
+      await p.reembedStaleEntities?.('Command: Re-embed stale entities');
     },
   });
 
