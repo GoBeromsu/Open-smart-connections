@@ -110,7 +110,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Add ribbon icon
     add_smart_dice_icon();
-    this.addRibbonIcon('smart-connections', 'Open Connections', () => {
+    this.addRibbonIcon('network', 'Open Connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
   }
@@ -828,7 +828,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.status_container = this.status_elm.createEl('a', {
       cls: 'smart-connections-status',
     });
-    setIcon(this.status_container, 'smart-connections');
+    setIcon(this.status_container, 'network');
 
     this.status_msg = this.status_container.createSpan('smart-connections-status-msg');
 

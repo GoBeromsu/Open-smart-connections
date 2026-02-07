@@ -11,7 +11,7 @@ export class ConnectionsView extends ItemView {
 
   getViewType() { return CONNECTIONS_VIEW_TYPE; }
   getDisplayText() { return 'Connections'; }
-  getIcon() { return 'smart-connections'; }
+  getIcon() { return 'network'; }
 
   async onOpen() {
     this.containerEl.children[1].empty();

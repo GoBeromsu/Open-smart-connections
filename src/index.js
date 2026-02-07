@@ -65,7 +65,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Ribbon icon
     add_smart_dice_icon();
-    this.addRibbonIcon('smart-connections', 'Open Connections', () => {
+    this.addRibbonIcon('network', 'Open Connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
   }

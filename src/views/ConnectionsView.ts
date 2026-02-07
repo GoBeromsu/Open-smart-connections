@@ -29,7 +29,7 @@ export class ConnectionsView extends ItemView {
   }
 
   getIcon(): string {
-    return 'smart-connections';
+    return 'network';
   }
 
   async onOpen(): Promise<void> {
@@ -98,6 +98,10 @@ export class ConnectionsView extends ItemView {
     // If source doesn't exist yet
     if (!source) {
       if (!this.plugin.embed_ready) {
+        if (this.plugin.status_state === 'error') {
+          this.showError('Embedding model failed to initialize. Check Smart Connections settings.');
+          return;
+        }
         this.showLoading('Smart Connections is loading... Connections will appear when embedding is complete.');
         return;
       }
@@ -108,6 +112,10 @@ export class ConnectionsView extends ItemView {
     // If source has no embedding yet
     if (!source.vec) {
       if (!this.plugin.embed_ready) {
+        if (this.plugin.status_state === 'error') {
+          this.showError('Embedding model failed to initialize. Check Smart Connections settings.');
+          return;
+        }
         // Show cached connections from AJSON data if possible (other sources may have vecs)
         const cached = this.findCachedConnections(source);
         if (cached.length > 0) {
