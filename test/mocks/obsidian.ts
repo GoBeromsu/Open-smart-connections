@@ -254,7 +254,73 @@ export class Notice {
     this.duration = duration || 5000;
   }
 
+  setMessage(message: string | DocumentFragment): this {
+    this.message = typeof message === 'string' ? message : message.textContent || '';
+    return this;
+  }
+
   hide(): void {}
+}
+
+export class ButtonComponent {
+  buttonEl: HTMLButtonElement;
+
+  constructor(containerEl: HTMLElement) {
+    this.buttonEl = document.createElement('button');
+    containerEl.appendChild(this.buttonEl);
+  }
+
+  setDisabled(disabled: boolean): this {
+    this.buttonEl.disabled = disabled;
+    return this;
+  }
+
+  setCta(): this {
+    this.buttonEl.classList.add('mod-cta');
+    return this;
+  }
+
+  setButtonText(text: string): this {
+    this.buttonEl.textContent = text;
+    return this;
+  }
+
+  setClass(cls: string): this {
+    this.buttonEl.classList.add(...cls.split(' ').filter(Boolean));
+    return this;
+  }
+
+  onClick(callback: (evt: MouseEvent) => unknown | Promise<unknown>): this {
+    this.buttonEl.addEventListener('click', (evt) => {
+      void callback(evt as MouseEvent);
+    });
+    return this;
+  }
+}
+
+export class ProgressBarComponent {
+  progressEl: HTMLElement;
+  private value = 0;
+
+  constructor(containerEl: HTMLElement) {
+    this.progressEl = document.createElement('div');
+    this.progressEl.className = 'mock-progress-bar';
+    containerEl.appendChild(this.progressEl);
+  }
+
+  getValue(): number {
+    return this.value;
+  }
+
+  setValue(value: number): this {
+    this.value = value;
+    this.progressEl.setAttribute('data-value', String(value));
+    return this;
+  }
+}
+
+export function setIcon(parent: HTMLElement, iconId: string): void {
+  parent.setAttribute('data-icon', iconId);
 }
 
 /**
@@ -298,6 +364,9 @@ export default {
   Component,
   Modal,
   Notice,
+  ButtonComponent,
+  ProgressBarComponent,
+  setIcon,
   TFile,
   TFolder,
   Vault,
