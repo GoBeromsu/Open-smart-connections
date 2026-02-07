@@ -10,7 +10,7 @@ import type { SearchFilter } from '../core/types/entities';
 
 // Create mock entities for testing
 function createMockEntity(key: string, vec: number[]): EmbeddingEntity {
-  return {
+  const entity: any = {
     key,
     data: {
       path: key,
@@ -20,11 +20,15 @@ function createMockEntity(key: string, vec: number[]): EmbeddingEntity {
     },
     vec,
     get_embed_input: async () => {},
-    queue_embed: () => {},
+    _queue_embed: false,
+    queue_embed: () => {
+      entity._queue_embed = true;
+    },
     nearest: async () => [],
     has_embed: () => true,
-    should_embed: () => false,
-  } as any;
+    should_embed: false,
+  };
+  return entity as EmbeddingEntity;
 }
 
 describe('findNearest', () => {
@@ -177,6 +181,20 @@ describe('findNearest', () => {
 
     expect(results).toHaveLength(2);
     expect(results.find(r => r.item.key === 'no-vec')).toBeUndefined();
+  });
+
+  it('should skip mismatched vector dimensions and queue re-embed', () => {
+    const queryVec = [1, 0, 0];
+    const valid = createMockEntity('valid', [1, 0, 0]);
+    const mismatch = createMockEntity('mismatch', [1, 0]);
+    mismatch._queue_embed = false;
+
+    const results = findNearest(queryVec, [valid, mismatch], { limit: 5 });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].item.key).toBe('valid');
+    expect(mismatch.vec).toBeNull();
+    expect(mismatch._queue_embed).toBe(true);
   });
 
   it('should return results sorted by score descending', () => {

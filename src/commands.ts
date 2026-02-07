@@ -4,8 +4,8 @@
  */
 
 import type { Plugin } from 'obsidian';
-import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/connections_view';
-import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
+import { ConnectionsView } from './views/ConnectionsView';
+import { LookupView } from './views/LookupView';
 
 /**
  * Register all plugin commands
@@ -25,7 +25,7 @@ export function registerCommands(plugin: Plugin): void {
     id: 'find-connections',
     name: 'Find connections to current note',
     callback: () => {
-      const view = ConnectionsView.get_view(plugin.app.workspace);
+      const view = ConnectionsView.getView(plugin.app.workspace);
       if (view) {
         const activeFile = plugin.app.workspace.getActiveFile();
         if (activeFile) {
@@ -53,9 +53,7 @@ export function registerCommands(plugin: Plugin): void {
     callback: async () => {
       const p = plugin as any;
       if (p.source_collection && p.embedding_pipeline && !p.embedding_pipeline.is_active()) {
-        for (const source of p.source_collection.all) {
-          if (source.is_unembedded) source.queue_embed();
-        }
+        p.queueUnembeddedEntities?.();
         await p.processInitialEmbedQueue();
       }
     },
