@@ -185,19 +185,8 @@ export class EmbeddingPipeline {
         // Assign embeddings to entities
         embeddings.forEach((emb, i) => {
           const entity = batch[i];
-          entity.vec = emb.vec;
-
-          // Update entity data
-          if (!entity.data.embeddings) {
-            entity.data.embeddings = {};
-          }
-          entity.data.embeddings[this.model.model_key] = {
-            vec: emb.vec,
-            tokens: emb.tokens,
-          };
-
-          // Mark as embedded
-          entity._queue_embed = false;
+          entity.vec = emb.vec;      // Stores via setter, also clears _queue_embed
+          entity.tokens = emb.tokens; // Stores via setter under same model key
 
           // Update last_embed to match last_read (if available)
           if (entity.data.last_read) {

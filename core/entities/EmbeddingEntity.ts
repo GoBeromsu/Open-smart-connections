@@ -142,8 +142,8 @@ export class EmbeddingEntity {
       }
     } else {
       this.embedding_data.vec = vec;
+      this._queue_embed = false;  // Only clear when setting real vector
     }
-    this._queue_embed = false;
     this._embed_input = null;
     this.queue_save();
   }
@@ -161,6 +161,7 @@ export class EmbeddingEntity {
   set tokens(tokens: number | undefined) {
     if (tokens !== undefined) {
       this.embedding_data.tokens = tokens;
+      this.queue_save();
     }
   }
 

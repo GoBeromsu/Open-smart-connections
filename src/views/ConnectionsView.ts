@@ -10,6 +10,9 @@ export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 export class ConnectionsView extends ItemView {
   plugin: SmartConnectionsPlugin;
   container: HTMLElement;
+  private progressCountEl?: HTMLElement;
+  private progressFillEl?: HTMLElement;
+  private progressContainerEl?: HTMLElement;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -45,6 +48,17 @@ export class ConnectionsView extends ItemView {
     this.registerEvent(
       this.app.workspace.on('smart-connections:embed-ready' as any, () => {
         this.renderView();
+      }),
+    );
+
+    // Register event for live embedding progress updates
+    this.registerEvent(
+      (this.app.workspace as any).on('smart-connections:embed-progress', (data: { current: number; total: number; done?: boolean }) => {
+        if (data.done) {
+          this.hideEmbeddingProgress();
+        } else {
+          this.updateEmbeddingProgress(data.current, data.total);
+        }
       }),
     );
 
@@ -162,7 +176,19 @@ export class ConnectionsView extends ItemView {
       attr: { 'aria-label': 'Refresh' },
     });
     refreshBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>';
-    refreshBtn.addEventListener('click', () => this.renderView(targetPath));
+    refreshBtn.addEventListener('click', async () => {
+      try {
+        // If current source has no vec, queue it and run pipeline
+        const source = this.plugin.source_collection?.get(targetPath);
+        if (source && !source.vec && this.plugin.embedding_pipeline) {
+          source.queue_embed();
+          await this.plugin.processInitialEmbedQueue();
+        }
+      } catch (e) {
+        console.error('Failed to refresh embedding:', e);
+      }
+      this.renderView(targetPath);
+    });
 
     // Embedding progress indicator
     this.renderEmbeddingProgress();
@@ -228,17 +254,35 @@ export class ConnectionsView extends ItemView {
     const embedded = this.plugin.source_collection.all.filter(s => s.vec).length;
 
     if (total > 0 && embedded < total) {
-      const progress = this.container.createDiv({ cls: 'osc-embed-progress' });
-      const label = progress.createDiv({ cls: 'osc-embed-progress-label' });
+      this.progressContainerEl = this.container.createDiv({ cls: 'osc-embed-progress' });
+      const label = this.progressContainerEl.createDiv({ cls: 'osc-embed-progress-label' });
       label.createSpan({ text: 'Embedding vault' });
-      label.createSpan({
+      this.progressCountEl = label.createSpan({
         text: `${embedded} / ${total}`,
         cls: 'osc-embed-progress-count',
       });
 
-      const track = progress.createDiv({ cls: 'osc-progress-track' });
-      const fill = track.createDiv({ cls: 'osc-progress-fill' });
-      fill.style.width = `${Math.round((embedded / total) * 100)}%`;
+      const track = this.progressContainerEl.createDiv({ cls: 'osc-progress-track' });
+      this.progressFillEl = track.createDiv({ cls: 'osc-progress-fill' });
+      this.progressFillEl.style.width = `${Math.round((embedded / total) * 100)}%`;
+    }
+  }
+
+  updateEmbeddingProgress(current: number, total: number): void {
+    if (this.progressCountEl) {
+      this.progressCountEl.setText(`${current} / ${total}`);
+    }
+    if (this.progressFillEl && total > 0) {
+      this.progressFillEl.style.width = `${Math.round((current / total) * 100)}%`;
+    }
+  }
+
+  hideEmbeddingProgress(): void {
+    if (this.progressContainerEl) {
+      this.progressContainerEl.remove();
+      this.progressContainerEl = undefined;
+      this.progressCountEl = undefined;
+      this.progressFillEl = undefined;
     }
   }
 

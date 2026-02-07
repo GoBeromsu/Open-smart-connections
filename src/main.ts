@@ -48,6 +48,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   status_msg?: HTMLElement;
   re_import_queue: Record<string, any> = {};
   re_import_timeout?: number;
+  re_import_retry_timeout?: number;
   re_import_halted = false;
   _installed_at: number | null = null;
 
@@ -340,7 +341,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: modelInfo.dims,
             models: TRANSFORMERS_EMBED_MODELS,
-            settings: this.settings,
+            settings: adapterSettings,
           });
 
           // Load the worker
@@ -359,7 +360,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: modelInfo.dims,
             models: OPENAI_EMBED_MODELS,
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -370,7 +371,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: adapterSettings.dims || 384,
             models: {},
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -386,7 +387,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: modelInfo.dims,
             models: GEMINI_EMBED_MODELS,
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -397,7 +398,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: adapterSettings.dims || 384,
             models: {},
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -413,7 +414,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: modelInfo.dims,
             models: UPSTAGE_EMBED_MODELS,
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -424,7 +425,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             model_key: modelKey,
             dims: adapterSettings.dims || 1536,
             models: {},
-            settings: this.settings,
+            settings: adapterSettings,
           });
           break;
         }
@@ -561,11 +562,22 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.status_state = 'embedding';
     this.refreshStatus();
 
+    new Notice(`Smart Connections: Embedding ${entitiesToEmbed.length} notes...`);
+
+    let lastMilestone = 0;
     const stats = await this.embedding_pipeline.process(entitiesToEmbed, {
       batch_size: 10,
       on_progress: (current, total) => {
         if (this.status_msg) {
           this.status_msg.setText(`SC: Embedding ${current}/${total}`);
+        }
+        // Emit progress event for ConnectionsView
+        this.app.workspace.trigger('smart-connections:embed-progress' as any, { current, total });
+        // Milestone notices every 1000
+        const milestone = Math.floor(current / 1000) * 1000;
+        if (milestone > lastMilestone && milestone > 0) {
+          lastMilestone = milestone;
+          new Notice(`SC: ${milestone} / ${total} embedded`);
         }
       },
       on_save: async () => {
@@ -579,6 +591,15 @@ export default class SmartConnectionsPlugin extends Plugin {
     });
 
     console.log('Initial embedding stats:', stats);
+
+    new Notice(`Smart Connections: Embedding complete! ${stats.success} notes embedded.`);
+
+    // Emit completion so ConnectionsView can hide the progress bar
+    this.app.workspace.trigger('smart-connections:embed-progress' as any, {
+      current: stats.success + stats.failed,
+      total: stats.total,
+      done: true,
+    });
 
     // Final save after embedding
     await this.source_collection.data_adapter.save();
@@ -677,6 +698,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (this.re_import_timeout) {
       window.clearTimeout(this.re_import_timeout);
     }
+    if (this.re_import_retry_timeout) {
+      window.clearTimeout(this.re_import_retry_timeout);
+      this.re_import_retry_timeout = undefined;
+    }
 
     const waitTime = (this.settings.re_import_wait_time || 13) * 1000;
     this.re_import_timeout = window.setTimeout(() => {
@@ -686,19 +711,40 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.refreshStatus();
   }
 
+  private deferReImport(reason: string, delayMs: number = 1500): void {
+    console.log(`${reason}. Deferring re-import for ${delayMs}ms...`);
+    if (this.re_import_retry_timeout) {
+      window.clearTimeout(this.re_import_retry_timeout);
+    }
+    this.re_import_retry_timeout = window.setTimeout(() => {
+      this.re_import_retry_timeout = undefined;
+      void this.runReImport();
+    }, delayMs);
+  }
+
   async runReImport(): Promise<void> {
     this.re_import_halted = false;
+
+    if (!this.source_collection || !this.embedding_pipeline) {
+      console.warn('Collections or pipeline not initialized');
+      return;
+    }
+
+    // Prevent concurrent embedding pipeline execution.
+    if (this.embedding_pipeline.is_active()) {
+      if (this.status_msg) {
+        this.status_msg.setText('SC: Embedding in progress, updates queued');
+      }
+      this.deferReImport('Embedding pipeline is already processing');
+      return;
+    }
+
     const queue = Object.values(this.re_import_queue);
     if (queue.length === 0) return;
 
     console.log(`Re-importing ${queue.length} sources...`);
 
     try {
-      if (!this.source_collection || !this.embedding_pipeline) {
-        console.warn('Collections or pipeline not initialized');
-        return;
-      }
-
       // Update status
       if (this.status_msg) {
         this.status_msg.setText(`Processing ${queue.length} files...`);
@@ -742,6 +788,8 @@ export default class SmartConnectionsPlugin extends Plugin {
 
         console.log('Embedding stats:', stats);
 
+        new Notice(`Smart Connections: Re-import complete! ${stats.success} notes embedded.`);
+
         // Save collections after embedding
         await this.source_collection.data_adapter.save();
         if (this.block_collection) {
@@ -757,6 +805,13 @@ export default class SmartConnectionsPlugin extends Plugin {
 
       console.log('Re-import completed');
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('Embedding pipeline is already processing')
+      ) {
+        this.deferReImport('Embedding pipeline is already processing');
+        return;
+      }
       console.error('Re-import failed:', error);
       new Notice('Smart Connections: Re-import failed. See console for details.');
       this.refreshStatus();
@@ -930,6 +985,9 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Clear timeouts
     if (this.re_import_timeout) {
       window.clearTimeout(this.re_import_timeout);
+    }
+    if (this.re_import_retry_timeout) {
+      window.clearTimeout(this.re_import_retry_timeout);
     }
 
     // Unload embed model (especially for transformers worker)

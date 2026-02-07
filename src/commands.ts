@@ -51,9 +51,12 @@ export function registerCommands(plugin: Plugin): void {
     id: 'refresh-embeddings',
     name: 'Refresh embeddings',
     callback: async () => {
-      const env = (plugin as any).env;
-      if (env?.smart_sources) {
-        await env.smart_sources.process_source_import_queue?.({ force: true });
+      const p = plugin as any;
+      if (p.source_collection && p.embedding_pipeline && !p.embedding_pipeline.is_active()) {
+        for (const source of p.source_collection.all) {
+          if (source.is_unembedded) source.queue_embed();
+        }
+        await p.processInitialEmbedQueue();
       }
     },
   });
@@ -63,16 +66,20 @@ export function registerCommands(plugin: Plugin): void {
     id: 'clear-cache',
     name: 'Clear embedding cache',
     callback: async () => {
-      const env = (plugin as any).env;
-      if (env?.smart_sources) {
-        for (const key of env.smart_sources.keys || []) {
-          const source = env.smart_sources.get(key);
-          if (source?.data) {
-            delete source.data.vec;
-            delete source.data.last_import;
+      const p = plugin as any;
+      if (p.source_collection) {
+        for (const source of p.source_collection.all) {
+          source.remove_embeddings();
+        }
+        if (p.block_collection) {
+          for (const block of p.block_collection.all) {
+            block.remove_embeddings();
           }
         }
-        await env.smart_sources.save();
+        await p.source_collection.data_adapter?.save();
+        if (p.block_collection) {
+          await p.block_collection.data_adapter?.save();
+        }
       }
     },
   });

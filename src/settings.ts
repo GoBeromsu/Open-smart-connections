@@ -484,21 +484,28 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       // Re-initialize embed model with new settings
       await plugin.initEmbedModel?.();
 
-      // Clear existing vectors so they get re-embedded
+      // Clear existing vectors and re-queue for embedding
       if (plugin.source_collection) {
         for (const source of plugin.source_collection.all) {
-          if (source.data) {
-            delete source.data.vec;
-            delete source.data.last_embed;
-          }
+          source.remove_embeddings();
+          source.queue_embed();
         }
       }
       if (plugin.block_collection) {
         for (const block of plugin.block_collection.all) {
-          if (block.data) {
-            delete block.data.vec;
-            delete block.data.last_embed;
-          }
+          block.remove_embeddings();
+          block.queue_embed();
+        }
+      }
+
+      // Update collection model keys after re-init
+      const newModelKey = plugin.embed_model?.model_key;
+      if (newModelKey) {
+        if (plugin.source_collection) {
+          plugin.source_collection.embed_model_key = newModelKey;
+        }
+        if (plugin.block_collection) {
+          plugin.block_collection.embed_model_key = newModelKey;
         }
       }
 
