@@ -36,7 +36,7 @@ interface SmartConnectionsPlugin extends Plugin {
   block_collection?: any;
   embed_ready?: boolean;
   ready?: boolean;
-  status_state?: 'idle' | 'loading_model' | 'embedding' | 'paused' | 'error';
+  status_state?: 'idle' | 'loading_model' | 'embedding' | 'stopping' | 'paused' | 'error';
   embedding_pipeline?: any;
   initEmbedModel?: () => Promise<void>;
   initPipeline?: () => Promise<void>;
@@ -44,6 +44,9 @@ interface SmartConnectionsPlugin extends Plugin {
   queueUnembeddedEntities?: () => number;
   processInitialEmbedQueue?: () => Promise<void>;
   initializeEmbedding?: () => Promise<void>;
+  switchEmbeddingModel?: (reason?: string) => Promise<void>;
+  reembedStaleEntities?: (reason?: string) => Promise<number>;
+  resumeEmbedding?: (reason?: string) => Promise<void>;
   refreshStatus?: () => void;
   requestEmbeddingStop?: (reason?: string) => boolean;
   waitForEmbeddingToStop?: (timeoutMs?: number) => Promise<boolean>;
@@ -251,27 +254,58 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
       // Show text input for custom model
       if (isCustom || this.getConfig(`smart_sources.embed_model.${adapterName}.model_key`, '') === '__custom__') {
+        let pendingCustomModel = isCustom ? currentModelKey : '';
         new Setting(containerEl)
           .setName('Custom model key')
           .setDesc('Enter a custom model identifier')
           .addText((text) => {
             text.setPlaceholder('e.g., org/model-name');
-            text.setValue(isCustom ? currentModelKey : '');
-            text.onChange(async (value) => {
-              this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, value);
+            text.setValue(pendingCustomModel);
+            text.onChange((value) => {
+              pendingCustomModel = value.trim();
+            });
+          })
+          .addButton((button) => {
+            button.setButtonText('Apply');
+            button.setCta();
+            button.onClick(async () => {
+              const nextValue = pendingCustomModel.trim();
+              if (!nextValue || nextValue === currentModelKey) return;
+              const confirmed = await new ConfirmModal(
+                this.app,
+                'Applying a custom embedding model requires re-embedding notes. Continue?',
+              ).open();
+              if (!confirmed) return;
+              this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, nextValue);
+              await this.triggerReEmbed();
             });
           });
       }
     } else {
       // Text input only (for ollama, lm_studio, open_router)
+      let pendingModelKey = currentModelKey;
       new Setting(containerEl)
         .setName('Model')
         .setDesc('Embedding model key')
         .addText((text) => {
           text.setPlaceholder(adapterName === 'ollama' ? 'nomic-embed-text' : 'Model key');
           text.setValue(currentModelKey);
-          text.onChange(async (value) => {
-            this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, value);
+          text.onChange((value) => {
+            pendingModelKey = value.trim();
+          });
+        })
+        .addButton((button) => {
+          button.setButtonText('Apply');
+          button.setCta();
+          button.onClick(async () => {
+            if (!pendingModelKey || pendingModelKey === currentModelKey) return;
+            const confirmed = await new ConfirmModal(
+              this.app,
+              'Changing the embedding model requires re-embedding all notes. Continue?',
+            ).open();
+            if (!confirmed) return;
+            this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, pendingModelKey);
+            await this.triggerReEmbed();
           });
         });
     }
@@ -489,37 +523,42 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     new Notice('Smart Connections: Re-initializing embedding model...');
 
     try {
-      if (plugin.embedding_pipeline?.is_active?.()) {
-        plugin.requestEmbeddingStop?.('Embedding model switch requested');
-        const stopped = (await plugin.waitForEmbeddingToStop?.(60000)) ?? true;
-        if (!stopped) {
-          plugin.embed_ready = false;
-          plugin.status_state = 'error';
-          plugin.refreshStatus?.();
-          new Notice('Smart Connections: Failed to stop previous embedding run. Try again.');
-          return;
-        }
-      }
-
       plugin.status_state = 'loading_model';
       plugin.embed_ready = false;
       plugin.refreshStatus?.();
-      await plugin.initEmbedModel?.();
-      plugin.syncCollectionEmbeddingContext?.();
-      await plugin.initPipeline?.();
-      plugin.status_state = 'idle';
-      plugin.embed_ready = true;
-      plugin.refreshStatus?.();
-      this.app.workspace.trigger('smart-connections:embed-ready' as any);
 
-      // Keep per-model caches; queue only entities missing/stale for the new active model.
-      const queued = plugin.queueUnembeddedEntities?.() ?? 0;
+      if (plugin.switchEmbeddingModel) {
+        await plugin.switchEmbeddingModel('Settings model switch');
+      } else {
+        if (plugin.embedding_pipeline?.is_active?.()) {
+          plugin.requestEmbeddingStop?.('Embedding model switch requested');
+          const stopped = (await plugin.waitForEmbeddingToStop?.(60000)) ?? true;
+          if (!stopped) {
+            plugin.embed_ready = false;
+            plugin.status_state = 'error';
+            plugin.refreshStatus?.();
+            new Notice('Smart Connections: Failed to stop previous embedding run. Try again.');
+            return;
+          }
+        }
 
-      new Notice(`Smart Connections: Re-embedding queued for ${queued} items.`);
-      void plugin.processInitialEmbedQueue?.().catch((error) => {
-        console.error('Re-embedding failed:', error);
-        new Notice('Smart Connections: Re-embedding failed. See console for details.');
-      });
+        await plugin.initEmbedModel?.();
+        plugin.syncCollectionEmbeddingContext?.();
+        const queued = plugin.queueUnembeddedEntities?.() ?? 0;
+        await plugin.initPipeline?.();
+        plugin.status_state = 'idle';
+        plugin.embed_ready = true;
+        plugin.refreshStatus?.();
+        this.app.workspace.trigger('smart-connections:embed-ready' as any);
+        if (queued > 0) {
+          void plugin.processInitialEmbedQueue?.().catch((error) => {
+            console.error('Re-embedding failed:', error);
+            new Notice('Smart Connections: Re-embedding failed. See console for details.');
+          });
+        }
+      }
+
+      new Notice('Smart Connections: Embedding model switched.');
       this.display();
     } catch (e) {
       plugin.embed_ready = false;
