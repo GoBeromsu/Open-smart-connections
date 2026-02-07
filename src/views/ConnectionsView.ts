@@ -347,7 +347,8 @@ export class ConnectionsView extends ItemView {
     const status = this.plugin.status_state;
     if (status === 'embedding' || status === 'stopping') {
       new ButtonComponent(actions)
-        .setClass('osc-btn osc-btn--session')
+        .setClass('osc-btn')
+        .setClass('osc-btn--session')
         .setButtonText(status === 'stopping' ? 'Stopping...' : 'Stop')
         .setDisabled(status === 'stopping')
         .onClick(() => {
@@ -357,7 +358,8 @@ export class ConnectionsView extends ItemView {
 
     if (status === 'paused') {
       new ButtonComponent(actions)
-        .setClass('osc-btn osc-btn--session')
+        .setClass('osc-btn')
+        .setClass('osc-btn--session')
         .setCta()
         .setButtonText('Resume')
         .onClick(async () => {
@@ -366,14 +368,16 @@ export class ConnectionsView extends ItemView {
     }
 
     new ButtonComponent(actions)
-      .setClass('osc-btn osc-btn--session')
+      .setClass('osc-btn')
+      .setClass('osc-btn--session')
       .setButtonText('Re-embed')
       .onClick(async () => {
         await this.plugin.reembedStaleEntities('Connections view re-embed');
       });
 
     new ButtonComponent(actions)
-      .setClass('osc-btn osc-btn--session')
+      .setClass('osc-btn')
+      .setClass('osc-btn--session')
       .setButtonText('Settings')
       .onClick(() => {
         (this.app as any).setting?.open?.();
