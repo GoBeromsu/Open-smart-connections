@@ -4,7 +4,8 @@
  */
 
 import { findNearestToEntity } from './vector-search';
-import type { EmbeddingEntity, ConnectionResult, SearchFilter } from '../types/entities';
+import type { ConnectionResult, SearchFilter } from '../types/entities';
+import type { EmbeddingEntity } from '../entities/EmbeddingEntity';
 
 /**
  * Options for finding connections

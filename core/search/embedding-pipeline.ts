@@ -185,7 +185,7 @@ export class EmbeddingPipeline {
         // Assign embeddings to entities
         embeddings.forEach((emb, i) => {
           const entity = batch[i];
-          entity.vec = emb.vec;      // Stores via setter, also clears _queue_embed
+          entity.vec = emb.vec ?? null; // Stores via setter, also clears _queue_embed
           entity.tokens = emb.tokens; // Stores via setter under same model key
 
           // Update last_embed to match last_read (if available)

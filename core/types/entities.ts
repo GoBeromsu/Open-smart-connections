@@ -133,7 +133,7 @@ export interface EmbeddingEntity {
   _queue_embed?: boolean;
 
   /** Embed input text (prepared for embedding) */
-  _embed_input?: string;
+  _embed_input?: string | null;
 
   /**
    * Get embed input text
@@ -158,7 +158,7 @@ export interface EmbeddingEntity {
   /**
    * Check if entity needs re-embedding
    */
-  should_embed(): boolean;
+  should_embed: boolean;
 }
 
 /**

@@ -11,7 +11,7 @@ export interface ModelInfo {
   model_key: string;
 
   /** Model name (display) */
-  model_name: string;
+  model_name?: string;
 
   /** Model description */
   description?: string;
@@ -21,6 +21,12 @@ export interface ModelInfo {
 
   /** Embedding dimensions (for embed models) */
   dims?: number;
+
+  /** API endpoint override (for remote adapters) */
+  endpoint?: string;
+
+  /** Recommended batch size */
+  batch_size?: number;
 
   /** Whether model supports streaming (for chat models) */
   streaming?: boolean;
@@ -57,7 +63,7 @@ export interface EmbedInput {
  */
 export interface EmbedResult {
   /** Embedding vector */
-  vec: number[];
+  vec?: number[];
 
   /** Token count (if available) */
   tokens?: number;
@@ -67,6 +73,13 @@ export interface EmbedResult {
 
   /** Optional index in batch */
   index?: number;
+
+  /** Adapter-specific error payload */
+  error?: {
+    message?: string;
+    details?: any;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -91,7 +104,7 @@ export interface EmbedModelAdapter {
   /**
    * Embed a batch of inputs
    */
-  embed_batch(inputs: EmbedInput[] | { _embed_input: string }[]): Promise<EmbedResult[]>;
+  embed_batch(inputs: Array<EmbedInput | { _embed_input: string }>): Promise<EmbedResult[]>;
 
   /**
    * Get model information
