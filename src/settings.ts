@@ -36,9 +36,15 @@ interface SmartConnectionsPlugin extends Plugin {
   block_collection?: any;
   embed_ready?: boolean;
   ready?: boolean;
+  status_state?: 'idle' | 'loading_model' | 'embedding' | 'paused' | 'error';
   embedding_pipeline?: any;
   initEmbedModel?: () => Promise<void>;
+  initPipeline?: () => Promise<void>;
+  syncCollectionEmbeddingContext?: () => void;
+  queueUnembeddedEntities?: () => number;
+  processInitialEmbedQueue?: () => Promise<void>;
   initializeEmbedding?: () => Promise<void>;
+  refreshStatus?: () => void;
 }
 
 class ConfirmModal extends Modal {
@@ -481,41 +487,35 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     new Notice('Smart Connections: Re-initializing embedding model...');
 
     try {
-      // Re-initialize embed model with new settings
-      await plugin.initEmbedModel?.();
-
-      // Clear existing vectors and re-queue for embedding
-      if (plugin.source_collection) {
-        for (const source of plugin.source_collection.all) {
-          source.remove_embeddings();
-          source.queue_embed();
-        }
-      }
-      if (plugin.block_collection) {
-        for (const block of plugin.block_collection.all) {
-          block.remove_embeddings();
-          block.queue_embed();
-        }
+      if (plugin.embedding_pipeline?.is_active?.()) {
+        new Notice('Smart Connections: Embedding is already running. Try again after it completes.');
+        return;
       }
 
-      // Update collection model keys after re-init
-      const newModelKey = plugin.embed_model?.model_key;
-      if (newModelKey) {
-        if (plugin.source_collection) {
-          plugin.source_collection.embed_model_key = newModelKey;
-        }
-        if (plugin.block_collection) {
-          plugin.block_collection.embed_model_key = newModelKey;
-        }
-      }
-
-      // Re-start embedding pipeline
+      plugin.status_state = 'loading_model';
       plugin.embed_ready = false;
-      await plugin.initializeEmbedding?.();
+      plugin.refreshStatus?.();
+      await plugin.initEmbedModel?.();
+      plugin.syncCollectionEmbeddingContext?.();
+      await plugin.initPipeline?.();
+      plugin.status_state = 'idle';
+      plugin.embed_ready = true;
+      plugin.refreshStatus?.();
+      this.app.workspace.trigger('smart-connections:embed-ready' as any);
 
-      new Notice('Smart Connections: Re-embedding started.');
+      // Keep per-model caches; queue only entities missing/stale for the new active model.
+      const queued = plugin.queueUnembeddedEntities?.() ?? 0;
+
+      new Notice(`Smart Connections: Re-embedding queued for ${queued} items.`);
+      void plugin.processInitialEmbedQueue?.().catch((error) => {
+        console.error('Re-embedding failed:', error);
+        new Notice('Smart Connections: Re-embedding failed. See console for details.');
+      });
       this.display();
     } catch (e) {
+      plugin.embed_ready = false;
+      plugin.status_state = 'error';
+      plugin.refreshStatus?.();
       new Notice('Smart Connections: Failed to re-initialize model. Check console.');
       console.error('Re-embed failed:', e);
     }

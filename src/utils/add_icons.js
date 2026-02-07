@@ -1,6 +1,6 @@
 import { addIcon } from 'obsidian';
 export function add_smart_dice_icon() {
-    addIcon("smart-dice", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    const smartConnectionsSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <rect x="1" y="1" width="22" height="22" rx="2" fill="none"/>
 
   <g transform="translate(12 10) scale(0.18) translate(-50 -50)">
@@ -13,5 +13,8 @@ export function add_smart_dice_icon() {
     <circle cx="25" cy="50" r="9" fill="currentColor"/>
   </g>
 </svg>
-`);
+`;
+    // Keep legacy icon name and register the canonical one used by views/status/ribbon.
+    addIcon("smart-dice", smartConnectionsSvg);
+    addIcon("smart-connections", smartConnectionsSvg);
 }

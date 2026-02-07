@@ -1,4 +1,4 @@
-import { Component, MarkdownRenderer } from 'obsidian';
+import { Component, MarkdownRenderer, setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 
 export interface MessageData {
@@ -127,7 +127,7 @@ export class ChatMessage extends Component {
       const href = a.getAttribute('href');
       if (!href) return;
 
-      a.addEventListener('click', (e) => {
+      this.registerDomEvent(a as HTMLElement, 'click', (e) => {
         e.preventDefault();
 
         // External URLs
@@ -148,7 +148,7 @@ export class ChatMessage extends Component {
 
       // Hover preview for internal links
       if (!href.includes('://')) {
-        a.addEventListener('mouseover', (e) => {
+        this.registerDomEvent(a as HTMLElement, 'mouseover', (e) => {
           let filePath = href;
           if (!filePath.endsWith('.md')) filePath += '.md';
 
@@ -165,15 +165,17 @@ export class ChatMessage extends Component {
         });
 
         // Drag support for internal links
-        a.addEventListener('dragstart', (e) => {
+        this.registerDomEvent(a as HTMLElement, 'dragstart', (e) => {
           let filePath = href;
           if (!filePath.endsWith('.md')) filePath += '.md';
 
           const file = this.plugin.app.metadataCache.getFirstLinkpathDest(filePath, '');
           if (!file) return;
 
-          const dragData = this.plugin.app.dragManager.dragFile(e, file);
-          this.plugin.app.dragManager.onDragStart(e, dragData);
+          const dragManager = (this.plugin.app as any).dragManager;
+          if (!dragManager) return;
+          const dragData = dragManager.dragFile(e, file);
+          dragManager.onDragStart(e, dragData);
         });
       }
     });
@@ -199,9 +201,9 @@ export class ChatMessage extends Component {
       cls: 'osc-chat-action-btn',
       attr: { 'aria-label': 'Copy to clipboard' },
     });
-    copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 17L8 5C8 3.89543 8.89543 3 10 3H18C19.1046 3 20 3.89543 20 5V17"/><rect x="4" y="7" width="14" height="14" rx="2"/></svg>';
+    setIcon(copyBtn, 'copy');
 
-    copyBtn.addEventListener('click', async () => {
+    this.registerDomEvent(copyBtn, 'click', async () => {
       if (!this.data?.content) return;
 
       try {

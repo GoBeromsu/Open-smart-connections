@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { ChatThread } from './ChatThread';
 import { ChatHistoryModal } from './ChatHistoryModal';
@@ -46,8 +46,10 @@ export class ChatView extends ItemView {
   }
 
   async onClose(): Promise<void> {
-    this.threadComponent?.unload();
-    this.threadComponent = null;
+    if (this.threadComponent) {
+      this.removeChild(this.threadComponent);
+      this.threadComponent = null;
+    }
     this.container?.empty();
   }
 
@@ -68,24 +70,24 @@ export class ChatView extends ItemView {
       cls: 'osc-icon-btn',
       attr: { 'aria-label': 'New chat' },
     });
-    newChatBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
-    newChatBtn.addEventListener('click', () => this.createNewThread());
+    setIcon(newChatBtn, 'plus');
+    this.registerDomEvent(newChatBtn, 'click', () => this.createNewThread());
 
     // History button
     const historyBtn = actions.createEl('button', {
       cls: 'osc-icon-btn',
       attr: { 'aria-label': 'Chat history' },
     });
-    historyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><polyline points="12 7 12 12 15 15"/></svg>';
-    historyBtn.addEventListener('click', () => this.showHistory());
+    setIcon(historyBtn, 'history');
+    this.registerDomEvent(historyBtn, 'click', () => this.showHistory());
 
     // Settings button
     const settingsBtn = actions.createEl('button', {
       cls: 'osc-icon-btn',
       attr: { 'aria-label': 'Chat settings' },
     });
-    settingsBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/></svg>';
-    settingsBtn.addEventListener('click', () => this.openSettings());
+    setIcon(settingsBtn, 'settings');
+    this.registerDomEvent(settingsBtn, 'click', () => this.openSettings());
 
     // Thread container
     const threadContainer = this.container.createDiv({ cls: 'osc-chat-thread-container' });

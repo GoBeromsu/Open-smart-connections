@@ -134,9 +134,7 @@ export class ConnectionsView extends ItemView {
     // Find and render connections
     try {
       const results = this.plugin.source_collection.nearest_to
-        ? await this.plugin.source_collection.nearest_to(source, {
-            ...(this.plugin.settings?.smart_view_filter || {}),
-          })
+        ? await this.plugin.source_collection.nearest_to(source, {})
         : [];
       this.renderResults(targetPath, results);
     } catch (e) {
@@ -151,7 +149,6 @@ export class ConnectionsView extends ItemView {
     if (!source.vec || !this.plugin.source_collection) return [];
     try {
       return this.plugin.source_collection.nearest(source.vec, {
-        ...(this.plugin.settings?.smart_view_filter || {}),
         exclude: [source.key],
       });
     } catch {
@@ -184,7 +181,7 @@ export class ConnectionsView extends ItemView {
       attr: { 'aria-label': 'Refresh' },
     });
     refreshBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>';
-    refreshBtn.addEventListener('click', async () => {
+    this.registerDomEvent(refreshBtn, 'click', async () => {
       try {
         // If current source has no vec, queue it and run pipeline
         const source = this.plugin.source_collection?.get(targetPath);
@@ -228,12 +225,12 @@ export class ConnectionsView extends ItemView {
       item.createSpan({ text: name, cls: 'osc-result-title' });
 
       // Click to open
-      item.addEventListener('click', (e) => {
+      this.registerDomEvent(item, 'click', (e) => {
         this.plugin.open_note(fullPath, e);
       });
 
       // Hover preview
-      item.addEventListener('mouseover', (e) => {
+      this.registerDomEvent(item, 'mouseover', (e) => {
         this.app.workspace.trigger('hover-link', {
           event: e,
           source: CONNECTIONS_VIEW_TYPE,
@@ -245,7 +242,7 @@ export class ConnectionsView extends ItemView {
 
       // Drag support
       item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', (e) => {
+      this.registerDomEvent(item, 'dragstart', (e) => {
         const linkText = fullPath.replace(/\.md$/, '');
         e.dataTransfer?.setData('text/plain', `[[${linkText}]]`);
       });
@@ -309,7 +306,7 @@ export class ConnectionsView extends ItemView {
         text: 'Refresh',
         cls: 'osc-btn osc-btn--primary',
       });
-      refreshBtn.addEventListener('click', () => this.renderView());
+      this.registerDomEvent(refreshBtn, 'click', () => this.renderView());
     }
   }
 
@@ -332,7 +329,7 @@ export class ConnectionsView extends ItemView {
         text: 'Refresh',
         cls: 'osc-btn osc-btn--primary',
       });
-      refreshBtn.addEventListener('click', () => this.renderView());
+      this.registerDomEvent(refreshBtn, 'click', () => this.renderView());
     }
   }
 
@@ -348,7 +345,7 @@ export class ConnectionsView extends ItemView {
       text: 'Retry',
       cls: 'osc-btn osc-btn--primary',
     });
-    retryBtn.addEventListener('click', () => this.renderView());
+    this.registerDomEvent(retryBtn, 'click', () => this.renderView());
   }
 
   /**

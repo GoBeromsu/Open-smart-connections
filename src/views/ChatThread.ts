@@ -1,4 +1,4 @@
-import { Component } from 'obsidian';
+import { Component, setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { ChatMessage } from './ChatMessage';
 
@@ -102,7 +102,7 @@ export class ChatThread extends Component {
       cls: 'osc-chat-send-btn',
       attr: { 'aria-label': 'Send message' },
     });
-    this.sendButton.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13 3 9l19-7z"/><path d="M22 2 15 22l-4-9-8-4z"/></svg>';
+    setIcon(this.sendButton, 'send');
   }
 
   /**
@@ -112,10 +112,10 @@ export class ChatThread extends Component {
     if (!this.inputEl || !this.sendButton) return;
 
     // Send button click
-    this.sendButton.addEventListener('click', () => this.sendMessage());
+    this.registerDomEvent(this.sendButton, 'click', () => this.sendMessage());
 
     // Input keydown
-    this.inputEl.addEventListener('keydown', (e) => {
+    this.registerDomEvent(this.inputEl, 'keydown', (e) => {
       if (e.key === 'Enter') {
         // Shift+Enter = new line, Enter = send
         if (e.shiftKey) {
@@ -128,13 +128,13 @@ export class ChatThread extends Component {
     });
 
     // Update has-content attribute
-    this.inputEl.addEventListener('input', () => {
+    this.registerDomEvent(this.inputEl, 'input', () => {
       const hasContent = this.inputEl?.textContent?.trim().length ?? 0 > 0;
       this.inputEl?.setAttribute('data-has-content', hasContent.toString());
     });
 
     // Paste handler (non-blocking)
-    this.inputEl.addEventListener('paste', (e) => {
+    this.registerDomEvent(this.inputEl, 'paste', (e) => {
       e.preventDefault();
       const text = e.clipboardData?.getData('text/plain');
       if (text) {

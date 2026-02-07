@@ -48,12 +48,12 @@ export class LookupView extends ItemView {
       true,
     );
 
-    this.searchInput.addEventListener('input', () => {
+    this.registerDomEvent(this.searchInput, 'input', () => {
       debouncedSearch(this.searchInput.value);
     });
 
     // Also search on Enter
-    this.searchInput.addEventListener('keydown', (e) => {
+    this.registerDomEvent(this.searchInput, 'keydown', (e) => {
       if (e.key === 'Enter') {
         this.performSearch(this.searchInput.value);
       }
@@ -149,12 +149,12 @@ export class LookupView extends ItemView {
       item.createSpan({ text: name, cls: 'osc-result-title' });
 
       // Click to open
-      item.addEventListener('click', (e) => {
+      this.registerDomEvent(item, 'click', (e) => {
         this.plugin.open_note(key, e);
       });
 
       // Hover preview
-      item.addEventListener('mouseover', (e) => {
+      this.registerDomEvent(item, 'mouseover', (e) => {
         this.app.workspace.trigger('hover-link', {
           event: e,
           source: LOOKUP_VIEW_TYPE,
@@ -166,7 +166,7 @@ export class LookupView extends ItemView {
 
       // Drag support
       item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', (e) => {
+      this.registerDomEvent(item, 'dragstart', (e) => {
         const linkText = key.replace(/\.md$/, '').replace(/\.md#/, '#');
         e.dataTransfer?.setData('text/plain', `[[${linkText}]]`);
       });
