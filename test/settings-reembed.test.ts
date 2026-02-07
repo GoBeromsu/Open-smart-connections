@@ -27,6 +27,8 @@ describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
       initPipeline: vi.fn(async () => {}),
       queueUnembeddedEntities: vi.fn(() => 2),
       processInitialEmbedQueue: vi.fn(async () => {}),
+      requestEmbeddingStop: vi.fn(() => true),
+      waitForEmbeddingToStop: vi.fn(async () => true),
       refreshStatus: vi.fn(),
       embed_ready: true,
       status_state: 'idle',
@@ -61,5 +63,17 @@ describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
     );
     expect(plugin.queueUnembeddedEntities).toHaveBeenCalled();
     expect(plugin.processInitialEmbedQueue).toHaveBeenCalled();
+  });
+
+  it('should stop active embedding before switching model', async () => {
+    plugin.embedding_pipeline.is_active.mockReturnValue(true);
+
+    await (tab as any).triggerReEmbed();
+
+    expect(plugin.requestEmbeddingStop).toHaveBeenCalledWith(
+      'Embedding model switch requested',
+    );
+    expect(plugin.waitForEmbeddingToStop).toHaveBeenCalled();
+    expect(plugin.initEmbedModel).toHaveBeenCalled();
   });
 });

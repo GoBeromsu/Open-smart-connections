@@ -498,6 +498,32 @@ export default class SmartConnectionsPlugin extends Plugin {
     return queued;
   }
 
+  requestEmbeddingStop(reason: string = 'User requested stop'): boolean {
+    if (!this.embedding_pipeline?.is_active()) {
+      return false;
+    }
+
+    console.log(`Stopping embedding pipeline: ${reason}`);
+    this.embedding_pipeline.halt();
+    this.status_state = 'paused';
+    this.refreshStatus();
+    new Notice('Smart Connections: Stopping embedding...');
+    return true;
+  }
+
+  async waitForEmbeddingToStop(timeoutMs: number = 30000): Promise<boolean> {
+    if (!this.embedding_pipeline?.is_active()) return true;
+
+    const start = Date.now();
+    while (this.embedding_pipeline?.is_active()) {
+      if (Date.now() - start > timeoutMs) {
+        return false;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    return true;
+  }
+
   async initCollections(): Promise<void> {
     try {
       const dataDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}/.smart-env`;
@@ -945,10 +971,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   handleStatusBarClick(): void {
     switch (this.status_state) {
       case 'embedding':
-        // Pause embedding
-        this.embedding_pipeline?.halt();
-        this.status_state = 'paused';
-        this.refreshStatus();
+        this.requestEmbeddingStop('Status bar click');
         break;
       case 'paused':
         // Resume embedding — re-trigger the embed queue
