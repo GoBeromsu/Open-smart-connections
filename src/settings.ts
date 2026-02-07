@@ -45,6 +45,8 @@ interface SmartConnectionsPlugin extends Plugin {
   processInitialEmbedQueue?: () => Promise<void>;
   initializeEmbedding?: () => Promise<void>;
   refreshStatus?: () => void;
+  requestEmbeddingStop?: (reason?: string) => boolean;
+  waitForEmbeddingToStop?: (timeoutMs?: number) => Promise<boolean>;
 }
 
 class ConfirmModal extends Modal {
@@ -488,8 +490,15 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     try {
       if (plugin.embedding_pipeline?.is_active?.()) {
-        new Notice('Smart Connections: Embedding is already running. Try again after it completes.');
-        return;
+        plugin.requestEmbeddingStop?.('Embedding model switch requested');
+        const stopped = (await plugin.waitForEmbeddingToStop?.(60000)) ?? true;
+        if (!stopped) {
+          plugin.embed_ready = false;
+          plugin.status_state = 'error';
+          plugin.refreshStatus?.();
+          new Notice('Smart Connections: Failed to stop previous embedding run. Try again.');
+          return;
+        }
       }
 
       plugin.status_state = 'loading_model';

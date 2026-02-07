@@ -13,6 +13,7 @@ export class ConnectionsView extends ItemView {
   private progressCountEl?: HTMLElement;
   private progressFillEl?: HTMLElement;
   private progressContainerEl?: HTMLElement;
+  private stopEmbeddingBtnEl?: HTMLButtonElement;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -270,6 +271,16 @@ export class ConnectionsView extends ItemView {
       const track = this.progressContainerEl.createDiv({ cls: 'osc-progress-track' });
       this.progressFillEl = track.createDiv({ cls: 'osc-progress-fill' });
       this.progressFillEl.style.width = `${Math.round((embedded / total) * 100)}%`;
+
+      if (this.plugin.embedding_pipeline?.is_active()) {
+        this.stopEmbeddingBtnEl = this.progressContainerEl.createEl('button', {
+          text: 'Stop embedding',
+          cls: 'osc-btn',
+        });
+        this.registerDomEvent(this.stopEmbeddingBtnEl, 'click', () => {
+          this.plugin.requestEmbeddingStop?.('Connections view stop button');
+        });
+      }
     }
   }
 
@@ -288,6 +299,7 @@ export class ConnectionsView extends ItemView {
       this.progressContainerEl = undefined;
       this.progressCountEl = undefined;
       this.progressFillEl = undefined;
+      this.stopEmbeddingBtnEl = undefined;
     }
   }
 
