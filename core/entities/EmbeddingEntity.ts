@@ -57,20 +57,23 @@ export class EmbeddingEntity {
    * Checks if embedding is valid, queues embed if needed
    */
   init(): void {
+    const current_vec = this.vec;
+
     // Check if vector exists and matches model dimensions
-    if (!this.vec || !this.vec.length) {
+    if (!current_vec || !current_vec.length || this.has_dim_mismatch(current_vec)) {
       this.vec = null;
       this.queue_embed();
     }
+  }
 
-    // Only keep active model embeddings
-    if (this.data.embeddings) {
-      Object.keys(this.data.embeddings).forEach((model) => {
-        if (model !== this.embed_model_key) {
-          delete this.data.embeddings[model];
-        }
-      });
-    }
+  private has_dim_mismatch(vec: number[] | null): boolean {
+    const expected_dims = (this.collection as any).embed_model_dims;
+    return (
+      typeof expected_dims === 'number' &&
+      expected_dims > 0 &&
+      !!vec &&
+      vec.length !== expected_dims
+    );
   }
 
   /**
@@ -235,7 +238,9 @@ export class EmbeddingEntity {
    * Check if entity is unembedded or needs re-embedding
    */
   get is_unembedded(): boolean {
-    if (!this.vec) return true;
+    const current_vec = this.vec;
+    if (!current_vec) return true;
+    if (this.has_dim_mismatch(current_vec)) return true;
     if (!this.embed_hash || this.embed_hash !== this.read_hash) return true;
     return false;
   }

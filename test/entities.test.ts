@@ -74,7 +74,58 @@ describe('EmbeddingEntity', () => {
     expect(entity._queue_embed).toBe(false); // should_embed is false because size is 0
   });
 
-  it('should clean up old model embeddings on init', () => {
+  it('should clear vector and queue embed when dimensions mismatch active model', () => {
+    const mismatchCollection = {
+      embed_model_key: 'test-model',
+      embed_model_dims: 3,
+      settings: { min_chars: 10 },
+      delete: () => {},
+    } as any;
+
+    const entity = new EmbeddingEntity(mismatchCollection, {
+      path: 'test.md',
+      embeddings: {
+        'test-model': { vec: [1, 2] },
+      },
+    });
+
+    Object.defineProperty(entity, 'size', { get: () => 500 });
+    entity.init();
+
+    expect(entity.vec).toBeNull();
+    expect(entity._queue_embed).toBe(true);
+  });
+
+  it('should become unembedded after dimensions are synced later and queue on sweep', () => {
+    const lateSyncCollection = {
+      embed_model_key: 'test-model',
+      settings: { min_chars: 10 },
+      delete: () => {},
+    } as any;
+
+    const entity = new EmbeddingEntity(lateSyncCollection, {
+      path: 'late-sync.md',
+      embeddings: {
+        'test-model': { vec: [1, 2] },
+      },
+    });
+
+    Object.defineProperty(entity, 'size', { get: () => 500 });
+    entity.read_hash = 'hash';
+    entity.embed_hash = 'hash';
+
+    entity.init();
+    expect(entity._queue_embed).toBe(false);
+    expect(entity.is_unembedded).toBe(false);
+
+    lateSyncCollection.embed_model_dims = 3;
+    expect(entity.is_unembedded).toBe(true);
+
+    entity.queue_embed();
+    expect(entity._queue_embed).toBe(true);
+  });
+
+  it('should preserve old model embeddings on init for model-specific cache reuse', () => {
     const entity = new EmbeddingEntity(mockCollection, {
       path: 'test.md',
       embeddings: {
@@ -86,7 +137,7 @@ describe('EmbeddingEntity', () => {
     entity.init();
 
     expect(entity.data.embeddings['test-model']).toBeDefined();
-    expect(entity.data.embeddings['old-model']).toBeUndefined();
+    expect(entity.data.embeddings['old-model']).toBeDefined();
   });
 
   it('should handle read and embed hashes', () => {
@@ -118,6 +169,12 @@ describe('EmbeddingEntity', () => {
 
     // Hashes don't match
     entity.read_hash = 'hash456';
+    expect(entity.is_unembedded).toBe(true);
+
+    // Vector dimensions don't match active model
+    (mockCollection as any).embed_model_dims = 2;
+    entity.read_hash = 'hash123';
+    entity.embed_hash = 'hash123';
     expect(entity.is_unembedded).toBe(true);
   });
 

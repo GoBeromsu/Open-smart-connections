@@ -20,8 +20,6 @@ import { registerCommands } from './commands';
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/ConnectionsView';
 import { ChatView, CHAT_VIEW_TYPE } from './views/ChatView';
 import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
-// Import utilities
-import { add_smart_dice_icon } from './utils/add_icons';
 import { determine_installed_at } from './utils/determine_installed_at';
 
 // Import embedding models and adapters
@@ -109,7 +107,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     registerCommands(this);
 
     // Add ribbon icon
-    add_smart_dice_icon();
     this.addRibbonIcon('network', 'Open Connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
@@ -199,6 +196,11 @@ export default class SmartConnectionsPlugin extends Plugin {
       this.refreshStatus();
 
       await this.initEmbedModel();
+      this.syncCollectionEmbeddingContext();
+      const queued_after_sync = this.queueUnembeddedEntities();
+      console.log(
+        `Queued ${queued_after_sync} entities for embedding after model context sync`,
+      );
 
       // 2. Initialize embedding pipeline
       await this.initPipeline();
@@ -255,7 +257,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Determine installed_at from data.json ctime if not set
     const dataCtime = await this.getDataJsonCreatedAt();
     const resolved = determine_installed_at(this._installed_at, dataCtime);
-    if (resolved !== this._installed_at) {
+    if (typeof resolved === 'number' && resolved !== this._installed_at) {
       await this.saveInstalledAt(resolved);
     }
   }
@@ -321,7 +323,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       const adapterType = embedSettings.adapter;
 
       // Get adapter-specific settings
-      const adapterSettings = embedSettings[adapterType] || {};
+      const adapterSettings = this.getEmbedAdapterSettings(embedSettings);
       const modelKey = adapterSettings.model_key || '';
 
       console.log(`Initializing embed model: ${adapterType}/${modelKey}`);
@@ -339,7 +341,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           adapter = new TransformersEmbedAdapter({
             adapter: 'transformers',
             model_key: modelKey,
-            dims: modelInfo.dims,
+            dims: modelInfo.dims ?? 384,
             models: TRANSFORMERS_EMBED_MODELS,
             settings: adapterSettings,
           });
@@ -358,7 +360,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           adapter = new OpenAIEmbedAdapter({
             adapter: 'openai',
             model_key: modelKey,
-            dims: modelInfo.dims,
+            dims: modelInfo.dims ?? 1536,
             models: OPENAI_EMBED_MODELS,
             settings: adapterSettings,
           });
@@ -385,7 +387,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           adapter = new GeminiEmbedAdapter({
             adapter: 'gemini',
             model_key: modelKey,
-            dims: modelInfo.dims,
+            dims: modelInfo.dims ?? 768,
             models: GEMINI_EMBED_MODELS,
             settings: adapterSettings,
           });
@@ -412,7 +414,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           adapter = new UpstageEmbedAdapter({
             adapter: 'upstage',
             model_key: modelKey,
-            dims: modelInfo.dims,
+            dims: modelInfo.dims ?? 4096,
             models: UPSTAGE_EMBED_MODELS,
             settings: adapterSettings,
           });
@@ -449,10 +451,61 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
   }
 
+  syncCollectionEmbeddingContext(): void {
+    const modelKey = this.embed_model?.model_key;
+    const modelDims = this.embed_model?.adapter?.dims;
+
+    if (this.source_collection) {
+      if (modelKey) this.source_collection.embed_model_key = modelKey;
+      this.source_collection.embed_model_dims = modelDims;
+    }
+
+    if (this.block_collection) {
+      if (modelKey) this.block_collection.embed_model_key = modelKey;
+      this.block_collection.embed_model_dims = modelDims;
+    }
+  }
+
+  private getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> {
+    if (!embedSettings) return {};
+    const adapterType = embedSettings.adapter;
+    if (typeof adapterType !== 'string' || adapterType.length === 0) return {};
+    const settings = embedSettings[adapterType];
+    return settings && typeof settings === 'object' ? settings : {};
+  }
+
+  queueUnembeddedEntities(): number {
+    let queued = 0;
+
+    if (this.source_collection) {
+      for (const source of this.source_collection.all) {
+        if (!source.is_unembedded) continue;
+        const was_queued = source._queue_embed;
+        source.queue_embed();
+        if (!was_queued && source._queue_embed) queued++;
+      }
+    }
+
+    if (this.block_collection) {
+      for (const block of this.block_collection.all) {
+        if (!block.is_unembedded) continue;
+        const was_queued = block._queue_embed;
+        block.queue_embed();
+        if (!was_queued && block._queue_embed) queued++;
+      }
+    }
+
+    return queued;
+  }
+
   async initCollections(): Promise<void> {
     try {
       const dataDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}/.smart-env`;
-      const modelKey = this.embed_model?.model_key || this.settings.smart_sources.embed_model[this.settings.smart_sources.embed_model.adapter]?.model_key || 'None';
+      const adapterSettings = this.getEmbedAdapterSettings(
+        this.settings.smart_sources.embed_model as unknown as Record<string, any>,
+      );
+      const modelKey =
+        this.embed_model?.model_key || adapterSettings.model_key || 'None';
 
       console.log(`Initializing collections with data dir: ${dataDir}`);
 
@@ -565,50 +618,57 @@ export default class SmartConnectionsPlugin extends Plugin {
     new Notice(`Smart Connections: Embedding ${entitiesToEmbed.length} notes...`);
 
     let lastMilestone = 0;
-    const stats = await this.embedding_pipeline.process(entitiesToEmbed, {
-      batch_size: 10,
-      on_progress: (current, total) => {
-        if (this.status_msg) {
-          this.status_msg.setText(`SC: Embedding ${current}/${total}`);
-        }
-        // Emit progress event for ConnectionsView
-        this.app.workspace.trigger('smart-connections:embed-progress' as any, { current, total });
-        // Milestone notices every 1000
-        const milestone = Math.floor(current / 1000) * 1000;
-        if (milestone > lastMilestone && milestone > 0) {
-          lastMilestone = milestone;
-          new Notice(`SC: ${milestone} / ${total} embedded`);
-        }
-      },
-      on_save: async () => {
-        // Periodic save during embedding
-        await this.source_collection!.data_adapter.save();
-        if (this.block_collection) {
-          await this.block_collection.data_adapter.save();
-        }
-      },
-      save_interval: 50,
-    });
+    try {
+      const stats = await this.embedding_pipeline.process(entitiesToEmbed, {
+        batch_size: 10,
+        on_progress: (current, total) => {
+          if (this.status_msg) {
+            this.status_msg.setText(`SC: Embedding ${current}/${total}`);
+          }
+          // Emit progress event for ConnectionsView
+          this.app.workspace.trigger('smart-connections:embed-progress' as any, { current, total });
+          // Milestone notices every 1000
+          const milestone = Math.floor(current / 1000) * 1000;
+          if (milestone > lastMilestone && milestone > 0) {
+            lastMilestone = milestone;
+            new Notice(`SC: ${milestone} / ${total} embedded`);
+          }
+        },
+        on_save: async () => {
+          // Periodic save during embedding
+          await this.source_collection!.data_adapter.save();
+          if (this.block_collection) {
+            await this.block_collection.data_adapter.save();
+          }
+        },
+        save_interval: 50,
+      });
 
-    console.log('Initial embedding stats:', stats);
+      console.log('Initial embedding stats:', stats);
+      new Notice(`Smart Connections: Embedding complete! ${stats.success} notes embedded.`);
 
-    new Notice(`Smart Connections: Embedding complete! ${stats.success} notes embedded.`);
+      // Final save after embedding
+      await this.source_collection.data_adapter.save();
+      if (this.block_collection) {
+        await this.block_collection.data_adapter.save();
+      }
+    } catch (error) {
+      console.error('Initial embedding failed:', error);
+      new Notice('Smart Connections: Embedding failed. See console for details.');
+      throw error;
+    } finally {
+      const final_stats = this.embedding_pipeline.get_stats();
 
-    // Emit completion so ConnectionsView can hide the progress bar
-    this.app.workspace.trigger('smart-connections:embed-progress' as any, {
-      current: stats.success + stats.failed,
-      total: stats.total,
-      done: true,
-    });
+      // Emit completion so ConnectionsView can hide the progress bar even on errors.
+      this.app.workspace.trigger('smart-connections:embed-progress' as any, {
+        current: final_stats.success + final_stats.failed + final_stats.skipped,
+        total: final_stats.total,
+        done: true,
+      });
 
-    // Final save after embedding
-    await this.source_collection.data_adapter.save();
-    if (this.block_collection) {
-      await this.block_collection.data_adapter.save();
+      this.status_state = 'idle';
+      this.refreshStatus();
     }
-
-    this.status_state = 'idle';
-    this.refreshStatus();
   }
 
   registerFileWatchers(): void {
@@ -739,34 +799,36 @@ export default class SmartConnectionsPlugin extends Plugin {
       return;
     }
 
-    const queue = Object.values(this.re_import_queue);
-    if (queue.length === 0) return;
+    const queue_paths = Object.keys(this.re_import_queue);
+    if (queue_paths.length === 0) return;
 
-    console.log(`Re-importing ${queue.length} sources...`);
+    console.log(`Re-importing ${queue_paths.length} sources...`);
+    const processed_paths: string[] = [];
 
     try {
       // Update status
       if (this.status_msg) {
-        this.status_msg.setText(`Processing ${queue.length} files...`);
+        this.status_msg.setText(`Processing ${queue_paths.length} files...`);
       }
 
       // Process each queued source
-      for (const item of queue) {
+      for (const path of queue_paths) {
         if (this.re_import_halted) {
           console.log('Re-import halted by user');
           break;
         }
 
-        const file = this.app.vault.getAbstractFileByPath(item.path);
+        const file = this.app.vault.getAbstractFileByPath(path);
         if (file instanceof TFile) {
           // Import source (this will update metadata and queue embedding)
           await this.source_collection.import_source(file);
         }
+        processed_paths.push(path);
       }
 
       // Get all entities that need embedding
-      const sourcesToEmbed = this.source_collection.all.filter(s => s._queue_embed);
-      const blocksToEmbed = this.block_collection?.all.filter(b => b._queue_embed) || [];
+      const sourcesToEmbed = this.source_collection.embed_queue;
+      const blocksToEmbed = this.block_collection?.embed_queue || [];
       const entitiesToEmbed = [...sourcesToEmbed, ...blocksToEmbed];
 
       console.log(`Embedding ${entitiesToEmbed.length} entities...`);
@@ -797,13 +859,21 @@ export default class SmartConnectionsPlugin extends Plugin {
         }
       }
 
-      // Clear the queue
-      this.re_import_queue = {};
+      // Remove only processed paths. New items queued during this run must stay in queue.
+      processed_paths.forEach((path) => {
+        if (this.re_import_queue[path]) {
+          delete this.re_import_queue[path];
+        }
+      });
 
       // Refresh status
       this.refreshStatus();
 
       console.log('Re-import completed');
+
+      if (Object.keys(this.re_import_queue).length > 0) {
+        this.deferReImport('Re-import queue still has pending updates');
+      }
     } catch (error) {
       if (
         error instanceof Error &&
@@ -819,7 +889,11 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   setupStatusBar(): void {
-    const existing = this.app.statusBar.containerEl.querySelector('.smart-connections-status');
+    const app_any = this.app as any;
+    const status_bar_container: HTMLElement | undefined = app_any?.statusBar?.containerEl;
+    if (!status_bar_container) return;
+
+    const existing = status_bar_container.querySelector('.smart-connections-status');
     if (existing) {
       existing.closest('.status-bar-item')?.remove();
     }
@@ -832,7 +906,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     this.status_msg = this.status_container.createSpan('smart-connections-status-msg');
 
-    this.status_container.addEventListener('click', () => this.handleStatusBarClick());
+    this.registerDomEvent(this.status_container, 'click', () => this.handleStatusBarClick());
 
     this.refreshStatus();
   }

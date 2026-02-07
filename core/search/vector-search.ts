@@ -48,6 +48,12 @@ export function findNearest(
   for (const entity of entities) {
     // Skip if no vector
     if (!entity.vec) continue;
+    if (entity.vec.length !== vec.length) {
+      // Keep search resilient when stale vectors from another model remain cached.
+      entity.vec = null;
+      entity.queue_embed();
+      continue;
+    }
 
     // Apply filters
     if (exclude.includes(entity.key)) continue;
@@ -108,6 +114,11 @@ export function findFurthest(
   for (const entity of entities) {
     // Skip if no vector
     if (!entity.vec) continue;
+    if (entity.vec.length !== vec.length) {
+      entity.vec = null;
+      entity.queue_embed();
+      continue;
+    }
 
     // Apply filters
     if (exclude.includes(entity.key)) continue;

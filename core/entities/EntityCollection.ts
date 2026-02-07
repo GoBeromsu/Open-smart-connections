@@ -34,6 +34,9 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   /** Embed model key */
   embed_model_key: string = 'None';
 
+  /** Expected embedding dimensions for the active model */
+  embed_model_dims?: number;
+
   constructor(
     data_dir: string,
     settings: any = {},

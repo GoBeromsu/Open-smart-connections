@@ -135,7 +135,7 @@ describe('Cache Compatibility - Entity Data Format', () => {
     expect(entity.is_unembedded).toBe(true);
   });
 
-  it('should remove embeddings from inactive models', () => {
+  it('should preserve embeddings from inactive models for cache reuse', () => {
     const mockCollection = {
       embed_model_key: 'new-model',
       settings: {},
@@ -154,10 +154,10 @@ describe('Cache Compatibility - Entity Data Format', () => {
     const entity = new EmbeddingEntity(mockCollection, multiModelData);
     entity.init();
 
-    // Only active model embedding should remain
+    // Keep inactive model caches; active model is selected by embed_model_key at read time.
     expect(entity.data.embeddings['new-model']).toBeDefined();
-    expect(entity.data.embeddings['old-model-1']).toBeUndefined();
-    expect(entity.data.embeddings['old-model-2']).toBeUndefined();
+    expect(entity.data.embeddings['old-model-1']).toBeDefined();
+    expect(entity.data.embeddings['old-model-2']).toBeDefined();
   });
 });
 
