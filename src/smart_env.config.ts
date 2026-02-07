@@ -1,15 +1,12 @@
-import { AjsonMultiFileCollectionDataAdapter } from "smart-collections/adapters/ajson_multi_file.js";
+import { AjsonMultiFileCollectionDataAdapter } from 'smart-collections/adapters/ajson_multi_file.js';
 import { SmartFs } from 'smart-file-system/smart_fs.js';
 import { SmartFsObsidianAdapter } from 'smart-file-system/adapters/obsidian.js';
 import { SmartView } from 'smart-view/smart_view.js';
 import { SmartViewObsidianAdapter } from 'smart-view/adapters/obsidian.js';
-import { SmartHttpRequest, SmartHttpObsidianRequestAdapter } from "smart-http-request";
-import { requestUrl } from "obsidian";
 import { render as source_inspector_component } from 'obsidian-smart-env/components/source_inspector.js';
 
-// actions architecture
-import smart_block from "smart-blocks/smart_block.js";
-import smart_source from "smart-sources/smart_source.js";
+import smart_block from 'smart-blocks/smart_block.js';
+import smart_source from 'smart-sources/smart_source.js';
 
 export const smart_env_config = {
   env_path: '',
@@ -18,11 +15,10 @@ export const smart_env_config = {
       process_embed_queue: false,
     },
     smart_collections: {
-      data_adapter: AjsonMultiFileCollectionDataAdapter
+      data_adapter: AjsonMultiFileCollectionDataAdapter,
     },
   },
-  item_types: {
-  },
+  item_types: {},
   items: {
     smart_block,
     smart_source,
@@ -50,7 +46,7 @@ export const smart_env_config = {
       single_file_data_path: '.smart-env/smart_sources.json',
       min_chars: 200,
       embed_model: {
-        adapter: "transformers",
+        adapter: 'transformers',
         transformers: {
           legacy_transformers: false,
           model_key: 'TaylorAI/bge-micro-v2',
