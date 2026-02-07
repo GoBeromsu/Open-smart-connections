@@ -56,7 +56,7 @@ export class ConnectionsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Connections';
+    return 'Smart Connections';
   }
 
   getIcon(): string {

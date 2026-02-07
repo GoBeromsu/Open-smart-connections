@@ -297,6 +297,13 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   private updateEmbedNotice(ctx: EmbeddingRunContext, force: boolean = false): void {
+    const hasConnectionsViewOpen =
+      this.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE).length > 0;
+    if (hasConnectionsViewOpen) {
+      this.clearEmbedNotice();
+      return;
+    }
+
     const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
     const now = Date.now();
     const shouldUpdate =
