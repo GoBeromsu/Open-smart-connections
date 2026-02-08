@@ -374,11 +374,17 @@ export async function waitForEmbeddingToStop(plugin: SmartConnectionsPlugin, tim
 
   const start = Date.now();
   while (plugin.embedding_pipeline?.is_active()) {
+    if (plugin._unloading) return false;
     if (Date.now() - start > timeoutMs) {
       plugin.logEmbed('stop-timeout', { reason: `timeoutMs=${timeoutMs}` });
       return false;
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    await new Promise<void>((resolve) => {
+      plugin._stop_poll_timer = window.setTimeout(() => {
+        plugin._stop_poll_timer = undefined;
+        resolve();
+      }, 100);
+    });
   }
   return true;
 }
@@ -728,6 +734,19 @@ function scheduleStaleRetry(
 }
 
 async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
+  // Phase guard: reject runs when kernel is in an invalid state for embedding
+  const phase = plugin.status_state;
+  if (phase === 'loading_model' || phase === 'error') {
+    console.warn(`[SC] runEmbeddingJobNow rejected: kernel phase is '${phase}'`);
+    return null;
+  }
+
+  // Reject runs after plugin unload
+  if (plugin._unloading) {
+    console.warn('[SC] runEmbeddingJobNow rejected: plugin is unloading');
+    return null;
+  }
+
   if (!plugin.source_collection || !plugin.embedding_pipeline) {
     dispatchQueueSnapshot(plugin);
     return null;

@@ -145,6 +145,8 @@ export default class SmartConnectionsPlugin extends Plugin {
   re_import_timeout?: number;
   re_import_retry_timeout?: number;
   re_import_halted = false;
+  _unloading = false;
+  _stop_poll_timer?: number;
   _installed_at: number | null = null;
 
   // Core components
@@ -276,6 +278,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     } catch (e) {
       this.init_errors.push({ phase: 'initCollections', error: e as Error });
       console.error('Failed to init collections:', e);
+      // Collections are critical — abort initialization
+      this.ready = false;
+      this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to initialize collections' });
+      return;
     }
 
     // 4. Load collections from AJSON
@@ -284,6 +290,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     } catch (e) {
       this.init_errors.push({ phase: 'loadCollections', error: e as Error });
       console.error('Failed to load collections:', e);
+      // Collection data is critical — abort initialization
+      this.ready = false;
+      this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to load collections' });
+      return;
     }
 
     // 5. Setup status bar
@@ -470,8 +480,12 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     console.log('Unloading Smart Connections plugin');
+    this._unloading = true;
+
+    // Halt active embedding pipeline before clearing the queue
+    this.embedding_pipeline?.halt();
     this.clearEmbedNotice();
     this._notices?.unload();
     this.embedding_kernel_unsubscribe?.();
@@ -485,10 +499,17 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (this.re_import_retry_timeout) {
       window.clearTimeout(this.re_import_retry_timeout);
     }
+    if (this._stop_poll_timer) {
+      window.clearTimeout(this._stop_poll_timer);
+      this._stop_poll_timer = undefined;
+    }
 
-    // Unload embed model (especially for transformers worker)
+    // Fire-and-forget async cleanup with error handling
+    // Obsidian does not await onunload, so we cannot use await here
     if (this.embed_model) {
-      await this.embed_model.unload();
+      this.embed_model.unload().catch((err: unknown) => {
+        console.warn('Failed to unload embed model:', err);
+      });
     }
 
     // Unload environment

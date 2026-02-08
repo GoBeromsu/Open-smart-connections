@@ -5,6 +5,7 @@
 
 import type {
   EmbeddingKernelEvent,
+  EmbeddingKernelPhase,
   EmbeddingKernelState,
 } from './types';
 
@@ -35,6 +36,17 @@ export function reduceEmbeddingKernelState(
       return {
         ...prev,
         phase: prev.phase === 'booting' ? 'idle' : prev.phase,
+      };
+
+    case 'INIT_CORE_FAILED':
+      return {
+        ...prev,
+        phase: 'error',
+        lastError: {
+          code: 'INIT_CORE_FAILED',
+          message: event.error,
+          at: Date.now(),
+        },
       };
 
     case 'MODEL_SWITCH_REQUESTED':
@@ -80,7 +92,13 @@ export function reduceEmbeddingKernelState(
         lastError: null,
       };
 
-    case 'RUN_STARTED':
+    case 'RUN_STARTED': {
+      // Guard: only allow transition to 'running' from valid phases
+      const canStartFrom: EmbeddingKernelPhase[] = ['idle', 'paused', 'booting'];
+      if (!canStartFrom.includes(prev.phase)) {
+        console.warn(`[SC][FSM] RUN_STARTED blocked: cannot start from '${prev.phase}'`);
+        return prev;
+      }
       return {
         ...prev,
         phase: 'running',
@@ -88,6 +106,7 @@ export function reduceEmbeddingKernelState(
         flags: { ...prev.flags, stopRequested: false },
         lastError: null,
       };
+    }
 
     case 'RUN_PROGRESS':
       if (!prev.run) return prev;
@@ -190,11 +209,27 @@ export function reduceEmbeddingKernelState(
         },
       };
 
-    case 'SET_PHASE':
+    case 'SET_PHASE': {
+      // Guard: only allow SET_PHASE for transitions that don't bypass FSM invariants
+      const validSetPhaseTransitions: Record<string, EmbeddingKernelPhase[]> = {
+        booting: ['idle', 'error'],
+        idle: ['loading_model', 'error'],
+        running: ['loading_model', 'error'],
+        paused: ['idle', 'error'],
+        error: ['idle', 'booting'],
+        loading_model: ['idle', 'error'],
+        stopping: ['error'],
+      };
+      const allowed = validSetPhaseTransitions[prev.phase] ?? [];
+      if (!allowed.includes(event.phase)) {
+        console.warn(`[SC][FSM] SET_PHASE blocked: ${prev.phase} -> ${event.phase}`);
+        return prev;
+      }
       return {
         ...prev,
         phase: event.phase,
       };
+    }
 
     case 'RESET_ERROR':
       return {

@@ -110,6 +110,9 @@ describe('SmartConnectionsPlugin embedding control', () => {
     const { pipeline, release } = createControlledPipeline();
     plugin.embedding_pipeline = pipeline as any;
 
+    // Transition FSM from 'booting' to 'idle' (simulating successful init)
+    plugin.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
+
     const runPromise = plugin.runEmbeddingJob('test-stop-flow');
     await Promise.resolve();
 
@@ -134,6 +137,9 @@ describe('SmartConnectionsPlugin embedding control', () => {
     const { plugin } = createPlugin();
     const { pipeline, release } = createControlledPipeline();
     plugin.embedding_pipeline = pipeline as any;
+
+    // Transition FSM from 'booting' to 'idle' (simulating successful init)
+    plugin.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
 
     const runPromise = plugin.runEmbeddingJob('run-guard');
     await Promise.resolve();
