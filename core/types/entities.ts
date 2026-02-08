@@ -31,6 +31,30 @@ export interface EmbeddingData {
 }
 
 /**
+ * Per-model embedding metadata
+ * Used for safe freshness checks when switching embedding models.
+ */
+export interface EmbeddingModelMeta {
+  /** Content hash at embedding time (must match last_read.hash to be fresh) */
+  hash: string;
+
+  /** Size captured at embedding time */
+  size?: number;
+
+  /** mtime captured at embedding time */
+  mtime?: number;
+
+  /** Embedding dimensions used for this model entry */
+  dims?: number;
+
+  /** Adapter name that produced this model entry */
+  adapter?: string;
+
+  /** Updated timestamp (epoch ms) */
+  updated_at?: number;
+}
+
+/**
  * Base entity data structure
  * This is the shape stored in AJSON files
  */
@@ -50,6 +74,12 @@ export interface EntityData {
    * Example: { "TaylorAI/bge-micro-v2": { vec: [0.1, 0.2, ...], tokens: 512 } }
    */
   embeddings: Record<string, EmbeddingData>;
+
+  /**
+   * Per-model embedding freshness metadata
+   * Optional for backward compatibility with legacy caches.
+   */
+  embedding_meta?: Record<string, EmbeddingModelMeta>;
 
   /** Additional metadata */
   [key: string]: any;
@@ -126,6 +156,9 @@ export interface EmbeddingEntity {
   /** Current embedding vector (cached from data.embeddings[model_key].vec) */
   vec: number[] | null;
 
+  /** Active-model freshness metadata */
+  active_embedding_meta?: EmbeddingModelMeta;
+
   /** Token count */
   tokens?: number;
 
@@ -154,6 +187,16 @@ export interface EmbeddingEntity {
    * Check if entity has valid embedding
    */
   has_embed(): boolean;
+
+  /**
+   * Check if entity is stale or missing for active model
+   */
+  is_unembedded: boolean;
+
+  /**
+   * Update active-model embedding metadata
+   */
+  set_active_embedding_meta(meta: EmbeddingModelMeta): void;
 
   /**
    * Check if entity needs re-embedding

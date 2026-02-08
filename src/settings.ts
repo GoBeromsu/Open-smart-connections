@@ -3,30 +3,21 @@
  * @description Settings UI for Smart Connections plugin
  */
 
-import { PluginSettingTab, Setting, Notice, App, Plugin, Modal } from 'obsidian';
+import {
+  PluginSettingTab,
+  Setting,
+  App,
+  Plugin,
+  Modal,
+  ButtonComponent,
+  ProgressBarComponent,
+} from 'obsidian';
 import type { PluginSettings } from '../core/types/settings';
-
-interface ModelInfo {
-  id: string;
-  name?: string;
-  description?: string;
-  dims?: number;
-  max_tokens?: number;
-  batch_size?: number;
-  adapter?: string;
-}
-
-interface SmartEmbedModelInstance {
-  adapter_name: string;
-  adapter: any;
-  loaded: boolean;
-  get_platforms_as_options(): Array<{ value: string; name: string }>;
-  adapter_changed(): void;
-  model_changed(): void;
-  re_render_settings(): void;
-  opts: { re_render_settings?: () => void };
-  adapters: Record<string, any>;
-}
+import {
+  renderModelDropdown,
+  renderApiKeyField as renderApiKeyFieldExternal,
+  renderHostField as renderHostFieldExternal,
+} from './settings-model-picker';
 
 interface SmartConnectionsPlugin extends Plugin {
   settings?: PluginSettings;
@@ -50,6 +41,19 @@ interface SmartConnectionsPlugin extends Plugin {
   refreshStatus?: () => void;
   requestEmbeddingStop?: (reason?: string) => boolean;
   waitForEmbeddingToStop?: (timeoutMs?: number) => Promise<boolean>;
+  getActiveEmbeddingContext?: () => {
+    runId: number;
+    current: number;
+    total: number;
+    currentEntityKey?: string | null;
+    currentSourcePath?: string | null;
+  } | null;
+  notices?: {
+    show?: (id: string, params?: Record<string, unknown>, opts?: Record<string, unknown>) => unknown;
+    listMuted?: () => string[];
+    unmute?: (id: string) => Promise<void>;
+    unmuteAll?: () => Promise<void>;
+  };
 }
 
 class ConfirmModal extends Modal {
@@ -68,11 +72,8 @@ class ConfirmModal extends Modal {
 
     const buttonDiv = contentEl.createDiv({ cls: 'modal-button-container' });
 
-    buttonDiv.createEl('button', { text: 'Cancel', cls: 'mod-cancel' })
-      .addEventListener('click', () => { this.result = false; this.close(); });
-
-    buttonDiv.createEl('button', { text: 'Confirm', cls: 'mod-cta' })
-      .addEventListener('click', () => { this.result = true; this.close(); });
+    new ButtonComponent(buttonDiv).setButtonText('Cancel').onClick(() => { this.result = false; this.close(); });
+    new ButtonComponent(buttonDiv).setButtonText('Confirm').setCta().onClick(() => { this.result = true; this.close(); });
   }
 
   onClose() {
@@ -96,7 +97,6 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -118,6 +118,10 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     new Setting(containerEl).setName('View Settings').setHeading();
     this.renderViewSettings(containerEl);
 
+    // Notice Settings
+    new Setting(containerEl).setName('Notice Settings').setHeading();
+    this.renderNoticeSettings(containerEl);
+
     // Embedding Status
     new Setting(containerEl).setName('Embedding Status').setHeading();
     this.renderEmbeddingStatus(containerEl);
@@ -129,6 +133,10 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
   private renderEmbeddingModelSection(containerEl: HTMLElement): void {
     const currentAdapter = this.getConfig('smart_sources.embed_model.adapter', 'transformers');
+    const configAccessor = {
+      getConfig: (path: string, fallback: any) => this.getConfig(path, fallback),
+      setConfig: (path: string, value: any) => this.setConfig(path, value),
+    };
 
     // Provider dropdown
     new Setting(containerEl)
@@ -151,10 +159,9 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
         dropdown.onChange(async (value) => {
           const oldValue = currentAdapter;
           if (value !== oldValue) {
-            const confirmed = await new ConfirmModal(
-              this.app,
-              'Changing the embedding provider requires re-embedding all notes. This may take a while. Continue?'
-            ).open();
+            const confirmed = await this.confirmReembed(
+              'Changing the embedding provider requires re-embedding all notes. This may take a while. Continue?',
+            );
 
             if (!confirmed) {
               dropdown.setValue(oldValue);
@@ -162,194 +169,53 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
             }
           }
           this.setConfig('smart_sources.embed_model.adapter', value);
+          this.ensureModelKeyForAdapter(value);
           this.display();
           await this.triggerReEmbed();
         });
       });
 
     // Model dropdown based on current adapter
-    this.renderModelDropdownSimple(containerEl, currentAdapter);
+    renderModelDropdown({
+      containerEl,
+      adapterName: currentAdapter,
+      config: configAccessor,
+      confirmReembed: (message) => this.confirmReembed(message),
+      triggerReEmbed: () => this.triggerReEmbed(),
+      display: () => this.display(),
+    });
 
     // API Key field (for non-local adapters)
     if (['openai', 'gemini', 'upstage', 'open_router'].includes(currentAdapter)) {
-      this.renderApiKeyField(containerEl, currentAdapter);
+      renderApiKeyFieldExternal(containerEl, currentAdapter, configAccessor);
     }
 
     // Host URL field (for local adapters)
     if (['ollama', 'lm_studio'].includes(currentAdapter)) {
-      this.renderHostField(containerEl, currentAdapter, currentAdapter === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234');
+      const defaultHost = currentAdapter === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234';
+      renderHostFieldExternal(containerEl, currentAdapter, defaultHost, configAccessor);
     }
   }
 
-  private renderModelDropdownSimple(containerEl: HTMLElement, adapterName: string): void {
-    const currentModelKey = this.getConfig(
+  private ensureModelKeyForAdapter(adapterName: string): void {
+    const existing = this.getConfig(
       `smart_sources.embed_model.${adapterName}.model_key`,
       '',
     );
-
-    // Known models per adapter
-    const KNOWN_MODELS: Record<string, Array<{ value: string; name: string }>> = {
-      transformers: [
-        { value: 'TaylorAI/bge-micro-v2', name: 'BGE-micro-v2 (384d, recommended)' },
-        { value: 'TaylorAI/gte-tiny', name: 'GTE-tiny (384d)' },
-        { value: 'Xenova/bge-small-en-v1.5', name: 'BGE-small (384d)' },
-        { value: 'Snowflake/snowflake-arctic-embed-xs', name: 'Arctic Embed XS (384d)' },
-        { value: 'Snowflake/snowflake-arctic-embed-s', name: 'Arctic Embed S (384d)' },
-        { value: 'Snowflake/snowflake-arctic-embed-m', name: 'Arctic Embed M (768d)' },
-        { value: 'nomic-ai/nomic-embed-text-v1.5', name: 'Nomic v1.5 (768d)' },
-        { value: 'Xenova/jina-embeddings-v2-small-en', name: 'Jina v2 Small EN (512d)' },
-        { value: 'Xenova/jina-embeddings-v2-base-zh', name: 'Jina v2 Base ZH (768d)' },
-        { value: 'andersonbcdefg/bge-small-4096', name: 'BGE-small-4K (384d)' },
-      ],
-      openai: [
-        { value: 'text-embedding-3-small', name: 'text-embedding-3-small (1536d)' },
-        { value: 'text-embedding-3-large', name: 'text-embedding-3-large (3072d)' },
-        { value: 'text-embedding-ada-002', name: 'text-embedding-ada-002 (1536d)' },
-      ],
-      gemini: [
-        { value: 'text-embedding-004', name: 'text-embedding-004 (768d)' },
-      ],
-      upstage: [
-        { value: 'solar-embedding-1-large-passage', name: 'Solar Embedding Large Passage' },
-        { value: 'solar-embedding-1-large-query', name: 'Solar Embedding Large Query' },
-      ],
-    };
-
-    const knownModels = KNOWN_MODELS[adapterName];
-
-    if (knownModels) {
-      // Hybrid: dropdown for known models + "Custom" option
-      const isCustom = !knownModels.some(m => m.value === currentModelKey) && currentModelKey !== '';
-
-      new Setting(containerEl)
-        .setName('Model')
-        .setDesc('Embedding model')
-        .addDropdown((dropdown) => {
-          knownModels.forEach((m) => {
-            dropdown.addOption(m.value, m.name);
-          });
-          dropdown.addOption('__custom__', 'Custom...');
-          dropdown.setValue(isCustom ? '__custom__' : currentModelKey);
-          dropdown.onChange(async (value) => {
-            if (value === '__custom__') {
-              this.display();
-              return;
-            }
-            const oldValue = currentModelKey;
-            if (value !== oldValue) {
-              const confirmed = await new ConfirmModal(
-                this.app,
-                'Changing the embedding model requires re-embedding all notes. This may take a while. Continue?'
-              ).open();
-
-              if (!confirmed) {
-                dropdown.setValue(isCustom ? '__custom__' : oldValue);
-                return;
-              }
-            }
-            this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, value);
-            await this.triggerReEmbed();
-          });
-        });
-
-      // Show text input for custom model
-      if (isCustom || this.getConfig(`smart_sources.embed_model.${adapterName}.model_key`, '') === '__custom__') {
-        let pendingCustomModel = isCustom ? currentModelKey : '';
-        new Setting(containerEl)
-          .setName('Custom model key')
-          .setDesc('Enter a custom model identifier')
-          .addText((text) => {
-            text.setPlaceholder('e.g., org/model-name');
-            text.setValue(pendingCustomModel);
-            text.onChange((value) => {
-              pendingCustomModel = value.trim();
-            });
-          })
-          .addButton((button) => {
-            button.setButtonText('Apply');
-            button.setCta();
-            button.onClick(async () => {
-              const nextValue = pendingCustomModel.trim();
-              if (!nextValue || nextValue === currentModelKey) return;
-              const confirmed = await new ConfirmModal(
-                this.app,
-                'Applying a custom embedding model requires re-embedding notes. Continue?',
-              ).open();
-              if (!confirmed) return;
-              this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, nextValue);
-              await this.triggerReEmbed();
-            });
-          });
-      }
-    } else {
-      // Text input only (for ollama, lm_studio, open_router)
-      let pendingModelKey = currentModelKey;
-      new Setting(containerEl)
-        .setName('Model')
-        .setDesc('Embedding model key')
-        .addText((text) => {
-          text.setPlaceholder(adapterName === 'ollama' ? 'nomic-embed-text' : 'Model key');
-          text.setValue(currentModelKey);
-          text.onChange((value) => {
-            pendingModelKey = value.trim();
-          });
-        })
-        .addButton((button) => {
-          button.setButtonText('Apply');
-          button.setCta();
-          button.onClick(async () => {
-            if (!pendingModelKey || pendingModelKey === currentModelKey) return;
-            const confirmed = await new ConfirmModal(
-              this.app,
-              'Changing the embedding model requires re-embedding all notes. Continue?',
-            ).open();
-            if (!confirmed) return;
-            this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, pendingModelKey);
-            await this.triggerReEmbed();
-          });
-        });
+    if (typeof existing === 'string' && existing.trim().length > 0) {
+      return;
     }
-  }
 
-  private renderApiKeyField(containerEl: HTMLElement, adapterName: string): void {
-    const currentApiKey = this.getConfig(
-      `smart_sources.embed_model.${adapterName}.api_key`,
-      '',
-    );
-
-    new Setting(containerEl)
-      .setName('API Key')
-      .setDesc('API key for authentication')
-      .addText((text) => {
-        text.inputEl.type = 'password';
-        text.setPlaceholder('Enter API key');
-        text.setValue(currentApiKey);
-        text.onChange(async (value) => {
-          this.setConfig(`smart_sources.embed_model.${adapterName}.api_key`, value);
-        });
-      });
-  }
-
-  private renderHostField(
-    containerEl: HTMLElement,
-    adapterName: string,
-    defaultHost: string,
-  ): void {
-    const currentHost = this.getConfig(
-      `smart_sources.embed_model.${adapterName}.host`,
-      defaultHost,
-    );
-
-    new Setting(containerEl)
-      .setName('Host URL')
-      .setDesc('API endpoint URL')
-      .addText((text) => {
-        text.setPlaceholder(defaultHost);
-        text.setValue(currentHost);
-        text.onChange(async (value) => {
-          this.setConfig(`smart_sources.embed_model.${adapterName}.host`, value);
-        });
-      });
+    const defaults: Record<string, string> = {
+      transformers: 'TaylorAI/bge-micro-v2',
+      ollama: 'bge-m3',
+      openai: 'text-embedding-3-small',
+      gemini: 'text-embedding-004',
+      upstage: 'solar-embedding-1-large-passage',
+    };
+    const fallback = defaults[adapterName];
+    if (!fallback) return;
+    this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, fallback);
   }
 
   private renderSourceSettings(containerEl: HTMLElement): void {
@@ -453,33 +319,212 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       });
   }
 
+  private renderNoticeSettings(containerEl: HTMLElement): void {
+    const mutedNotices = this.plugin.notices?.listMuted?.() ?? [];
+
+    new Setting(containerEl)
+      .setName('Muted notices')
+      .setDesc('Muted notices remain hidden until manually unmuted.')
+      .addButton((button) => {
+        button
+          .setButtonText('Unmute all')
+          .setDisabled(mutedNotices.length === 0)
+          .onClick(async () => {
+            await this.plugin.notices?.unmuteAll?.();
+            this.display();
+          });
+      });
+
+    if (mutedNotices.length === 0) {
+      containerEl.createEl('p', {
+        text: 'No muted notices.',
+        cls: 'setting-item-description osc-muted-notices-empty',
+      });
+      return;
+    }
+
+    const listContainer = containerEl.createDiv({ cls: 'osc-muted-notices-list' });
+
+    for (const noticeId of mutedNotices) {
+      new Setting(listContainer)
+        .setName(noticeId)
+        .setDesc('Muted')
+        .addButton((button) => {
+          button
+            .setButtonText('Unmute')
+            .onClick(async () => {
+              await this.plugin.notices?.unmute?.(noticeId);
+              this.display();
+            });
+        });
+    }
+  }
 
   private renderEmbeddingStatus(containerEl: HTMLElement): void {
     const collection = this.plugin.source_collection;
 
     const total = collection?.size ?? 0;
     const embedded = collection?.all?.filter((s: any) => s.vec)?.length ?? 0;
-    const pending = total - embedded;
+    const pending = Math.max(0, total - embedded);
     const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
+    const activeCtx = this.plugin.getActiveEmbeddingContext?.() ?? null;
+    const status = this.plugin.status_state ?? 'idle';
+    const runLabel = this.getRunStateLabel(status);
 
-    // Stats
-    const statsDiv = containerEl.createDiv({ cls: 'setting-item-description' });
-    statsDiv.createEl('div', { text: `Total sources: ${total}` });
-    statsDiv.createEl('div', { text: `Embedded: ${embedded}` });
-    statsDiv.createEl('div', { text: `Pending: ${pending}` });
-    statsDiv.createEl('div', { text: `Progress: ${pct}%` });
+    const statusRow = containerEl.createDiv({ cls: 'osc-model-status' });
+    this.renderStatusPill(statusRow, 'Core', this.plugin.ready ? 'Ready' : 'Loading', !!this.plugin.ready);
+    this.renderStatusPill(
+      statusRow,
+      'Embedding',
+      this.plugin.embed_ready ? 'Ready' : 'Loading',
+      !!this.plugin.embed_ready,
+    );
+    this.renderStatusPill(
+      statusRow,
+      'Run',
+      runLabel,
+      status === 'embedding' || status === 'stopping' || status === 'paused',
+      this.getRunStateTone(status),
+    );
 
-    // Ready status
-    const statusDiv = containerEl.createDiv({ cls: 'setting-item-description' });
-    statusDiv.createEl('div', {
-      text: this.plugin.ready ? 'Core: Ready' : 'Core: Loading...'
-    });
-    statusDiv.createEl('div', {
-      text: this.plugin.embed_ready ? 'Embedding: Ready' : 'Embedding: Loading...'
+    const statsGrid = containerEl.createDiv({ cls: 'osc-stats-grid' });
+    this.renderStatCard(statsGrid, 'Total', total.toLocaleString());
+    this.renderStatCard(statsGrid, 'Embedded', embedded.toLocaleString(), 'green');
+    this.renderStatCard(statsGrid, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
+    this.renderStatCard(statsGrid, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
+
+    const progressWrap = containerEl.createDiv({ cls: 'osc-settings-embed-progress' });
+    new ProgressBarComponent(progressWrap).setValue(pct);
+
+    const runCurrent = activeCtx?.current ?? embedded;
+    const runTotal = activeCtx?.total ?? total;
+    const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
+    const currentItem = activeCtx?.currentSourcePath ?? activeCtx?.currentEntityKey ?? '-';
+
+    if (status === 'embedding' || status === 'stopping' || status === 'paused') {
+      new Setting(containerEl)
+        .setName('Current run')
+        .setDesc(
+          `Run #${activeCtx?.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%) • ${currentItem}`,
+        );
+    } else if (status === 'error') {
+      new Setting(containerEl)
+        .setName('Current run')
+        .setDesc('Embedding run encountered an error. Check notices for details.');
+    }
+
+    const actionSetting = new Setting(containerEl)
+      .setName('Actions')
+      .setDesc('Control the embedding pipeline.');
+
+    if (status === 'embedding' || status === 'stopping') {
+      actionSetting.addButton((button) => {
+        button
+          .setButtonText(status === 'stopping' ? 'Stopping...' : 'Stop')
+          .setDisabled(status === 'stopping')
+          .onClick(() => {
+            this.plugin.requestEmbeddingStop?.('Settings stop button');
+            this.display();
+          });
+      });
+    }
+
+    if (status === 'paused') {
+      actionSetting.addButton((button) => {
+        button
+          .setButtonText('Resume')
+          .setCta()
+          .onClick(async () => {
+            await this.plugin.resumeEmbedding?.('Settings resume');
+            this.display();
+          });
+      });
+    }
+
+    actionSetting.addButton((button) => {
+      button
+        .setButtonText('Re-embed stale')
+        .onClick(async () => {
+          const count = await this.plugin.reembedStaleEntities?.('Settings re-embed');
+          if (count === 0) {
+            this.plugin.notices?.show?.('no_stale_entities');
+          }
+          this.display();
+        });
     });
   }
 
+  private getRunStateLabel(
+    status: NonNullable<SmartConnectionsPlugin['status_state']>,
+  ): string {
+    switch (status) {
+      case 'loading_model':
+        return 'Loading';
+      case 'embedding':
+        return 'Running';
+      case 'stopping':
+        return 'Stopping';
+      case 'paused':
+        return 'Paused';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Idle';
+    }
+  }
 
+  private getRunStateTone(
+    status: NonNullable<SmartConnectionsPlugin['status_state']>,
+  ): 'ready' | 'loading' | 'error' {
+    switch (status) {
+      case 'error':
+        return 'error';
+      case 'embedding':
+      case 'stopping':
+      case 'paused':
+        return 'ready';
+      default:
+        return 'loading';
+    }
+  }
+
+  private renderStatusPill(
+    containerEl: HTMLElement,
+    label: string,
+    value: string,
+    active: boolean,
+    tone: 'ready' | 'loading' | 'error' = active ? 'ready' : 'loading',
+  ): void {
+    const pill = containerEl.createDiv({ cls: 'osc-status-pill' });
+    const dot = pill.createSpan({ cls: 'osc-status-dot' });
+    const dotClassMap: Record<string, string> = {
+      error: 'osc-status-dot--error',
+      ready: 'osc-status-dot--ready',
+      loading: 'osc-status-dot--loading',
+    };
+    dot.addClass(dotClassMap[tone] ?? 'osc-status-dot--loading');
+    pill.createSpan({
+      cls: 'osc-status-text',
+      text: `${label}: ${value}`,
+    });
+  }
+
+  private renderStatCard(
+    containerEl: HTMLElement,
+    label: string,
+    value: string,
+    tone?: 'green' | 'amber',
+  ): void {
+    const card = containerEl.createDiv({ cls: 'osc-stat-card' });
+    if (tone === 'green') card.addClass('osc-stat--green');
+    if (tone === 'amber') card.addClass('osc-stat--amber');
+    card.createDiv({ cls: 'osc-stat-value', text: value });
+    card.createDiv({ cls: 'osc-stat-label', text: label });
+  }
+
+  private async confirmReembed(message: string): Promise<boolean> {
+    return await new ConfirmModal(this.app, message).open();
+  }
 
   private getConfig(path: string, fallback: any): any {
     const settings = this.plugin.settings;
@@ -520,51 +565,15 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
   private async triggerReEmbed(): Promise<void> {
     const plugin = this.plugin;
-    new Notice('Smart Connections: Re-initializing embedding model...');
+    plugin.notices?.show?.('reinitializing_embedding_model');
 
     try {
-      plugin.status_state = 'loading_model';
-      plugin.embed_ready = false;
-      plugin.refreshStatus?.();
+      await plugin.switchEmbeddingModel?.('Settings model switch');
 
-      if (plugin.switchEmbeddingModel) {
-        await plugin.switchEmbeddingModel('Settings model switch');
-      } else {
-        if (plugin.embedding_pipeline?.is_active?.()) {
-          plugin.requestEmbeddingStop?.('Embedding model switch requested');
-          const stopped = (await plugin.waitForEmbeddingToStop?.(60000)) ?? true;
-          if (!stopped) {
-            plugin.embed_ready = false;
-            plugin.status_state = 'error';
-            plugin.refreshStatus?.();
-            new Notice('Smart Connections: Failed to stop previous embedding run. Try again.');
-            return;
-          }
-        }
-
-        await plugin.initEmbedModel?.();
-        plugin.syncCollectionEmbeddingContext?.();
-        const queued = plugin.queueUnembeddedEntities?.() ?? 0;
-        await plugin.initPipeline?.();
-        plugin.status_state = 'idle';
-        plugin.embed_ready = true;
-        plugin.refreshStatus?.();
-        this.app.workspace.trigger('smart-connections:embed-ready' as any);
-        if (queued > 0) {
-          void plugin.processInitialEmbedQueue?.().catch((error) => {
-            console.error('Re-embedding failed:', error);
-            new Notice('Smart Connections: Re-embedding failed. See console for details.');
-          });
-        }
-      }
-
-      new Notice('Smart Connections: Embedding model switched.');
+      plugin.notices?.show?.('embedding_model_switched');
       this.display();
     } catch (e) {
-      plugin.embed_ready = false;
-      plugin.status_state = 'error';
-      plugin.refreshStatus?.();
-      new Notice('Smart Connections: Failed to re-initialize model. Check console.');
+      plugin.notices?.show?.('failed_reinitialize_model');
       console.error('Re-embed failed:', e);
     }
   }
@@ -577,7 +586,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
         toggle.setValue(this.getConfig('enable_chat', false));
         toggle.onChange(async (value) => {
           this.setConfig('enable_chat', value);
-          new Notice('Smart Connections: Restart plugin for chat changes to take effect.');
+          this.plugin.notices?.show?.('restart_plugin_chat');
         });
       });
   }

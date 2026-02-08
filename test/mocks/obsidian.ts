@@ -246,20 +246,174 @@ export class Modal extends Component {
  * Mock Notice
  */
 export class Notice {
-  message: string;
+  message: string | DocumentFragment;
   duration: number;
+  noticeEl: HTMLElement;
+  containerEl: HTMLElement;
+  messageEl: HTMLElement;
+  hidden = false;
 
-  constructor(message: string, duration?: number) {
-    this.message = message;
+  constructor(message: string | DocumentFragment, duration?: number) {
     this.duration = duration || 5000;
+    this.containerEl = document.createElement('div');
+    this.containerEl.className = 'notice';
+    this.noticeEl = this.containerEl;
+    this.messageEl = document.createElement('div');
+    this.messageEl.className = 'notice-message';
+    this.containerEl.appendChild(this.messageEl);
+    this.setMessage(message);
   }
 
   setMessage(message: string | DocumentFragment): this {
-    this.message = typeof message === 'string' ? message : message.textContent || '';
+    this.message = message;
+    this.messageEl.textContent = '';
+    if (typeof message === 'string') {
+      this.messageEl.textContent = message;
+    } else {
+      this.messageEl.appendChild(message.cloneNode(true));
+    }
     return this;
   }
 
-  hide(): void {}
+  hide(): void {
+    this.hidden = true;
+  }
+}
+
+export class DropdownComponent {
+  options: Array<{ value: string; label: string }> = [];
+  value: string = '';
+  private changeHandler?: (value: string) => unknown | Promise<unknown>;
+
+  addOption(value: string, label: string): this {
+    this.options.push({ value, label });
+    return this;
+  }
+
+  setValue(value: string): this {
+    this.value = value;
+    return this;
+  }
+
+  onChange(handler: (value: string) => unknown | Promise<unknown>): this {
+    this.changeHandler = handler;
+    return this;
+  }
+
+  async trigger(value: string): Promise<void> {
+    this.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class TextComponent {
+  inputEl: HTMLInputElement = document.createElement('input');
+  value = '';
+  private changeHandler?: (value: string) => unknown | Promise<unknown>;
+
+  setPlaceholder(value: string): this {
+    this.inputEl.placeholder = value;
+    return this;
+  }
+
+  setValue(value: string): this {
+    this.value = value;
+    this.inputEl.value = value;
+    return this;
+  }
+
+  onChange(handler: (value: string) => unknown | Promise<unknown>): this {
+    this.changeHandler = handler;
+    return this;
+  }
+
+  async trigger(value: string): Promise<void> {
+    this.value = value;
+    this.inputEl.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class ToggleComponent {
+  value = false;
+  private changeHandler?: (value: boolean) => unknown | Promise<unknown>;
+
+  setValue(value: boolean): this {
+    this.value = value;
+    return this;
+  }
+
+  onChange(handler: (value: boolean) => unknown | Promise<unknown>): this {
+    this.changeHandler = handler;
+    return this;
+  }
+
+  async trigger(value: boolean): Promise<void> {
+    this.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class Setting {
+  static instances: Setting[] = [];
+  containerEl: HTMLElement;
+  name = '';
+  desc = '';
+  dropdown?: DropdownComponent;
+  text?: TextComponent;
+  toggle?: ToggleComponent;
+  button?: ButtonComponent;
+
+  constructor(containerEl: HTMLElement) {
+    this.containerEl = containerEl;
+    Setting.instances.push(this);
+  }
+
+  static reset(): void {
+    Setting.instances = [];
+  }
+
+  setName(name: string): this {
+    this.name = name;
+    return this;
+  }
+
+  setDesc(desc: string): this {
+    this.desc = desc;
+    return this;
+  }
+
+  setHeading(): this {
+    return this;
+  }
+
+  addDropdown(callback: (dropdown: DropdownComponent) => unknown): this {
+    const dropdown = new DropdownComponent();
+    this.dropdown = dropdown;
+    callback(dropdown);
+    return this;
+  }
+
+  addText(callback: (text: TextComponent) => unknown): this {
+    const text = new TextComponent();
+    this.text = text;
+    callback(text);
+    return this;
+  }
+
+  addToggle(callback: (toggle: ToggleComponent) => unknown): this {
+    const toggle = new ToggleComponent();
+    this.toggle = toggle;
+    callback(toggle);
+    return this;
+  }
+
+  addButton(callback: (button: ButtonComponent) => unknown): this {
+    const button = new ButtonComponent(this.containerEl);
+    this.button = button;
+    callback(button);
+    return this;
+  }
 }
 
 export class ButtonComponent {
@@ -360,10 +514,14 @@ export default {
   App,
   Plugin,
   PluginSettingTab,
+  Setting,
   ItemView,
   Component,
   Modal,
   Notice,
+  DropdownComponent,
+  TextComponent,
+  ToggleComponent,
   ButtonComponent,
   ProgressBarComponent,
   setIcon,

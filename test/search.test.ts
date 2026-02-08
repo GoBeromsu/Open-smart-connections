@@ -21,9 +21,11 @@ function createMockEntity(key: string, vec: number[]): EmbeddingEntity {
     vec,
     get_embed_input: async () => {},
     _queue_embed: false,
+    is_unembedded: false,
     queue_embed: () => {
       entity._queue_embed = true;
     },
+    set_active_embedding_meta: () => {},
     nearest: async () => [],
     has_embed: () => true,
     should_embed: false,
@@ -183,7 +185,7 @@ describe('findNearest', () => {
     expect(results.find(r => r.item.key === 'no-vec')).toBeUndefined();
   });
 
-  it('should skip mismatched vector dimensions and queue re-embed', () => {
+  it('should skip mismatched vector dimensions without mutating entities', () => {
     const queryVec = [1, 0, 0];
     const valid = createMockEntity('valid', [1, 0, 0]);
     const mismatch = createMockEntity('mismatch', [1, 0]);
@@ -193,8 +195,21 @@ describe('findNearest', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].item.key).toBe('valid');
-    expect(mismatch.vec).toBeNull();
-    expect(mismatch._queue_embed).toBe(true);
+    expect(mismatch.vec).toEqual([1, 0]);
+    expect(mismatch._queue_embed).toBe(false);
+  });
+
+  it('should skip stale entities flagged as unembedded without mutating queue flags', () => {
+    const queryVec = [1, 0, 0];
+    const valid = createMockEntity('valid', [1, 0, 0]);
+    const stale = createMockEntity('stale', [0.9, 0.1, 0]);
+    stale.is_unembedded = true as any;
+
+    const results = findNearest(queryVec, [valid, stale], { limit: 5 });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].item.key).toBe('valid');
+    expect(stale._queue_embed).toBe(false);
   });
 
   it('should return results sorted by score descending', () => {

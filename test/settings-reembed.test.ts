@@ -4,8 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { App } from 'obsidian';
+import { App, Setting } from 'obsidian';
 import { SmartConnectionsSettingsTab } from '../src/settings';
+import { getTransformersKnownModels, renderModelDropdown } from '../src/settings-model-picker';
 
 describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
   let app: App;
@@ -19,17 +20,10 @@ describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
     plugin = {
       settings: {},
       saveSettings: vi.fn(),
-      embedding_pipeline: {
-        is_active: vi.fn(() => false),
+      switchEmbeddingModel: vi.fn(async () => {}),
+      notices: {
+        show: vi.fn(),
       },
-      initEmbedModel: vi.fn(async () => {}),
-      syncCollectionEmbeddingContext: vi.fn(),
-      initPipeline: vi.fn(async () => {}),
-      queueUnembeddedEntities: vi.fn(() => 2),
-      processInitialEmbedQueue: vi.fn(async () => {}),
-      requestEmbeddingStop: vi.fn(() => true),
-      waitForEmbeddingToStop: vi.fn(async () => true),
-      refreshStatus: vi.fn(),
       embed_ready: true,
       status_state: 'idle',
     };
@@ -39,41 +33,90 @@ describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
   });
 
   it('should set error state when re-embed initialization fails', async () => {
-    plugin.initEmbedModel.mockRejectedValue(new Error('boom'));
+    plugin.switchEmbeddingModel.mockRejectedValue(new Error('boom'));
 
     await (tab as any).triggerReEmbed();
 
-    expect(plugin.embed_ready).toBe(false);
-    expect(plugin.status_state).toBe('error');
-    expect(plugin.refreshStatus).toHaveBeenCalled();
-    expect((app as any).workspace.trigger).not.toHaveBeenCalledWith(
-      'smart-connections:embed-ready',
-      expect.anything(),
-    );
+    expect(plugin.switchEmbeddingModel).toHaveBeenCalledWith('Settings model switch');
+    expect(plugin.notices.show).toHaveBeenCalledWith('failed_reinitialize_model');
   });
 
-  it('should set idle state and emit ready event when re-embed initialization succeeds', async () => {
+  it('should call model switch and show success notice when re-embed succeeds', async () => {
     await (tab as any).triggerReEmbed();
 
-    expect(plugin.status_state).toBe('idle');
-    expect(plugin.embed_ready).toBe(true);
-    expect(plugin.refreshStatus).toHaveBeenCalled();
-    expect((app as any).workspace.trigger).toHaveBeenCalledWith(
-      'smart-connections:embed-ready',
-    );
-    expect(plugin.queueUnembeddedEntities).toHaveBeenCalled();
-    expect(plugin.processInitialEmbedQueue).toHaveBeenCalled();
+    expect(plugin.switchEmbeddingModel).toHaveBeenCalledWith('Settings model switch');
+    expect(plugin.notices.show).toHaveBeenCalledWith('embedding_model_switched');
   });
 
-  it('should stop active embedding before switching model', async () => {
-    plugin.embedding_pipeline.is_active.mockReturnValue(true);
+  it('should always delegate re-embed flow to switchEmbeddingModel', async () => {
+    plugin.switchEmbeddingModel.mockResolvedValue(undefined);
 
     await (tab as any).triggerReEmbed();
 
-    expect(plugin.requestEmbeddingStop).toHaveBeenCalledWith(
-      'Embedding model switch requested',
-    );
-    expect(plugin.waitForEmbeddingToStop).toHaveBeenCalled();
-    expect(plugin.initEmbedModel).toHaveBeenCalled();
+    expect(plugin.switchEmbeddingModel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SmartConnectionsSettingsTab model options', () => {
+  let app: App;
+  let plugin: any;
+  let tab: SmartConnectionsSettingsTab;
+
+  beforeEach(() => {
+    app = new App();
+    (app as any).workspace.trigger = vi.fn();
+    (Setting as any).reset?.();
+
+    plugin = {
+      settings: {
+        smart_sources: {
+          embed_model: {
+            adapter: 'ollama',
+            ollama: { model_key: 'nomic-embed-text' },
+            transformers: { model_key: 'TaylorAI/bge-micro-v2' },
+          },
+        },
+        smart_blocks: {},
+      },
+      saveSettings: vi.fn(async () => {}),
+    };
+
+    tab = new SmartConnectionsSettingsTab(app, plugin as any);
+  });
+
+  it('builds transformers dropdown options from registry with dimension labels', () => {
+    const options = getTransformersKnownModels();
+    expect(options.some((item) => item.value === 'Xenova/bge-m3')).toBe(true);
+    expect(options.some((item) => item.value === 'Xenova/multilingual-e5-large')).toBe(true);
+    expect(options.some((item) => item.value === 'Xenova/multilingual-e5-small')).toBe(true);
+    expect(options.some((item) => item.value === 'Xenova/paraphrase-multilingual-MiniLM-L12-v2')).toBe(true);
+    expect(options.find((item) => item.value === 'Xenova/bge-m3')?.name).toContain('(1024d)');
+  });
+
+  it('updates model key and re-embeds when an ollama quick pick is selected', async () => {
+    const confirmSpy = vi.spyOn(tab as any, 'confirmReembed').mockResolvedValue(true);
+    const reembedSpy = vi.spyOn(tab as any, 'triggerReEmbed').mockResolvedValue(undefined);
+    const containerEl = document.createElement('div');
+
+    renderModelDropdown({
+      containerEl,
+      adapterName: 'ollama',
+      config: {
+        getConfig: (path: string, fallback: any) => (tab as any).getConfig(path, fallback),
+        setConfig: (path: string, value: any) => (tab as any).setConfig(path, value),
+      },
+      confirmReembed: (msg: string) => (tab as any).confirmReembed(msg),
+      triggerReEmbed: () => (tab as any).triggerReEmbed(),
+      display: () => tab.display(),
+    });
+
+    const quickPickSetting = (Setting as any).instances.find((item: any) => item.name === 'Quick picks');
+    expect(quickPickSetting).toBeDefined();
+
+    await quickPickSetting.dropdown.trigger('bge-m3');
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(plugin.settings.smart_sources.embed_model.ollama.model_key).toBe('bge-m3');
+    expect(reembedSpy).toHaveBeenCalled();
   });
 });

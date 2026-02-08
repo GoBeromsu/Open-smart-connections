@@ -150,6 +150,22 @@ describe('EmbeddingEntity', () => {
     expect(entity.embed_hash).toBe('hash456');
     expect(entity.data.last_read?.hash).toBe('hash123');
     expect(entity.data.last_embed?.hash).toBe('hash456');
+    expect(entity.data.embedding_meta?.['test-model']?.hash).toBe('hash456');
+  });
+
+  it('should treat active-model vector without embedding_meta as stale in safe mode', () => {
+    const entity = new EmbeddingEntity(mockCollection, {
+      path: 'safe-mode.md',
+      embeddings: {
+        'test-model': { vec: [1, 2, 3] },
+      },
+      last_read: { hash: 'same-hash' },
+      last_embed: { hash: 'same-hash' },
+    });
+
+    expect(entity.vec).toEqual([1, 2, 3]);
+    expect(entity.data.embedding_meta).toBeUndefined();
+    expect(entity.is_unembedded).toBe(true);
   });
 
   it('should detect when entity is unembedded', () => {
@@ -196,11 +212,16 @@ describe('EmbeddingEntity', () => {
       embeddings: {
         'test-model': { vec: [1, 2, 3] },
       },
+      embedding_meta: {
+        'test-model': { hash: 'hash123' },
+      },
     });
 
     entity.remove_embeddings();
 
     expect(entity.data.embeddings).toEqual({});
+    expect(entity.data.embedding_meta).toEqual({});
+    expect(entity.data.last_embed).toBeUndefined();
     expect(entity._queue_save).toBe(true);
   });
 

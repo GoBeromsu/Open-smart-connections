@@ -37,9 +37,10 @@ npm run build:watch
 ## Features
 
 - **Zero-setup local embeddings** — runs TaylorAI/bge-micro-v2 in-browser via transformers.js, no API key needed
+- **Expanded local multilingual options** — includes `Xenova/bge-m3` and multilingual E5 variants
 - **7 embedding providers** — Transformers (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter
 - **Dynamic model selection** — settings UI auto-discovers models from API providers
-- **Dimension change detection** — warns and re-embeds when switching to a model with different vector dimensions
+- **Model fingerprint re-embed safety** — forces re-embedding when adapter/model/host changes
 - **Privacy-first** — your notes never leave your device with local models
 - **Mobile support** — works on iOS and Android
 - **Connections View** — see related notes as you navigate your vault
@@ -82,9 +83,9 @@ obsidian-smart-connections/
 
 | Provider | Type | Models | API Key |
 |----------|------|--------|---------|
-| Transformers | Local (in-browser) | bge-micro-v2, bge-small, nomic-embed, jina-v2 | No |
+| Transformers | Local (in-browser) | bge-micro-v2, bge-m3, multilingual-e5-large/small, paraphrase-multilingual-MiniLM-L12-v2, bge-small, nomic-embed, jina-v2 | No |
 | OpenAI | API | text-embedding-3-small/large, ada-002, + dim variants | Yes |
-| Ollama | Local (server) | Any pulled embedding model | No |
+| Ollama | Local (server) | Any pulled embedding model (+ recommended quick picks in settings) | No |
 | Gemini | API | gemini-embedding-001 | Yes |
 | LM Studio | Local (server) | Any loaded embedding model | No |
 | Upstage | API | embedding-query, embedding-passage | Yes |
@@ -98,6 +99,64 @@ obsidian-smart-connections/
 4. For API providers, enter your API key
 5. Open the **Connections** view from the ribbon or command palette
 6. Navigate your vault — related notes appear automatically
+
+## Embedding Kernel State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> booting
+    booting --> idle: INIT_CORE_READY
+
+    idle --> loading_model: MODEL_SWITCH_REQUESTED
+    paused --> loading_model: MODEL_SWITCH_REQUESTED
+    error --> loading_model: MODEL_SWITCH_REQUESTED
+    loading_model --> idle: MODEL_SWITCH_SUCCEEDED
+    loading_model --> error: MODEL_SWITCH_FAILED
+
+    idle --> running: RUN_STARTED
+    paused --> running: RESUME_REQUESTED + RUN_STARTED
+    running --> stopping: STOP_REQUESTED
+    stopping --> paused: STOP_COMPLETED
+    stopping --> error: STOP_TIMEOUT
+
+    running --> idle: RUN_FINISHED
+    running --> error: RUN_FAILED
+```
+
+## Embedding Job Queue Lifecycle
+
+```mermaid
+flowchart TD
+    A["Commands / Settings / File Watchers"] --> B["Enqueue Kernel Job"]
+    B --> C{"Dedupe by Job Key"}
+    C -->|existing key| D["Reuse existing Promise"]
+    C -->|new key| E["Insert by Priority"]
+    E --> F["Single Worker Loop"]
+    F --> G["Dispatch Kernel Events"]
+    G --> H["Run Effect (switch/reimport/run/stop/resume)"]
+    H --> I["Update Queue Snapshot"]
+    I --> J["Resolve Promise + Notify Runtime Selectors"]
+```
+
+## Refactoring Stages Note
+
+- The `Level 1/2/3` labels used in this repository are internal rollout names, not official Martin Fowler stage names.
+- They follow Fowler's core refactoring principles: preserve behavior, change in small steps, and keep tests as the safety net.
+- For study: Martin Fowler's [Refactoring](https://martinfowler.com/books/refactoring.html) and the refactoring catalog at [martinfowler.com](https://refactoring.com/catalog/).
+
+## Recommended Local Models
+
+- `Xenova/bge-m3` — high-quality multilingual local transformers option
+- `Xenova/multilingual-e5-large` — higher-quality multilingual retrieval option
+- `Xenova/multilingual-e5-small` — lighter multilingual option for lower resource usage
+- `Xenova/paraphrase-multilingual-MiniLM-L12-v2` — compact multilingual baseline
+
+## Ollama Quick Picks
+
+- `bge-m3`
+- `nomic-embed-text`
+- `snowflake-arctic-embed2`
+- `mxbai-embed-large`
 
 ## Contributing
 

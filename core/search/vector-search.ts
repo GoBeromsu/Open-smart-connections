@@ -49,9 +49,9 @@ export function findNearest(
     // Skip if no vector
     if (!entity.vec) continue;
     if (entity.vec.length !== vec.length) {
-      // Keep search resilient when stale vectors from another model remain cached.
-      entity.vec = null;
-      entity.queue_embed();
+      continue;
+    }
+    if (entity.is_unembedded) {
       continue;
     }
 
@@ -115,8 +115,9 @@ export function findFurthest(
     // Skip if no vector
     if (!entity.vec) continue;
     if (entity.vec.length !== vec.length) {
-      entity.vec = null;
-      entity.queue_embed();
+      continue;
+    }
+    if (entity.is_unembedded) {
       continue;
     }
 

@@ -8,6 +8,7 @@ import {
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../main';
+import { showResultContextMenu } from './result-context-menu';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 
@@ -26,8 +27,8 @@ interface SessionSnapshot {
   adapter: string;
   modelKey: string;
   dims: number | null;
-  sourceDataDir: string;
-  blockDataDir: string;
+  currentEntityKey: string | null;
+  currentSourcePath: string | null;
 }
 
 /**
@@ -90,6 +91,12 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
+      (this.app.workspace as any).on('smart-connections:model-switched', () => {
+        this.handleModelSwitched();
+      }),
+    );
+
+    this.registerEvent(
       (this.app.workspace as any).on('smart-connections:settings-changed', () => {
         this.renderEmbeddingSessionCard();
       }),
@@ -129,6 +136,15 @@ export class ConnectionsView extends ItemView {
     }
 
     const source = this.plugin.source_collection.get(targetPath);
+    const is_source_stale = !!source?.is_unembedded;
+    const kernelState = this.plugin.getEmbeddingKernelState?.();
+    const kernelPhase = kernelState?.phase;
+    const queuedTotal = kernelState?.queue?.queuedTotal ?? 0;
+    const isEmbedActive =
+      kernelPhase === 'loading_model' ||
+      kernelPhase === 'running' ||
+      kernelPhase === 'stopping';
+    const isWaitingForReembed = isEmbedActive || queuedTotal > 0;
 
     if (!source) {
       if (!this.plugin.embed_ready) {
@@ -147,12 +163,22 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
-    if (!source.vec) {
+    if (!source.vec || is_source_stale) {
       if (!this.plugin.embed_ready) {
         if (this.plugin.status_state === 'error') {
           this.showError(
             'Embedding model failed to initialize. Check Smart Connections settings.',
           );
+          return;
+        }
+        if (is_source_stale) {
+          if (isWaitingForReembed) {
+            this.showLoading(
+              'Embedding model switched. Re-embedding this note for the active model...',
+            );
+          } else {
+            this.showEmpty('No embedding available. The note may be too short or excluded.');
+          }
           return;
         }
         const cached = this.findCachedConnections(source);
@@ -164,6 +190,22 @@ export class ConnectionsView extends ItemView {
         this.showLoading(
           'Smart Connections is loading... Connections will appear when embedding is complete.',
         );
+        return;
+      }
+      if (is_source_stale) {
+        if (this.plugin.status_state === 'error') {
+          this.showError(
+            'Embedding model failed to initialize. Check Smart Connections settings.',
+          );
+          return;
+        }
+        if (isWaitingForReembed) {
+          this.showLoading(
+            'Re-embedding this note for the active model. Results will appear when ready.',
+          );
+        } else {
+          this.showEmpty('No embedding available. The note may be too short or excluded.');
+        }
         return;
       }
       this.showEmpty('No embedding available. The note may be too short or excluded.');
@@ -185,11 +227,27 @@ export class ConnectionsView extends ItemView {
     this.lastEmbedPayload = normalized;
 
     if (normalized.done) {
+      this.lastEmbedPayload = undefined;
       void this.renderView();
       return;
     }
 
     this.updateEmbeddingSession(normalized);
+  }
+
+  private handleModelSwitched(): void {
+    this.lastEmbedPayload = undefined;
+    this.renderEmbeddingSessionCard();
+    void this.renderView();
+  }
+
+  private shouldShowEmbeddingSessionCard(): boolean {
+    return (
+      this.plugin.status_state === 'embedding' ||
+      this.plugin.status_state === 'stopping' ||
+      this.plugin.status_state === 'paused' ||
+      this.plugin.status_state === 'error'
+    );
   }
 
   private normalizeEmbedProgress(data: EmbedProgressLike): EmbedProgressEventPayload {
@@ -219,6 +277,8 @@ export class ConnectionsView extends ItemView {
       sourceTotal: data.sourceTotal ?? 0,
       blockTotal: data.blockTotal ?? 0,
       saveCount: data.saveCount ?? 0,
+      currentEntityKey: data.currentEntityKey ?? null,
+      currentSourcePath: data.currentSourcePath ?? null,
       sourceDataDir: data.sourceDataDir ?? this.plugin.source_collection?.data_dir ?? '-',
       blockDataDir: data.blockDataDir ?? this.plugin.block_collection?.data_dir ?? '-',
       startedAt: data.startedAt ?? Date.now(),
@@ -230,9 +290,11 @@ export class ConnectionsView extends ItemView {
   }
 
   private getSessionSnapshot(): SessionSnapshot | null {
+    if (!this.shouldShowEmbeddingSessionCard()) return null;
+
     const ctx: EmbeddingRunContext | null = this.plugin.getActiveEmbeddingContext?.() ?? null;
 
-    if (ctx) {
+    if (ctx && ctx.phase !== 'completed') {
       return {
         runId: ctx.runId,
         phase: ctx.phase,
@@ -242,8 +304,8 @@ export class ConnectionsView extends ItemView {
         adapter: ctx.adapter,
         modelKey: ctx.modelKey,
         dims: ctx.dims,
-        sourceDataDir: ctx.sourceDataDir,
-        blockDataDir: ctx.blockDataDir,
+        currentEntityKey: ctx.currentEntityKey,
+        currentSourcePath: ctx.currentSourcePath,
       };
     }
 
@@ -257,43 +319,31 @@ export class ConnectionsView extends ItemView {
         adapter: this.lastEmbedPayload.adapter,
         modelKey: this.lastEmbedPayload.modelKey,
         dims: this.lastEmbedPayload.dims,
-        sourceDataDir: this.lastEmbedPayload.sourceDataDir,
-        blockDataDir: this.lastEmbedPayload.blockDataDir,
+        currentEntityKey: this.lastEmbedPayload.currentEntityKey ?? null,
+        currentSourcePath: this.lastEmbedPayload.currentSourcePath ?? null,
       };
     }
 
     const total = this.plugin.source_collection?.size ?? 0;
     const embedded =
       this.plugin.source_collection?.all?.filter((item: any) => item.vec)?.length ?? 0;
-    const pending = total - embedded;
-
-    if (
-      pending <= 0 &&
-      !['loading_model', 'embedding', 'stopping', 'paused', 'error'].includes(
-        this.plugin.status_state,
-      )
-    ) {
-      return null;
-    }
+    const status = this.plugin.status_state;
+    let phase: SessionSnapshot['phase'] = 'running';
+    if (status === 'stopping') phase = 'stopping';
+    else if (status === 'paused') phase = 'paused';
+    else if (status === 'error') phase = 'failed';
 
     return {
       runId: null,
-      phase:
-        this.plugin.status_state === 'stopping'
-          ? 'stopping'
-          : this.plugin.status_state === 'paused'
-            ? 'paused'
-            : this.plugin.status_state === 'error'
-              ? 'failed'
-              : 'running',
+      phase,
       current: embedded,
       total,
       percent: total > 0 ? Math.round((embedded / total) * 100) : 0,
       adapter: this.plugin.settings?.smart_sources?.embed_model?.adapter ?? 'unknown',
       modelKey: this.plugin.embed_model?.model_key ?? 'unknown',
       dims: this.plugin.embed_model?.adapter?.dims ?? null,
-      sourceDataDir: this.plugin.source_collection?.data_dir ?? '-',
-      blockDataDir: this.plugin.block_collection?.data_dir ?? '-',
+      currentEntityKey: null,
+      currentSourcePath: null,
     };
   }
 
@@ -401,8 +451,8 @@ export class ConnectionsView extends ItemView {
       adapter: payload.adapter,
       modelKey: payload.modelKey,
       dims: payload.dims,
-      sourceDataDir: payload.sourceDataDir,
-      blockDataDir: payload.blockDataDir,
+      currentEntityKey: payload.currentEntityKey ?? null,
+      currentSourcePath: payload.currentSourcePath ?? null,
     };
 
     this.updateSessionCardFromSnapshot(snapshot);
@@ -432,7 +482,7 @@ export class ConnectionsView extends ItemView {
 
     if (this.sessionStorageTextEl) {
       this.sessionStorageTextEl.setText(
-        `Storage: ${snapshot.sourceDataDir}${snapshot.blockDataDir ? ` | ${snapshot.blockDataDir}` : ''}`,
+        `Current: ${snapshot.currentSourcePath ?? snapshot.currentEntityKey ?? '-'}`,
       );
     }
   }
@@ -504,7 +554,7 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
-    const list = this.container.createDiv({ cls: 'osc-results' });
+    const list = this.container.createDiv({ cls: 'osc-results', attr: { role: 'list' } });
 
     for (const result of results) {
       const score = result.score ?? result.sim ?? 0;
@@ -512,7 +562,14 @@ export class ConnectionsView extends ItemView {
         result.item?.path?.split('/').pop()?.replace(/\.md$/, '') ?? 'Unknown';
       const fullPath = result.item?.path ?? '';
 
-      const item = list.createDiv({ cls: 'osc-result-item' });
+      const item = list.createDiv({
+        cls: 'osc-result-item',
+        attr: {
+          role: 'listitem',
+          tabindex: '0',
+          'aria-label': `${name} — similarity ${(Math.round(score * 100) / 100).toFixed(2)}`,
+        },
+      });
 
       const scoreBadge = item.createSpan({ cls: 'osc-score' });
       const scoreVal = Math.round(score * 100) / 100;
@@ -525,6 +582,22 @@ export class ConnectionsView extends ItemView {
 
       this.registerDomEvent(item, 'click', (e) => {
         this.plugin.open_note(fullPath, e);
+      });
+
+      this.registerDomEvent(item, 'keydown', (e) => {
+        if (e.key === 'Enter') {
+          this.plugin.open_note(fullPath);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          (item.nextElementSibling as HTMLElement)?.focus();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          (item.previousElementSibling as HTMLElement)?.focus();
+        }
+      });
+
+      this.registerDomEvent(item, 'contextmenu', (e) => {
+        showResultContextMenu(this.app, fullPath, e);
       });
 
       this.registerDomEvent(item, 'mouseover', (e) => {
@@ -554,13 +627,13 @@ export class ConnectionsView extends ItemView {
     wrapper.createEl('p', { text: message, cls: 'osc-state-text' });
 
     if (this.plugin.ready) {
-      const refreshBtn = wrapper.createEl('button', {
-        text: 'Refresh',
-        cls: 'osc-btn osc-btn--primary',
-      });
-      this.registerDomEvent(refreshBtn, 'click', () => {
-        void this.renderView();
-      });
+      new ButtonComponent(wrapper)
+        .setButtonText('Refresh')
+        .setCta()
+        .onClick(async () => {
+          await this.plugin.reembedStaleEntities('Connections view refresh');
+          void this.renderView();
+        });
     }
   }
 
@@ -569,8 +642,8 @@ export class ConnectionsView extends ItemView {
     if (clear) this.renderEmbeddingSessionCard();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state' });
-    wrapper.innerHTML =
-      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
+    const iconEl = wrapper.createDiv({ cls: 'osc-state-icon' });
+    setIcon(iconEl, 'search-x');
     wrapper.createEl('p', { text: message, cls: 'osc-state-text' });
     wrapper.createEl('p', {
       text: 'Try writing more content or adjusting minimum character settings.',
@@ -578,13 +651,13 @@ export class ConnectionsView extends ItemView {
     });
 
     if (this.plugin.ready) {
-      const refreshBtn = wrapper.createEl('button', {
-        text: 'Refresh',
-        cls: 'osc-btn osc-btn--primary',
-      });
-      this.registerDomEvent(refreshBtn, 'click', () => {
-        void this.renderView();
-      });
+      new ButtonComponent(wrapper)
+        .setButtonText('Refresh')
+        .setCta()
+        .onClick(async () => {
+          await this.plugin.reembedStaleEntities('Connections view refresh');
+          void this.renderView();
+        });
     }
   }
 
@@ -593,16 +666,13 @@ export class ConnectionsView extends ItemView {
     this.renderEmbeddingSessionCard();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state osc-state--error' });
-    wrapper.innerHTML =
-      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    const iconEl = wrapper.createDiv({ cls: 'osc-state-icon' });
+    setIcon(iconEl, 'alert-circle');
     wrapper.createEl('p', { text: message, cls: 'osc-state-text' });
-    const retryBtn = wrapper.createEl('button', {
-      text: 'Retry',
-      cls: 'osc-btn osc-btn--primary',
-    });
-    this.registerDomEvent(retryBtn, 'click', () => {
-      void this.renderView();
-    });
+    new ButtonComponent(wrapper)
+      .setButtonText('Retry')
+      .setCta()
+      .onClick(() => { void this.renderView(); });
   }
 
   static open(workspace: any): void {

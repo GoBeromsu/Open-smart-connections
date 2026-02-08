@@ -3,7 +3,13 @@
  * @description Base entity class with embedding support (ported from smart_entity.js)
  */
 
-import type { EntityData, EmbeddingData, ConnectionResult, SearchFilter } from '../types/entities';
+import type {
+  EntityData,
+  EmbeddingData,
+  EmbeddingModelMeta,
+  ConnectionResult,
+  SearchFilter,
+} from '../types/entities';
 import type { EntityCollection } from './EntityCollection';
 import { create_hash } from '../utils';
 
@@ -76,6 +82,13 @@ export class EmbeddingEntity {
     );
   }
 
+  private ensure_embedding_meta_store(): Record<string, EmbeddingModelMeta> {
+    if (!this.data.embedding_meta || typeof this.data.embedding_meta !== 'object') {
+      this.data.embedding_meta = {};
+    }
+    return this.data.embedding_meta;
+  }
+
   /**
    * Get entity key (derived from path)
    */
@@ -123,6 +136,23 @@ export class EmbeddingEntity {
    */
   get embed_model_key(): string {
     return this.collection.embed_model_key;
+  }
+
+  /**
+   * Get metadata for the currently active embedding model.
+   */
+  get active_embedding_meta(): EmbeddingModelMeta | undefined {
+    return this.data.embedding_meta?.[this.embed_model_key];
+  }
+
+  /**
+   * Merge metadata for the active embedding model.
+   */
+  set_active_embedding_meta(meta: EmbeddingModelMeta): void {
+    const store = this.ensure_embedding_meta_store();
+    const current = store[this.embed_model_key];
+    store[this.embed_model_key] = { ...(current || {}), ...meta };
+    this.queue_save();
   }
 
   /**
@@ -190,7 +220,7 @@ export class EmbeddingEntity {
    * Get embed hash
    */
   get embed_hash(): string | undefined {
-    return this.data.last_embed?.hash;
+    return this.active_embedding_meta?.hash || this.data.last_embed?.hash;
   }
 
   /**
@@ -202,6 +232,15 @@ export class EmbeddingEntity {
     } else {
       this.data.last_embed.hash = hash;
     }
+    const metaStore = this.ensure_embedding_meta_store();
+    const currentMeta = metaStore[this.embed_model_key];
+    metaStore[this.embed_model_key] = {
+      ...(currentMeta || {}),
+      hash,
+      size: this.data.last_read?.size ?? currentMeta?.size,
+      mtime: this.data.last_read?.mtime ?? currentMeta?.mtime,
+      updated_at: Date.now(),
+    };
   }
 
   /**
@@ -241,7 +280,10 @@ export class EmbeddingEntity {
     const current_vec = this.vec;
     if (!current_vec) return true;
     if (this.has_dim_mismatch(current_vec)) return true;
-    if (!this.embed_hash || this.embed_hash !== this.read_hash) return true;
+    const read_hash = this.read_hash;
+    const active_hash = this.active_embedding_meta?.hash;
+    if (!read_hash) return true;
+    if (!active_hash || active_hash !== read_hash) return true;
     return false;
   }
 
@@ -257,6 +299,10 @@ export class EmbeddingEntity {
    */
   remove_embeddings(): void {
     this.data.embeddings = {};
+    if (this.data.embedding_meta) {
+      this.data.embedding_meta = {};
+    }
+    delete this.data.last_embed;
     this.queue_save();
   }
 

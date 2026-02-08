@@ -47,8 +47,11 @@ function createPlugin() {
 
   plugin.embed_model = {
     model_key: 'text-embedding-3-small',
-    adapter: { dims: 1536 },
+    adapter: { dims: 1536, adapter: 'openai' },
+    unload: vi.fn(async () => {}),
   } as any;
+
+  plugin.ensureEmbeddingKernel();
 
   return { app, plugin };
 }
@@ -135,7 +138,7 @@ describe('SmartConnectionsPlugin embedding control', () => {
     const runPromise = plugin.runEmbeddingJob('run-guard');
     await Promise.resolve();
 
-    plugin.status_state = 'loading_model';
+    plugin.dispatchKernelEvent({ type: 'SET_PHASE', phase: 'loading_model' });
     plugin.active_embed_run_id = 999;
 
     release();
@@ -167,5 +170,136 @@ describe('SmartConnectionsPlugin embedding control', () => {
     expect((app as any).workspace.trigger).not.toHaveBeenCalledWith(
       'smart-connections:embed-ready',
     );
+  });
+
+  it('sets error state when model load times out during switch', async () => {
+    const { app, plugin } = createPlugin();
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+      halt: vi.fn(),
+      get_stats: vi.fn(() => ({ total: 0, success: 0, failed: 0, skipped: 0 })),
+    } as any;
+
+    plugin.settings.smart_sources.embed_model = {
+      adapter: 'openai',
+      openai: { model_key: 'text-embedding-3-large', request_timeout_ms: 5 },
+    } as any;
+
+    vi.spyOn(plugin, 'initEmbedModel').mockImplementation(
+      () => new Promise<void>(() => {}),
+    );
+    const initPipelineSpy = vi.spyOn(plugin, 'initPipeline').mockResolvedValue();
+
+    await expect(plugin.switchEmbeddingModel('model-load-timeout')).rejects.toThrow(
+      /Timed out while loading embedding model/i,
+    );
+    expect(plugin.status_state).toBe('error');
+    expect(plugin.embed_ready).toBe(false);
+    expect(initPipelineSpy).not.toHaveBeenCalled();
+    expect((app as any).workspace.trigger).not.toHaveBeenCalledWith(
+      'smart-connections:embed-ready',
+    );
+  });
+
+  it('forces stale re-embed when model key changes within same provider', async () => {
+    const { plugin } = createPlugin();
+
+    const sourceSetMeta = vi.fn();
+    const sourceQueue = vi.fn();
+    const blockSetMeta = vi.fn();
+    const blockQueue = vi.fn();
+
+    plugin.source_collection.all = [
+      {
+        read_hash: 'source-hash',
+        set_active_embedding_meta: sourceSetMeta,
+        queue_embed: sourceQueue,
+      },
+    ];
+    plugin.block_collection.all = [
+      {
+        read_hash: 'block-hash',
+        set_active_embedding_meta: blockSetMeta,
+        queue_embed: blockQueue,
+      },
+    ];
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+    } as any;
+
+    plugin.settings.smart_sources.embed_model = {
+      adapter: 'openai',
+      openai: { model_key: 'text-embedding-3-large' },
+    } as any;
+
+    vi.spyOn(plugin, 'initEmbedModel').mockImplementation(async () => {
+      plugin.embed_model = {
+        model_key: 'text-embedding-3-large',
+        adapter: { dims: 3072, adapter: 'openai' },
+        unload: vi.fn(async () => {}),
+      } as any;
+    });
+    vi.spyOn(plugin, 'initPipeline').mockResolvedValue();
+    vi.spyOn(plugin, 'syncCollectionEmbeddingContext').mockImplementation(() => {});
+    vi.spyOn(plugin, 'queueUnembeddedEntities').mockReturnValue(2);
+    const runSpy = vi.spyOn(plugin, 'runEmbeddingJob').mockResolvedValue(null);
+
+    await plugin.switchEmbeddingModel('unit-model-switch');
+
+    expect(sourceSetMeta).toHaveBeenCalled();
+    expect(sourceQueue).toHaveBeenCalled();
+    expect(blockSetMeta).toHaveBeenCalled();
+    expect(blockQueue).toHaveBeenCalled();
+    expect(runSpy).toHaveBeenCalledWith('unit-model-switch');
+  });
+
+  it('does not force stale re-embed when embedding fingerprint is unchanged', async () => {
+    const { plugin } = createPlugin();
+
+    const sourceSetMeta = vi.fn();
+    const blockSetMeta = vi.fn();
+
+    plugin.source_collection.all = [
+      {
+        read_hash: 'source-hash',
+        set_active_embedding_meta: sourceSetMeta,
+        queue_embed: vi.fn(),
+      },
+    ];
+    plugin.block_collection.all = [
+      {
+        read_hash: 'block-hash',
+        set_active_embedding_meta: blockSetMeta,
+        queue_embed: vi.fn(),
+      },
+    ];
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+    } as any;
+
+    plugin.settings.smart_sources.embed_model = {
+      adapter: 'openai',
+      openai: { model_key: 'text-embedding-3-small' },
+    } as any;
+
+    vi.spyOn(plugin, 'initEmbedModel').mockImplementation(async () => {
+      plugin.embed_model = {
+        model_key: 'text-embedding-3-small',
+        adapter: { dims: 1536, adapter: 'openai' },
+        unload: vi.fn(async () => {}),
+      } as any;
+    });
+    vi.spyOn(plugin, 'initPipeline').mockResolvedValue();
+    vi.spyOn(plugin, 'syncCollectionEmbeddingContext').mockImplementation(() => {});
+    vi.spyOn(plugin, 'queueUnembeddedEntities').mockReturnValue(0);
+    vi.spyOn(plugin, 'runEmbeddingJob').mockResolvedValue(null);
+
+    await plugin.switchEmbeddingModel('unit-model-switch-unchanged');
+
+    expect(sourceSetMeta).not.toHaveBeenCalled();
+    expect(blockSetMeta).not.toHaveBeenCalled();
   });
 });

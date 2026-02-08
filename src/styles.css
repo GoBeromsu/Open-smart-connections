@@ -2,6 +2,16 @@
    Open Smart Connections — Plugin Styles
    ═══════════════════════════════════════════════════════ */
 
+/* ─── Custom Properties ─── */
+:root {
+  --osc-color-error: var(--text-error, var(--color-red, #e5534b));
+  --osc-color-success: var(--text-success, var(--color-green, #299764));
+  --osc-color-warning: var(--text-warning, var(--color-yellow, #e39f00));
+  --osc-color-success-bg: color-mix(in srgb, var(--osc-color-success) 16%, transparent);
+  --osc-color-warning-bg: color-mix(in srgb, var(--osc-color-warning) 16%, transparent);
+  --osc-color-error-bg: color-mix(in srgb, var(--osc-color-error) 16%, transparent);
+}
+
 /* ─── Connections View ─── */
 .osc-connections-view {
   display: flex;
@@ -159,9 +169,9 @@
 }
 
 .osc-embed-session-status--stopping {
-  color: #e39f00;
-  background: color-mix(in srgb, #e39f00 16%, transparent);
-  border-color: color-mix(in srgb, #e39f00 40%, transparent);
+  color: var(--osc-color-warning);
+  background: var(--osc-color-warning-bg);
+  border-color: color-mix(in srgb, var(--osc-color-warning) 40%, transparent);
 }
 
 .osc-embed-session-status--paused {
@@ -171,15 +181,15 @@
 }
 
 .osc-embed-session-status--completed {
-  color: #299764;
-  background: color-mix(in srgb, #299764 16%, transparent);
-  border-color: color-mix(in srgb, #299764 36%, transparent);
+  color: var(--osc-color-success);
+  background: var(--osc-color-success-bg);
+  border-color: color-mix(in srgb, var(--osc-color-success) 36%, transparent);
 }
 
 .osc-embed-session-status--failed {
-  color: #e5534b;
-  background: color-mix(in srgb, #e5534b 16%, transparent);
-  border-color: color-mix(in srgb, #e5534b 36%, transparent);
+  color: var(--osc-color-error);
+  background: var(--osc-color-error-bg);
+  border-color: color-mix(in srgb, var(--osc-color-error) 36%, transparent);
 }
 
 .osc-embed-session-model,
@@ -214,6 +224,103 @@
 
 .osc-btn--session:hover {
   background-color: var(--background-modifier-hover);
+}
+
+/* ─── Notices ─── */
+.notice.osc-notice-host {
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.notice.osc-notice-host[data-osc-theme="light"] {
+  color-scheme: light;
+}
+
+.notice.osc-notice-host[data-osc-theme="dark"] {
+  color-scheme: dark;
+}
+
+.osc-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.notice.osc-notice-host .osc-notice {
+  color: var(--text-normal);
+}
+
+.osc-notice-head {
+  margin: 0;
+  font-size: var(--font-smallest, 11px);
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.osc-notice-content {
+  margin: 0;
+  font-size: var(--font-ui-small, 13px);
+  color: var(--text-normal);
+  white-space: pre-wrap;
+}
+
+.osc-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.osc-notice-btn {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 6px);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-smallest, 11px);
+  padding: 2px 8px;
+}
+
+.osc-notice-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.osc-notice-btn--mute {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.osc-notice-btn--mute svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ─── Muted Notices Settings ─── */
+.osc-muted-notices-list {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 8px);
+  overflow: hidden;
+}
+
+.osc-muted-notices-list .setting-item {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.osc-muted-notices-list .setting-item:first-child {
+  border-top: 0;
+}
+
+.osc-muted-notices-empty {
+  margin: 0 0 12px;
+  color: var(--text-muted);
 }
 
 /* ─── Embedding Progress ─── */
@@ -275,7 +382,7 @@
 }
 
 .osc-state--error svg {
-  color: #e5534b;
+  color: var(--osc-color-error);
 }
 
 .osc-state-text {
@@ -331,8 +438,19 @@
 .osc-model-status {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 0 16px 12px;
+  padding: 0 16px 10px;
+}
+
+.osc-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 6px);
+  padding: 3px 8px;
+  background-color: var(--background-secondary);
 }
 
 .osc-status-dot {
@@ -343,13 +461,17 @@
 }
 
 .osc-status-dot--ready {
-  background-color: #4caf50;
-  box-shadow: 0 0 4px rgba(76, 175, 80, 0.4);
+  background-color: var(--osc-color-success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--osc-color-success) 35%, transparent);
 }
 
 .osc-status-dot--loading {
-  background-color: #ffb300;
+  background-color: var(--osc-color-warning);
   animation: osc-pulse 1.5s ease-in-out infinite;
+}
+
+.osc-status-dot--error {
+  background-color: var(--osc-color-error);
 }
 
 @keyframes osc-pulse {
@@ -392,11 +514,16 @@
 }
 
 .osc-stat--green .osc-stat-value {
-  color: #4caf50;
+  color: var(--osc-color-success);
 }
 
 .osc-stat--amber .osc-stat-value {
-  color: #ffb300;
+  color: var(--osc-color-warning);
+}
+
+.osc-settings-embed-progress {
+  margin: 0 16px 8px;
+  min-height: 6px;
 }
 
 /* ─── Side Panes ─── */
@@ -459,10 +586,6 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
   flex-direction: column;
   height: 100%;
   position: relative;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='rgba(127,109,242,0.04)' stroke-width='2'%3E%3Cpath d='M2 4c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2v11c0 1.1-.9 2-2 2h-8l-5 4v-4H4c-1.1 0-2-.9-2-2Z'/%3E%3Cpath d='M7 8c.5.3 1.3.3 1.8 0'/%3E%3Cpath d='M15.2 8c.5.3 1.3.3 1.8 0'/%3E%3Cpath d='M8 11.5c1 .8 2.5 1.2 4 1.2s3-.4 4-1.2'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 15% auto;
 }
 
 /* ─── Messages Container ─── */
@@ -803,14 +926,14 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
 /* ─── Error Messages ─── */
 .osc-chat-error {
   padding: 12px;
-  background: rgba(229, 83, 75, 0.1);
-  border: 1px solid rgba(229, 83, 75, 0.3);
+  background: var(--osc-color-error-bg);
+  border: 1px solid color-mix(in srgb, var(--osc-color-error) 30%, transparent);
   border-radius: var(--radius-s);
   margin: 8px 16px;
 }
 
 .osc-chat-error-text {
-  color: #e5534b;
+  color: var(--osc-color-error);
   font-size: var(--font-ui-small);
   margin: 0;
 }
@@ -915,12 +1038,12 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
 }
 
 .osc-btn--danger {
-  background-color: #e5534b;
+  background-color: var(--osc-color-error);
   color: white;
 }
 
 .osc-btn--danger:hover {
-  background-color: #d43f37;
+  background-color: color-mix(in srgb, var(--osc-color-error) 85%, black);
 }
 
 /* ─── Empty/Error States ─── */
@@ -945,5 +1068,20 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
 .osc-modal-error {
   padding: 20px;
   text-align: center;
-  color: #e5534b;
+  color: var(--osc-color-error);
+}
+
+/* ─── State Icon (setIcon-based) ─── */
+.osc-state-icon {
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.osc-state-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.osc-state--error .osc-state-icon {
+  color: var(--osc-color-error);
 }

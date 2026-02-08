@@ -49,7 +49,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     },
   },
 
-  smart_notices: {},
+  smart_notices: {
+    muted: {},
+  },
 };
 
 /**

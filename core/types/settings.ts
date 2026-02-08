@@ -224,6 +224,14 @@ export interface ChatSettings {
 }
 
 /**
+ * Notice settings
+ */
+export interface SmartNoticesSettings {
+  /** Muted notice keys */
+  muted: Record<string, boolean>;
+}
+
+/**
  * Main plugin settings
  */
 export interface PluginSettings {
@@ -257,6 +265,6 @@ export interface PluginSettings {
   /** Chat thread settings */
   smart_chat_threads: ChatSettings;
 
-  /** Smart notices settings (legacy) */
-  smart_notices: Record<string, any>;
+  /** Smart notices settings */
+  smart_notices: SmartNoticesSettings;
 }

@@ -93,6 +93,38 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8192,
     description: 'Local, 8,192 tokens, 512 dim',
   },
+  'Xenova/bge-m3': {
+    model_key: 'Xenova/bge-m3',
+    model_name: 'BGE-M3',
+    batch_size: 1,
+    dims: 1024,
+    max_tokens: 8192,
+    description: 'Local, 8,192 tokens, 1,024 dim',
+  },
+  'Xenova/multilingual-e5-large': {
+    model_key: 'Xenova/multilingual-e5-large',
+    model_name: 'Multilingual-E5-Large',
+    batch_size: 1,
+    dims: 1024,
+    max_tokens: 512,
+    description: 'Local, 512 tokens, 1,024 dim',
+  },
+  'Xenova/multilingual-e5-small': {
+    model_key: 'Xenova/multilingual-e5-small',
+    model_name: 'Multilingual-E5-Small',
+    batch_size: 1,
+    dims: 384,
+    max_tokens: 512,
+    description: 'Local, 512 tokens, 384 dim',
+  },
+  'Xenova/paraphrase-multilingual-MiniLM-L12-v2': {
+    model_key: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
+    model_name: 'Paraphrase-Multilingual-MiniLM-L12-v2',
+    batch_size: 1,
+    dims: 384,
+    max_tokens: 128,
+    description: 'Local, 128 tokens, 384 dim',
+  },
   'nomic-ai/nomic-embed-text-v1.5': {
     model_key: 'nomic-ai/nomic-embed-text-v1.5',
     model_name: 'Nomic-embed-text-v1.5',
@@ -165,18 +197,39 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
 
   let last_error = null;
   for (const config of configs) {
-    try {
-      console.log('[Transformers Iframe] trying config:', JSON.stringify(config));
-      pipeline = await createPipeline('feature-extraction', model_key, config);
-      console.log('[Transformers Iframe] pipeline initialized');
-      break;
-    } catch (err) {
-      console.warn('[Transformers Iframe] config failed:', err);
-      last_error = err;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        console.log(
+          '[Transformers Iframe] trying config:',
+          JSON.stringify(config),
+          'attempt=' + attempt,
+        );
+        pipeline = await createPipeline('feature-extraction', model_key, config);
+        console.log('[Transformers Iframe] pipeline initialized');
+        break;
+      } catch (err) {
+        console.warn('[Transformers Iframe] config failed:', err);
+        last_error = err;
+        const message = (err && err.message) ? String(err.message) : String(err);
+        const is_transient_fetch_error = message.includes('Failed to fetch');
+        if (attempt < 2 && is_transient_fetch_error) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
+      }
     }
+    if (pipeline) break;
   }
 
   if (!pipeline) {
+    const last_message = (last_error && last_error.message)
+      ? String(last_error.message)
+      : String(last_error || '');
+    if (last_message.includes('Failed to fetch')) {
+      throw new Error(
+        'Failed to download model files (network/CDN unavailable). Please retry or choose a smaller cached model.',
+      );
+    }
     throw last_error || new Error('Failed to initialize transformers pipeline');
   }
 
@@ -293,9 +346,20 @@ export class TransformersEmbedAdapter {
   loaded: boolean = false;
   iframe: HTMLIFrameElement | null = null;
   message_id: number = 0;
-  pending_requests: Map<number, { resolve: Function; reject: Function }> = new Map();
+  pending_requests: Map<number, {
+    resolve: (value: unknown) => void;
+    reject: (error: unknown) => void;
+    timeout_id: number;
+    method: string;
+  }> = new Map();
   private iframe_id: string;
   private origin: string;
+  private static readonly MESSAGE_TIMEOUTS_MS: Record<string, number> = {
+    load: 180000,
+    unload: 10000,
+    count_tokens: 20000,
+    embed_batch: 180000,
+  };
 
   constructor(config: {
     adapter: string;
@@ -319,7 +383,10 @@ export class TransformersEmbedAdapter {
    * Initialize the iframe and load the model.
    */
   async load(): Promise<void> {
-    if (this.iframe) return;
+    if (this.iframe && this.loaded) return;
+    if (this.iframe && !this.loaded) {
+      await this.unload();
+    }
 
     // Remove any existing iframe with this ID
     const existing = document.getElementById(this.iframe_id);
@@ -335,22 +402,48 @@ export class TransformersEmbedAdapter {
     window.addEventListener('message', this._handle_message);
 
     // Generate the srcdoc with inline connector script
-    const srcdoc = `<html><body><script type="module">
+const srcdoc = `<html><body><script type="module">
 ${EMBED_CONNECTOR}
 const IFRAME_ID = '${this.iframe_id}';
+function post_fatal(error, id = null) {
+  const message = error instanceof Error
+    ? (error.stack || error.message || String(error))
+    : String(error || 'Unknown iframe error');
+  window.parent.postMessage({ iframe_id: IFRAME_ID, id, type: 'fatal', error: message }, '*');
+}
+window.addEventListener('error', (event) => {
+  post_fatal(event.error || event.message, null);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  post_fatal(event.reason, null);
+});
 window.addEventListener('message', async (event) => {
   if (!event.data || event.data.iframe_id !== IFRAME_ID) return;
-  const response = await process_message(event.data);
-  window.parent.postMessage(response, '*');
+  try {
+    const response = await process_message(event.data);
+    window.parent.postMessage(response, '*');
+  } catch (error) {
+    post_fatal(error, event.data?.id ?? null);
+  }
 });
 console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
 <\/script></body></html>`;
 
     this.iframe.srcdoc = srcdoc;
 
-    // Wait for iframe to load
-    await new Promise<void>((resolve) => {
-      this.iframe!.onload = () => resolve();
+    // Wait for iframe to load with timeout guard.
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        reject(new Error('Timed out waiting for transformers iframe to initialize.'));
+      }, 15000);
+      this.iframe!.onload = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+      this.iframe!.onerror = () => {
+        window.clearTimeout(timeout);
+        reject(new Error('Failed to initialize transformers iframe.'));
+      };
     });
 
     // Load the model in the iframe
@@ -363,10 +456,23 @@ console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
    */
   private _handle_message = (event: MessageEvent): void => {
     if (event.data?.iframe_id !== this.iframe_id) return;
+    if (event.data?.type === 'fatal') {
+      const id = typeof event.data?.id === 'number' ? event.data.id : null;
+      const message = event.data?.error
+        ? String(event.data.error)
+        : 'Unknown transformers iframe fatal error';
+      if (id !== null) {
+        this.reject_pending(id, new Error(`Transformers iframe fatal error: ${message}`));
+      }
+      this.reject_all_pending(new Error(`Transformers iframe fatal error: ${message}`));
+      this.dispose_iframe();
+      return;
+    }
     const { id, result, error } = event.data;
     const pending = this.pending_requests.get(id);
     if (pending) {
       this.pending_requests.delete(id);
+      window.clearTimeout(pending.timeout_id);
       if (error) {
         pending.reject(new Error(error));
       } else {
@@ -386,7 +492,24 @@ console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
       }
 
       const id = this.message_id++;
-      this.pending_requests.set(id, { resolve, reject });
+      const timeout_ms = this.get_timeout_ms(method);
+      const timeout_id = window.setTimeout(() => {
+        const pending = this.pending_requests.get(id);
+        if (!pending) return;
+        this.pending_requests.delete(id);
+        pending.reject(
+          new Error(`Timed out waiting for iframe response: method=${method}, timeoutMs=${timeout_ms}`),
+        );
+        if (method === 'load') {
+          this.dispose_iframe();
+        }
+      }, timeout_ms);
+      this.pending_requests.set(id, {
+        resolve,
+        reject,
+        timeout_id,
+        method,
+      });
 
       // srcdoc iframes have origin "null", so we use '*' for targetOrigin.
       // Security is ensured by the iframe_id check in _handle_message.
@@ -440,11 +563,39 @@ console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
       } catch (e) {
         // Iframe may already be gone
       }
-      window.removeEventListener('message', this._handle_message);
-      this.iframe.remove();
-      this.iframe = null;
-      this.pending_requests.clear();
-      this.loaded = false;
+      this.dispose_iframe();
     }
+  }
+
+  private get_timeout_ms(method: string): number {
+    const configured = Number(this.settings?.request_timeout_ms);
+    if (Number.isFinite(configured) && configured > 0) {
+      return Math.max(1000, configured);
+    }
+    return TransformersEmbedAdapter.MESSAGE_TIMEOUTS_MS[method] ?? 60000;
+  }
+
+  private reject_pending(id: number, error: Error): void {
+    const pending = this.pending_requests.get(id);
+    if (!pending) return;
+    this.pending_requests.delete(id);
+    window.clearTimeout(pending.timeout_id);
+    pending.reject(error);
+  }
+
+  private reject_all_pending(error: Error): void {
+    for (const [id, pending] of this.pending_requests.entries()) {
+      window.clearTimeout(pending.timeout_id);
+      pending.reject(error);
+      this.pending_requests.delete(id);
+    }
+  }
+
+  private dispose_iframe(): void {
+    this.reject_all_pending(new Error('Transformers iframe disposed before completing requests.'));
+    window.removeEventListener('message', this._handle_message);
+    this.iframe?.remove();
+    this.iframe = null;
+    this.loaded = false;
   }
 }

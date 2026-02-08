@@ -1,39 +1,16 @@
-# Open Smart Connections `v2.0.0`
+> [!NOTE] Patch v3.0.6
 
-## Major Changes
-
-This release consolidates 16 separate jsbrains modules into 4 core modules, resolving circular dependencies and simplifying the codebase.
-
-### New Library Structure
-
-```
-lib/
-├── core/        # Utils, adapters, collections, fs, http, settings, view
-├── models/      # Chat and embed model adapters
-├── entities/    # Sources and blocks
-├── environment/ # SmartEnv and notices
-└── obsidian/    # Obsidian-specific integrations
-```
-
-## Improvements
-
-- **Reduced complexity**: 16 modules → 4 modules
-- **Resolved circular dependencies**: smart-model ↔ smart-chat-model, smart-entities ↔ smart-sources, etc.
-- **Unified base adapter**: Single base_adapter.js replaces 9 duplicate adapter files
-- **Cleaner imports**: All lib modules accessible via esbuild aliases
-
-## Bug Fixes
-
-- Fixed `tag.startsWith is not a function` error when frontmatter contains non-string tags
-- Fixed `Cannot read properties of undefined (reading 'data')` when embed model not yet loaded
-- Improved API key not set error handling with clear user notification
-
-## Technical Changes
-
-- `lib/core/`: Consolidated smart-utils, smart-collections, smart-fs, smart-http-request, smart-settings, smart-view
-- `lib/models/`: Consolidated smart-model, smart-chat-model, smart-embed-model
-- `lib/entities/`: Consolidated smart-entities, smart-sources, smart-blocks
-- `lib/environment/`: Consolidated smart-environment, smart-notices
-- `lib/obsidian/`: Consolidated obsidian-smart-env, smart-chat-obsidian, smart-context-obsidian
-- Removed deprecated `src/components/connections_v1.js`
-- Removed unused `lib/smart-plugins-obsidian/`
+> [!NOTE]- Previous patches
+> > [!NOTE]- v3.0.5
+> 
+> > [!NOTE]- v3.0.4
+> 
+> > [!NOTE]- v3.0.3
+> > - Added safe model-switch mode so results are constrained to the active embedding model.
+> > - Introduced per-model embedding metadata (`embedding_meta`) for freshness checks.
+> > - Treats legacy cache entries without per-model metadata as stale once (safe-first behavior).
+> > - Updates embedding pipeline to write per-model metadata while keeping `last_embed` for compatibility.
+> > - Emits `smart-connections:model-switched` and refreshes Connections/Lookup views to avoid stale mixed-model results.
+> > - Adds search-layer stale guards and regression tests for model-switch safety.
+> 
+>

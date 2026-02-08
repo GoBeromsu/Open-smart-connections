@@ -1,4 +1,4 @@
-import { Modal, App } from 'obsidian';
+import { Modal, App, setIcon, ButtonComponent } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 
 /**
@@ -126,14 +126,6 @@ export class ChatHistoryModal extends Modal {
       }
     });
 
-    // Hover effect
-    item.addEventListener('mouseenter', () => {
-      item.addClass('osc-history-item--hover');
-    });
-
-    item.addEventListener('mouseleave', () => {
-      item.removeClass('osc-history-item--hover');
-    });
   }
 
   /**
@@ -211,20 +203,10 @@ export class ChatHistoryModal extends Modal {
 
     const buttons = confirmModal.contentEl.createDiv({ cls: 'osc-modal-buttons' });
 
-    const cancelBtn = buttons.createEl('button', {
-      text: 'Cancel',
-      cls: 'osc-btn',
-    });
-    cancelBtn.addEventListener('click', () => confirmModal.close());
-
-    const deleteBtn = buttons.createEl('button', {
-      text: 'Delete',
-      cls: 'osc-btn osc-btn--danger',
-    });
-    deleteBtn.addEventListener('click', async () => {
+    new ButtonComponent(buttons).setButtonText('Cancel').onClick(() => confirmModal.close());
+    new ButtonComponent(buttons).setButtonText('Delete').setWarning().onClick(async () => {
       await this.deleteThread(thread);
       confirmModal.close();
-      // Refresh the list
       this.onOpen();
     });
 
@@ -254,7 +236,8 @@ export class ChatHistoryModal extends Modal {
    */
   showEmpty(): void {
     const wrapper = this.contentEl.createDiv({ cls: 'osc-modal-empty' });
-    wrapper.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    const iconEl = wrapper.createDiv({ cls: 'osc-state-icon' });
+    setIcon(iconEl, 'message-square');
     wrapper.createEl('p', {
       text: 'No chat history yet',
       cls: 'osc-modal-empty-text',

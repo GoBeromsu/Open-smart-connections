@@ -28,7 +28,11 @@ export interface EmbedPipelineOptions {
   max_retries?: number;
 
   /** Callback for progress updates */
-  on_progress?: (current: number, total: number) => void;
+  on_progress?: (
+    current: number,
+    total: number,
+    progress?: EmbedProgressSnapshot,
+  ) => void;
 
   /** Callback for batch complete */
   on_batch_complete?: (batch_num: number, batch_size: number) => void;
@@ -41,6 +45,11 @@ export interface EmbedPipelineOptions {
 
   /** Whether to halt on error (default false) */
   halt_on_error?: boolean;
+}
+
+export interface EmbedProgressSnapshot {
+  current_key: string | null;
+  current_source_path: string | null;
 }
 
 /**
@@ -119,22 +128,35 @@ export class EmbeddingPipeline {
 
         // Filter out entities that failed to get embed input
         const ready = batch.filter(e => e._embed_input && e._embed_input.length > 0);
+        const skipped_in_batch = batch.filter(e => !ready.includes(e));
 
         if (ready.length === 0) {
           this.stats.skipped += batch.length;
+          this.clear_queue_flags(batch);
+          if (on_progress) {
+            on_progress(
+              Math.min(i + batch_size, to_embed.length),
+              to_embed.length,
+              this.to_progress_snapshot(batch[batch.length - 1]),
+            );
+          }
           continue;
         }
 
         try {
           await this.process_batch(ready, max_retries);
           this.stats.success += ready.length;
-          this.stats.skipped += batch.length - ready.length;
+          this.stats.skipped += skipped_in_batch.length;
+          this.clear_queue_flags(skipped_in_batch);
 
           if (on_batch_complete) {
             on_batch_complete(batch_num, ready.length);
           }
         } catch (error) {
           this.stats.failed += batch.length;
+          // Stop automatic infinite retry loops for terminal failures.
+          // Failed entities can be re-queued later by explicit re-embed flows.
+          this.clear_queue_flags(batch);
 
           if (halt_on_error) {
             throw error;
@@ -142,7 +164,11 @@ export class EmbeddingPipeline {
         }
 
         if (on_progress) {
-          on_progress(Math.min(i + batch_size, to_embed.length), to_embed.length);
+          on_progress(
+            Math.min(i + batch_size, to_embed.length),
+            to_embed.length,
+            this.to_progress_snapshot(ready[ready.length - 1]),
+          );
         }
 
         // Periodic save
@@ -183,6 +209,7 @@ export class EmbeddingPipeline {
         const embeddings: EmbedResult[] = await this.model.embed_batch(inputs);
 
         // Assign embeddings to entities
+        const updatedAt = Date.now();
         embeddings.forEach((emb, i) => {
           const entity = batch[i];
           entity.vec = emb.vec ?? null; // Stores via setter, also clears _queue_embed
@@ -191,6 +218,14 @@ export class EmbeddingPipeline {
           // Update last_embed to match last_read (if available)
           if (entity.data.last_read) {
             entity.data.last_embed = { ...entity.data.last_read };
+            entity.set_active_embedding_meta({
+              hash: entity.data.last_read.hash,
+              size: entity.data.last_read.size,
+              mtime: entity.data.last_read.mtime,
+              dims: this.model.dims,
+              adapter: this.model.adapter,
+              updated_at: updatedAt,
+            });
           }
         });
 
@@ -244,5 +279,21 @@ export class EmbeddingPipeline {
       skipped: 0,
       duration_ms: 0,
     };
+  }
+
+  private clear_queue_flags(entities: EmbeddingEntity[]): void {
+    for (const entity of entities) {
+      entity._queue_embed = false;
+      entity._embed_input = null;
+    }
+  }
+
+  private to_progress_snapshot(entity?: EmbeddingEntity): EmbedProgressSnapshot {
+    if (!entity) {
+      return { current_key: null, current_source_path: null };
+    }
+    const current_key = entity.key ?? null;
+    const current_source_path = current_key ? current_key.split('#')[0] : null;
+    return { current_key, current_source_path };
   }
 }

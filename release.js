@@ -210,9 +210,12 @@ async function run_release() {
   console.log(`Archive wrote ${archive.pointer()} bytes`);
   await upload_asset_curl(`./${zip_name}`, zip_name);
 
-  // Upload each dist file
+  // Upload each dist file (skip directories like ./dist/src)
   for (const file of fs.readdirSync('./dist')) {
-    await upload_asset_curl(`./dist/${file}`, file);
+    const asset_path = `./dist/${file}`;
+    const stat = fs.statSync(asset_path);
+    if (!stat.isFile()) continue;
+    await upload_asset_curl(asset_path, file);
   }
   // Clean up zip after a short delay
   setTimeout(() => fs.unlinkSync(`./${zip_name}`), 3000);

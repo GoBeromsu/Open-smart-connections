@@ -91,6 +91,11 @@ describe('Cache Compatibility - Entity Data Format', () => {
       last_embed: {
         hash: 'content_hash_123',
       },
+      embedding_meta: {
+        'test-model': {
+          hash: 'content_hash_123',
+        },
+      },
     };
 
     const entity = new EmbeddingEntity(mockCollection, cachedData);
@@ -99,6 +104,34 @@ describe('Cache Compatibility - Entity Data Format', () => {
     // Should NOT queue for embedding (hashes match)
     expect(entity.is_unembedded).toBe(false);
     expect(entity._queue_embed).toBe(false);
+  });
+
+  it('should treat legacy last_embed-only entries as stale in safe mode', () => {
+    const mockCollection = {
+      embed_model_key: 'test-model',
+      settings: {},
+    } as any;
+
+    const legacyData: EntityData = {
+      path: 'legacy.md',
+      embeddings: {
+        'test-model': {
+          vec: [1, 2, 3],
+          tokens: 100,
+        },
+      },
+      last_read: {
+        hash: 'legacy_hash',
+      },
+      last_embed: {
+        hash: 'legacy_hash',
+      },
+    };
+
+    const entity = new EmbeddingEntity(mockCollection, legacyData);
+    entity.init();
+
+    expect(entity.is_unembedded).toBe(true);
   });
 
   it('should trigger re-embedding when content hash changed', () => {
@@ -221,6 +254,41 @@ describe('Cache Compatibility - AJSON Format', () => {
     expect(ajsonLine.endsWith(',')).toBe(true);
   });
 
+  it('should preserve embedding_meta in AJSON parse/build roundtrip', () => {
+    const mockCollection = {
+      embed_model_key: 'test-model',
+      data_dir: '/test',
+      settings: {},
+      delete: () => {},
+      create_or_update: (data: EntityData) => data,
+      size: 0,
+    } as any;
+
+    const adapter = new AjsonDataAdapter(mockCollection);
+    const source = {
+      key: 'meta.md',
+      data: {
+        path: 'meta.md',
+        embeddings: { 'test-model': { vec: [1, 2, 3] } },
+        embedding_meta: {
+          'test-model': {
+            hash: 'hash-meta',
+            dims: 3,
+            adapter: 'openai',
+          },
+        },
+      } as EntityData,
+    } as any;
+
+    const line = adapter.build_ajson_line(source);
+    const entries = adapter.parse_ajson(line);
+    expect(entries.get('meta.md')?.embedding_meta?.['test-model']).toEqual({
+      hash: 'hash-meta',
+      dims: 3,
+      adapter: 'openai',
+    });
+  });
+
   it('should handle multiple AJSON entries', () => {
     const mockCollection = {
       embed_model_key: 'test-model',
@@ -315,6 +383,14 @@ describe('Cache Compatibility - Real-world Scenarios', () => {
       },
       last_embed: {
         hash: 'content_hash_xyz',
+      },
+      embedding_meta: {
+        'TaylorAI/bge-micro-v2': {
+          hash: 'content_hash_xyz',
+          size: 2048,
+          mtime: 1705334400000,
+          dims: 384,
+        },
       },
       is_excluded: false,
     };

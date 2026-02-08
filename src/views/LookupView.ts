@@ -1,6 +1,7 @@
-import { ItemView, WorkspaceLeaf, debounce } from 'obsidian';
+import { ItemView, WorkspaceLeaf, ButtonComponent, debounce, setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { lookup } from '../../core/search/lookup';
+import { showResultContextMenu } from './result-context-menu';
 
 export const LOOKUP_VIEW_TYPE = 'smart-connections-lookup';
 
@@ -62,6 +63,12 @@ export class LookupView extends ItemView {
     // Results area
     this.resultsContainer = this.container.createDiv({ cls: 'osc-lookup-results' });
 
+    this.registerEvent(
+      (this.app.workspace as any).on('smart-connections:model-switched', () => {
+        this.handleModelSwitched();
+      }),
+    );
+
     // Initial state
     this.showEmpty('Type a query to search your notes semantically');
 
@@ -92,12 +99,12 @@ export class LookupView extends ItemView {
       const entities: any[] = [];
       if (this.plugin.source_collection) {
         for (const source of this.plugin.source_collection.all) {
-          if (source.vec) entities.push(source);
+          if (source.vec && !source.is_unembedded) entities.push(source);
         }
       }
       if (this.plugin.block_collection) {
         for (const block of this.plugin.block_collection.all) {
-          if (block.vec) entities.push(block);
+          if (block.vec && !block.is_unembedded) entities.push(block);
         }
       }
 
@@ -119,6 +126,13 @@ export class LookupView extends ItemView {
     }
   }
 
+  private handleModelSwitched(): void {
+    if (!this.resultsContainer) return;
+    this.showEmpty(
+      'Embedding model changed. Results will refresh after active-model embeddings are ready.',
+    );
+  }
+
   renderResults(query: string, results: any[]): void {
     this.resultsContainer.empty();
 
@@ -127,7 +141,12 @@ export class LookupView extends ItemView {
       return;
     }
 
-    const list = this.resultsContainer.createDiv({ cls: 'osc-results' });
+    this.resultsContainer.createDiv({
+      cls: 'osc-result-count',
+      text: `${results.length} result${results.length === 1 ? '' : 's'}`,
+    });
+
+    const list = this.resultsContainer.createDiv({ cls: 'osc-results', attr: { role: 'list' } });
 
     for (const result of results) {
       const score = result.score ?? result.sim ?? 0;
@@ -135,7 +154,14 @@ export class LookupView extends ItemView {
       const name = key.split('/').pop()?.replace(/\.md$/, '')?.replace(/#/g, ' > ') ?? 'Unknown';
       const fullPath = key.split('#')[0];
 
-      const item = list.createDiv({ cls: 'osc-result-item' });
+      const item = list.createDiv({
+        cls: 'osc-result-item',
+        attr: {
+          role: 'listitem',
+          tabindex: '0',
+          'aria-label': `${name} — similarity ${(Math.round(score * 100) / 100).toFixed(2)}`,
+        },
+      });
 
       // Score badge
       const scoreBadge = item.createSpan({ cls: 'osc-score' });
@@ -151,6 +177,24 @@ export class LookupView extends ItemView {
       // Click to open
       this.registerDomEvent(item, 'click', (e) => {
         this.plugin.open_note(key, e);
+      });
+
+      // Keyboard navigation
+      this.registerDomEvent(item, 'keydown', (e) => {
+        if (e.key === 'Enter') {
+          this.plugin.open_note(key);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          (item.nextElementSibling as HTMLElement)?.focus();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          (item.previousElementSibling as HTMLElement)?.focus();
+        }
+      });
+
+      // Context menu
+      this.registerDomEvent(item, 'contextmenu', (e) => {
+        showResultContextMenu(this.app, fullPath, e);
       });
 
       // Hover preview
@@ -183,7 +227,8 @@ export class LookupView extends ItemView {
   showEmpty(message = 'No results', clear = true): void {
     if (clear) this.resultsContainer.empty();
     const wrapper = this.resultsContainer.createDiv({ cls: 'osc-state' });
-    wrapper.innerHTML = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+    const iconEl = wrapper.createDiv({ cls: 'osc-state-icon' });
+    setIcon(iconEl, 'search');
     wrapper.createEl('p', { text: message, cls: 'osc-state-text' });
   }
 
