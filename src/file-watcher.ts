@@ -63,8 +63,11 @@ export function isSourceFile(file: TFile): boolean {
 export function queueSourceReImport(plugin: SmartConnectionsPlugin, path: string): void {
   if (!plugin.re_import_queue[path]) {
     plugin.re_import_queue[path] = { path, queued_at: Date.now() };
-    debounceReImport(plugin);
+  } else {
+    // Update timestamp for already-queued path (external modification may still be writing)
+    plugin.re_import_queue[path].queued_at = Date.now();
   }
+  debounceReImport(plugin);
 }
 
 export function removeSource(plugin: SmartConnectionsPlugin, path: string): void {
@@ -99,8 +102,17 @@ export function debounceReImport(plugin: SmartConnectionsPlugin): void {
   plugin.refreshStatus();
 }
 
+const MAX_DEFER_RETRIES = 20;
+let deferRetryCount = 0;
+
 function deferReImport(plugin: SmartConnectionsPlugin, reason: string, delayMs: number = 1500): void {
-  console.log(`${reason}. Deferring re-import for ${delayMs}ms...`);
+  deferRetryCount++;
+  if (deferRetryCount > MAX_DEFER_RETRIES) {
+    console.warn(`[SC] Re-import deferred ${deferRetryCount} times — giving up. Reason: ${reason}`);
+    deferRetryCount = 0;
+    return;
+  }
+  console.log(`${reason}. Deferring re-import for ${delayMs}ms (attempt ${deferRetryCount}/${MAX_DEFER_RETRIES})...`);
   if (plugin.re_import_retry_timeout) {
     window.clearTimeout(plugin.re_import_retry_timeout);
   }
@@ -110,6 +122,10 @@ function deferReImport(plugin: SmartConnectionsPlugin, reason: string, delayMs: 
       console.error('Failed to enqueue deferred re-import:', error);
     });
   }, delayMs);
+}
+
+function resetDeferRetryCount(): void {
+  deferRetryCount = 0;
 }
 
 function enqueueReImportJob(plugin: SmartConnectionsPlugin, reason: string): Promise<void> {
@@ -185,6 +201,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin, forceWhilePaus
     });
 
     plugin.refreshStatus();
+    resetDeferRetryCount();
     console.log('Re-import completed');
     plugin.dispatchKernelEvent({ type: 'REIMPORT_COMPLETED' });
 
@@ -192,10 +209,10 @@ export async function runReImport(plugin: SmartConnectionsPlugin, forceWhilePaus
       deferReImport(plugin, 'Re-import queue still has pending updates');
     }
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('Embedding pipeline is already processing')
-    ) {
+    // Check if pipeline is busy — defer rather than fail
+    const isBusy = plugin.embedding_pipeline?.is_active() ||
+      (error instanceof Error && error.message.includes('already processing'));
+    if (isBusy) {
       deferReImport(plugin, 'Embedding pipeline is already processing');
       return;
     }

@@ -59,6 +59,7 @@ export interface EmbeddingKernelState {
 
 export type EmbeddingKernelEvent =
   | { type: 'INIT_CORE_READY' }
+  | { type: 'INIT_CORE_FAILED'; error: string }
   | { type: 'MODEL_SWITCH_REQUESTED'; reason: string }
   | { type: 'MODEL_SWITCH_SUCCEEDED'; model: EmbeddingKernelModel }
   | { type: 'MODEL_SWITCH_FAILED'; reason: string; error: string }

@@ -90,6 +90,8 @@ export function registerCommands(plugin: Plugin): void {
     name: 'Clear embedding cache',
     callback: async () => {
       const p = plugin as any;
+      // Stop any active embedding before clearing cache to prevent data race
+      p.requestEmbeddingStop?.('Command: Clear cache');
       if (p.source_collection) {
         for (const source of p.source_collection.all) {
           source.remove_embeddings();
@@ -103,6 +105,8 @@ export function registerCommands(plugin: Plugin): void {
         if (p.block_collection) {
           await p.block_collection.data_adapter?.save();
         }
+        // Notify kernel that cache was cleared
+        p.dispatchKernelEvent?.({ type: 'RESET_ERROR' });
       }
     },
   });

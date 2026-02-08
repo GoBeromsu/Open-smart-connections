@@ -94,7 +94,11 @@ export class EmbeddingKernelJobQueue {
         } catch (error) {
           next.reject(error);
         } finally {
-          this.inflight.delete(next.job.key);
+          // Only delete inflight if it still points to this job's promise.
+          // After clear(), a new job with the same key may have been enqueued.
+          if (this.inflight.get(next.job.key) === next.promise) {
+            this.inflight.delete(next.job.key);
+          }
         }
       }
     } finally {
