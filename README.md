@@ -18,8 +18,8 @@ An Obsidian plugin that uses AI embeddings to surface semantically related notes
 ```bash
 git clone https://github.com/GoBeromsu/Open-smart-connections.git
 cd Open-smart-connections
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 Copy `dist/` contents to your vault's `.obsidian/plugins/open-smart-connections/` directory.
@@ -27,11 +27,14 @@ Copy `dist/` contents to your vault's `.obsidian/plugins/open-smart-connections/
 ### Development
 
 ```bash
-# Set your test vault in .env
-echo 'DESTINATION_VAULTS=../../Obsidian/YourVault' > .env
+# Option A: interactive vault selection + watch + hot reload
+pnpm dev
 
-# Watch mode — auto-rebuilds and hot-reloads on save
-npm run build:watch
+# Option B: non-interactive (skip prompt)
+# VAULT_PATH=/absolute/path/to/YourVault pnpm dev
+
+# Option C: build watch only (no vault interaction)
+# pnpm run dev:build
 ```
 
 ## Features
@@ -54,7 +57,7 @@ npm run build:watch
 | Language | TypeScript, JavaScript |
 | Bundler | esbuild |
 | Embeddings | transformers.js (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter |
-| Testing | AVA |
+| Testing | Vitest |
 
 ## Project Structure
 
@@ -163,7 +166,7 @@ flowchart TD
 1. Fork this repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `refactor:`, etc.)
-4. Run `npm run build` to verify
+4. Run `pnpm run ci` to verify
 5. Submit a pull request
 
 ## License

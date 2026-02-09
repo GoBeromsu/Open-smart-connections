@@ -216,14 +216,13 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
     const adapterSettings = plugin.getEmbedAdapterSettings(embedSettings);
     const modelKey = adapterSettings.model_key || '';
 
-    console.log(`Initializing embed model: ${adapterType}/${modelKey}`);
-
     let adapter: any;
 
     switch (adapterType) {
       case 'transformers': {
         const modelInfo = TRANSFORMERS_EMBED_MODELS[modelKey];
         if (!modelInfo) throw new Error(`Unknown transformers model: ${modelKey}`);
+        console.log(`[SC][Init]   [model] Creating transformers adapter for ${modelKey} (dims=${modelInfo.dims ?? 384})`);
         adapter = new TransformersEmbedAdapter({
           adapter: 'transformers',
           model_key: modelKey,
@@ -231,12 +230,16 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
           models: TRANSFORMERS_EMBED_MODELS,
           settings: adapterSettings,
         });
+        const tLoad = performance.now();
+        console.log('[SC][Init]   [model] Loading adapter (this may download model files)...');
         await adapter.load();
+        console.log(`[SC][Init]   [model] Adapter loaded ✓ (${(performance.now() - tLoad).toFixed(0)}ms)`);
         break;
       }
       case 'openai': {
         const modelInfo = OPENAI_EMBED_MODELS[modelKey];
         if (!modelInfo) throw new Error(`Unknown OpenAI model: ${modelKey}`);
+        console.log(`[SC][Init]   [model] Creating openai adapter for ${modelKey} (dims=${modelInfo.dims ?? 1536})`);
         adapter = new OpenAIEmbedAdapter({
           adapter: 'openai',
           model_key: modelKey,
@@ -247,6 +250,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
         break;
       }
       case 'ollama': {
+        console.log(`[SC][Init]   [model] Creating ollama adapter for ${modelKey} (dims=${adapterSettings.dims || 384})`);
         adapter = new OllamaEmbedAdapter({
           adapter: 'ollama',
           model_key: modelKey,
@@ -259,6 +263,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       case 'gemini': {
         const modelInfo = GEMINI_EMBED_MODELS[modelKey];
         if (!modelInfo) throw new Error(`Unknown Gemini model: ${modelKey}`);
+        console.log(`[SC][Init]   [model] Creating gemini adapter for ${modelKey} (dims=${modelInfo.dims ?? 768})`);
         adapter = new GeminiEmbedAdapter({
           adapter: 'gemini',
           model_key: modelKey,
@@ -269,6 +274,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
         break;
       }
       case 'lm_studio': {
+        console.log(`[SC][Init]   [model] Creating lm_studio adapter for ${modelKey} (dims=${adapterSettings.dims || 384})`);
         adapter = new LmStudioEmbedAdapter({
           adapter: 'lm_studio',
           model_key: modelKey,
@@ -281,6 +287,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       case 'upstage': {
         const modelInfo = UPSTAGE_EMBED_MODELS[modelKey];
         if (!modelInfo) throw new Error(`Unknown Upstage model: ${modelKey}`);
+        console.log(`[SC][Init]   [model] Creating upstage adapter for ${modelKey} (dims=${modelInfo.dims ?? 4096})`);
         adapter = new UpstageEmbedAdapter({
           adapter: 'upstage',
           model_key: modelKey,
@@ -291,6 +298,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
         break;
       }
       case 'open_router': {
+        console.log(`[SC][Init]   [model] Creating open_router adapter for ${modelKey} (dims=${adapterSettings.dims || 1536})`);
         adapter = new OpenRouterEmbedAdapter({
           adapter: 'open_router',
           model_key: modelKey,
@@ -310,9 +318,9 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       settings: plugin.settings,
     });
 
-    console.log('Embed model initialized successfully');
+    console.log(`[SC][Init]   [model] Embed model initialized ✓ (${adapterType}/${modelKey})`);
   } catch (error) {
-    console.error('Failed to initialize embed model:', error);
+    console.error('[SC][Init]   [model] Failed to initialize embed model:', error);
     const message = error instanceof Error ? error.message : String(error);
     if (
       plugin.settings.smart_sources.embed_model.adapter === 'transformers' &&
@@ -538,17 +546,30 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
   });
 
   try {
+    let t = performance.now();
+    console.log('[SC][Init]   [switch] Stopping active pipeline...');
     await stopActivePipelineForSwitch(plugin, reason, previous);
+    console.log(`[SC][Init]   [switch] Pipeline stopped ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+
+    t = performance.now();
+    console.log('[SC][Init]   [switch] Unloading previous model...');
     await unloadPreviousModel(plugin);
+    console.log(`[SC][Init]   [switch] Previous model unloaded ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     const modelLoadTimeoutMs = getModelLoadTimeoutMs(plugin);
+    t = performance.now();
+    console.log(`[SC][Init]   [switch] Loading model: ${targetFingerprint.adapter}/${targetFingerprint.modelKey} (timeout: ${(modelLoadTimeoutMs / 1000).toFixed(0)}s)...`);
     await withTimeout(
       plugin.initEmbedModel(),
       modelLoadTimeoutMs,
       `Timed out while loading embedding model (${targetFingerprint.adapter}/${targetFingerprint.modelKey}).`,
     );
+    console.log(`[SC][Init]   [switch] Model loaded ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
+    t = performance.now();
+    console.log('[SC][Init]   [switch] Syncing collection embedding context...');
     plugin.syncCollectionEmbeddingContext();
+    console.log(`[SC][Init]   [switch] Context synced ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     if (shouldForceReembed) {
       const forced = markAllEntitiesStaleForModelSwitch(plugin, reason, targetFingerprint);
@@ -562,10 +583,16 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     }
 
     const queuedAfterSync = plugin.queueUnembeddedEntities();
+    console.log(`[SC][Init]   [switch] Queue: ${queuedAfterSync} entities need embedding`);
     dispatchQueueSnapshot(plugin);
+
+    t = performance.now();
+    console.log('[SC][Init]   [switch] Initializing pipeline...');
     await plugin.initPipeline();
+    console.log(`[SC][Init]   [switch] Pipeline initialized ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     notifyModelSwitchSuccess(plugin, reason, queuedAfterSync);
+    console.log('[SC][Init]   [switch] Model switch complete ✓');
 
     if (queuedAfterSync > 0) {
       void plugin.runEmbeddingJob(reason).catch((error) => {

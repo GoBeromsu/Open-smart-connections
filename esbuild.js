@@ -75,7 +75,24 @@ fs.writeFileSync(manifest_path, JSON.stringify(manifest_json, null, 2));
 fs.copyFileSync(manifest_path, path.join(process.cwd(), 'dist', 'manifest.json'));
 fs.copyFileSync(styles_path, path.join(process.cwd(), 'dist', 'styles.css'));
 
-const destination_vaults = process.env.DESTINATION_VAULTS?.split(',') || [];
+const destination_vaults = (process.env.DESTINATION_VAULTS || '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
+
+function resolveExistingVaultPath(vault) {
+  if (!vault) return null;
+  if (path.isAbsolute(vault)) return fs.existsSync(vault) ? vault : null;
+
+  const fromCwd = path.resolve(process.cwd(), vault);
+  if (fs.existsSync(fromCwd)) return fromCwd;
+
+  // Back-compat: previous builds resolved relative to the parent directory.
+  const fromParent = path.resolve(process.cwd(), '..', vault);
+  if (fs.existsSync(fromParent)) return fromParent;
+
+  return null;
+}
 
 const cli_args = process.argv.slice(2);
 const is_watch = cli_args.includes('--watch');
@@ -105,8 +122,14 @@ function copy_output_plugin() {
       build.onEnd((result) => {
         if (result.errors?.length) return;
         console.log('Build complete');
-        for (const vault of destination_vaults) {
-          const destDir = path.join(process.cwd(), '..', vault, '.obsidian', 'plugins', manifest_json.id);
+        for (const vaultEntry of destination_vaults) {
+          const vaultPath = resolveExistingVaultPath(vaultEntry);
+          if (!vaultPath) {
+            console.warn(`Skipping DESTINATION_VAULTS entry (not found): ${vaultEntry}`);
+            continue;
+          }
+
+          const destDir = path.join(vaultPath, '.obsidian', 'plugins', manifest_json.id);
           console.log(`Copying files to ${destDir}`);
           fs.mkdirSync(destDir, { recursive: true });
           for (const file_path of release_file_paths) {

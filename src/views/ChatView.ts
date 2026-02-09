@@ -157,9 +157,9 @@ export class ChatView extends ItemView {
    * Open chat settings
    */
   openSettings(): void {
-    // @ts-ignore - Obsidian internal API
+    // @ts-expect-error - Obsidian internal API
     this.app.setting.open();
-    // @ts-ignore
+    // @ts-expect-error - Obsidian internal API
     this.app.setting.openTabById('open-smart-connections');
   }
 
