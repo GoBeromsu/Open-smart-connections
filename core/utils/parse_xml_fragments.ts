@@ -88,7 +88,7 @@ export function parse_xml_fragments(xml_input: string): Record<string, XmlNode |
   const parse_attributes = (str: string): Record<string, string | number | boolean | null> => {
     if (!str) return {};
     const attrs: Record<string, string | number | boolean | null> = {};
-    const attr_re = /(\w[\w.\-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    const attr_re = /(\w[\w.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
     let m: RegExpExecArray | null;
 
     while ((m = attr_re.exec(str)) !== null) {

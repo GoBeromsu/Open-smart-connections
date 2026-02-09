@@ -2,18 +2,21 @@
   "name": "open-smart-connections",
   "version": "3.0.7",
   "type": "module",
+  "packageManager": "pnpm@10.28.2",
   "description": "Link and chat with your notes using ChatGPT and embedding artificial intelligence from OpenAI.",
   "scripts": {
     "build": "node esbuild.js",
     "build:watch": "node esbuild.js --watch",
-    "dev": "node esbuild.js --watch",
+    "dev": "node scripts/dev.mjs",
+    "dev:build": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck:watch": "tsc --noEmit -p tsconfig.typecheck.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src core worker --ext .ts",
     "lint:fix": "eslint src core worker --ext .ts --fix",
-    "release": "node release.js"
+    "release": "node release.js",
+    "ci": "pnpm run build && pnpm run lint && pnpm run test"
   },
   "repository": {
     "type": "git",
@@ -50,6 +53,11 @@
     "swagger-jsdoc": "^6.2.8",
     "typescript": "^5.9.3",
     "vitest": "^1.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.25.0"
+    }
   },
   "dependencies": {
     "js-tiktoken": "^1.0.19",

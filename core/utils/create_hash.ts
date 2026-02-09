@@ -88,8 +88,10 @@ export function murmur_hash_32(input_string: string, seed: number = 0): number {
   switch (remainder) {
     case 3:
       k1 ^= (input_string.charCodeAt(i + 2) & 0xff) << 16;
+    // falls through
     case 2:
       k1 ^= (input_string.charCodeAt(i + 1) & 0xff) << 8;
+    // falls through
     case 1:
       k1 ^= (input_string.charCodeAt(i) & 0xff);
       k1 = multiply_32(k1, c1);

@@ -40,8 +40,8 @@ export function logKernelTransition(
 ): void {
   const reason = 'reason' in event ? String((event as any).reason || '') : '';
   const error = 'error' in event ? String((event as any).error || '') : '';
-  const suffixReason = reason ? ` reason=\"${reason}\"` : '';
-  const suffixError = error ? ` error=\"${error}\"` : '';
+  const suffixReason = reason ? ` reason="${reason}"` : '';
+  const suffixError = error ? ` error="${error}"` : '';
   const runId = next.run?.runId ?? prev.run?.runId ?? '-';
   console.log(
     `[SC][FSM] ${prev.phase} --${event.type}--> ${next.phase} run=${runId} jobs=${next.queue.pendingJobs}${suffixReason}${suffixError}`,

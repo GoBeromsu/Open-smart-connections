@@ -253,7 +253,7 @@ async function process_message(data: any): Promise<any> {
         result = { model_unloaded: true };
         break;
 
-      case 'embed_batch':
+      case 'embed_batch': {
         if (!pipeline) throw new Error('Model not loaded');
         if (processing_message) {
           while (processing_message) {
@@ -266,6 +266,7 @@ async function process_message(data: any): Promise<any> {
         result = await process_batch(params.inputs, max_tokens, batch_size);
         processing_message = false;
         break;
+      }
 
       case 'count_tokens':
         if (!tokenizer) throw new Error('Tokenizer not loaded');

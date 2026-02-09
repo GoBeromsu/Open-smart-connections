@@ -236,7 +236,8 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async initialize(): Promise<void> {
-    console.log('Initializing Smart Connections...');
+    const t0 = performance.now();
+    console.log('[SC][Init] ▶ Initialization starting');
 
     // Phase 1: Core init (blocking)
     await this.initializeCore();
@@ -250,84 +251,135 @@ export default class SmartConnectionsPlugin extends Plugin {
       console.error('Background embedding init failed:', e);
     });
 
-    console.log('Smart Connections initialized (core ready, embedding loading in background)');
+    console.log(`[SC][Init] ✓ Core ready, embedding loading in background (${(performance.now() - t0).toFixed(0)}ms)`);
   }
 
   async initializeCore(): Promise<void> {
+    const phase1Start = performance.now();
+    console.log('[SC][Init] ▶ Phase 1: Core initialization starting');
+
+    const logStep = (step: string, num: number, total: number = 6) =>
+      console.log(`[SC][Init]   [${num}/${total}] ${step}...`);
+    const logStepDone = (step: string, num: number, total: number = 6, elapsed: number, extra?: string) =>
+      console.log(`[SC][Init]   [${num}/${total}] ${step} ✓ (${elapsed.toFixed(0)}ms)${extra ? ` — ${extra}` : ''}`);
+
     // Each step has own try-catch, pushes errors, continues
 
     // 1. Load user state
-    try {
-      await this.loadUserState();
-    } catch (e) {
-      this.init_errors.push({ phase: 'loadUserState', error: e as Error });
-      console.error('Failed to load user state:', e);
+    {
+      const t = performance.now();
+      logStep('Loading user state', 1);
+      try {
+        await this.loadUserState();
+        logStepDone('Loading user state', 1, 6, performance.now() - t);
+      } catch (e) {
+        this.init_errors.push({ phase: 'loadUserState', error: e as Error });
+        console.error(`[SC][Init]   [1/6] Loading user state ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+      }
     }
 
     // 2. Wait for sync
-    try {
-      await this.waitForSync();
-    } catch (e) {
-      this.init_errors.push({ phase: 'waitForSync', error: e as Error });
-      console.error('Failed waiting for sync:', e);
+    {
+      const t = performance.now();
+      logStep('Waiting for sync', 2);
+      try {
+        await this.waitForSync();
+        logStepDone('Waiting for sync', 2, 6, performance.now() - t);
+      } catch (e) {
+        this.init_errors.push({ phase: 'waitForSync', error: e as Error });
+        console.error(`[SC][Init]   [2/6] Waiting for sync ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+      }
     }
 
     // 3. Initialize collections (NO embed model needed!)
-    try {
-      await this.initCollections();
-    } catch (e) {
-      this.init_errors.push({ phase: 'initCollections', error: e as Error });
-      console.error('Failed to init collections:', e);
-      // Collections are critical — abort initialization
-      this.ready = false;
-      this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to initialize collections' });
-      return;
+    {
+      const t = performance.now();
+      logStep('Initializing collections', 3);
+      try {
+        await this.initCollections();
+        logStepDone('Initializing collections', 3, 6, performance.now() - t);
+      } catch (e) {
+        this.init_errors.push({ phase: 'initCollections', error: e as Error });
+        console.error(`[SC][Init]   [3/6] Initializing collections ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+        // Collections are critical — abort initialization
+        this.ready = false;
+        this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to initialize collections' });
+        console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): collections init failed`);
+        return;
+      }
     }
 
     // 4. Load collections from AJSON
-    try {
-      await this.loadCollections();
-    } catch (e) {
-      this.init_errors.push({ phase: 'loadCollections', error: e as Error });
-      console.error('Failed to load collections:', e);
-      // Collection data is critical — abort initialization
-      this.ready = false;
-      this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to load collections' });
-      return;
+    {
+      const t = performance.now();
+      logStep('Loading collections', 4);
+      try {
+        await this.loadCollections();
+        const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
+        const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;
+        logStepDone('Loading collections', 4, 6, performance.now() - t, `${sourceCount} sources, ${blockCount} blocks`);
+      } catch (e) {
+        this.init_errors.push({ phase: 'loadCollections', error: e as Error });
+        console.error(`[SC][Init]   [4/6] Loading collections ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+        // Collection data is critical — abort initialization
+        this.ready = false;
+        this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to load collections' });
+        console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): collections load failed`);
+        return;
+      }
     }
 
     // 5. Setup status bar
-    try {
-      this.setupStatusBar();
-    } catch (e) {
-      this.init_errors.push({ phase: 'setupStatusBar', error: e as Error });
-      console.error('Failed to setup status bar:', e);
+    {
+      const t = performance.now();
+      logStep('Setting up status bar', 5);
+      try {
+        this.setupStatusBar();
+        logStepDone('Setting up status bar', 5, 6, performance.now() - t);
+      } catch (e) {
+        this.init_errors.push({ phase: 'setupStatusBar', error: e as Error });
+        console.error(`[SC][Init]   [5/6] Setting up status bar ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+      }
     }
 
     // 6. Register file watchers
-    try {
-      this.registerFileWatchers();
-    } catch (e) {
-      this.init_errors.push({ phase: 'registerFileWatchers', error: e as Error });
-      console.error('Failed to register file watchers:', e);
+    {
+      const t = performance.now();
+      logStep('Registering file watchers', 6);
+      try {
+        this.registerFileWatchers();
+        logStepDone('Registering file watchers', 6, 6, performance.now() - t);
+      } catch (e) {
+        this.init_errors.push({ phase: 'registerFileWatchers', error: e as Error });
+        console.error(`[SC][Init]   [6/6] Registering file watchers ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+      }
     }
 
     this.ready = true;
     this.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
-    console.log('Smart Connections core initialized (Phase 1 complete)');
+    console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - phase1Start).toFixed(0)}ms) — ready=${this.ready}, errors=${this.init_errors.length}`);
 
     if (this.init_errors.length > 0) {
-      console.warn(`Phase 1 completed with ${this.init_errors.length} errors:`, this.init_errors);
+      console.warn('[SC][Init]   Phase 1 errors:', this.init_errors);
     }
   }
 
   async initializeEmbedding(): Promise<void> {
+    const t0 = performance.now();
+    const modelId = (() => {
+      try {
+        const es = this.settings.smart_sources.embed_model;
+        const as_ = this.getEmbedAdapterSettings(es);
+        return `${es.adapter}/${as_.model_key || '?'}`;
+      } catch { return 'unknown'; }
+    })();
+    console.log(`[SC][Init] ▶ Phase 2: Embedding initialization starting (model: ${modelId})`);
     try {
       await this.switchEmbeddingModel('Initial embedding setup');
-      console.log('Smart Connections embedding ready (Phase 2 complete)');
+      console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
-      console.error('Failed to initialize embedding (Phase 2):', e);
+      console.error(`[SC][Init] ✗ Phase 2 failed (${(performance.now() - t0).toFixed(0)}ms): ${e instanceof Error ? e.message : String(e)}`);
       this.dispatchKernelEvent({
         type: 'MODEL_SWITCH_FAILED',
         reason: 'Initial embedding setup',

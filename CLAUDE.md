@@ -9,9 +9,13 @@ Open Smart Connections is an Obsidian plugin that uses local embeddings to surfa
 ## Build Commands
 
 ```bash
-npm run build     # Build with esbuild, outputs to dist/
-npm run test      # Run tests with AVA (npx ava --verbose)
-npm run release   # Create GitHub release (requires GH_TOKEN and GH_REPO in .env)
+pnpm run dev       # vault selection + esbuild watch + hot reload (delegate mode)
+pnpm run dev:build # esbuild watch only (no vault interaction)
+pnpm run build     # production build → dist/ (single-shot)
+pnpm run test      # Vitest unit tests
+pnpm run lint      # ESLint
+pnpm run ci        # build + lint + test
+pnpm run release   # Create GitHub release (requires GH_TOKEN and GH_REPO in .env)
 ```
 
 The build process:
@@ -22,12 +26,17 @@ The build process:
 
 ## Local Development
 
-Set `DESTINATION_VAULTS` in `.env` to automatically copy builds to test vaults:
+`pnpm dev` uses the unified dev orchestrator (`scripts/dev.mjs`) in delegate mode:
+1. Discovers Obsidian vaults, lets you select one interactively
+2. Sets `DESTINATION_VAULTS` env var with the selected vault path
+3. Runs `dev:build` (esbuild --watch) which handles vault sync internally
+
+Alternatively, set `DESTINATION_VAULTS` directly in `.env`:
 ```
 DESTINATION_VAULTS=my-test-vault,another-vault
 ```
 
-The build creates `.hotreload` files in destination plugins for Obsidian hot reload.
+Use `VAULT_PATH`, `VAULT_NAME`, or `--vault <name>` to skip interactive selection.
 
 ## Architecture
 
@@ -122,9 +131,9 @@ Each source item gets a `ConnectionsList` that:
 
 ## Testing
 
-Tests use AVA and are co-located with source files (e.g., `pause_controls.test.js`). Run a single test file:
+Tests use Vitest and are co-located with source files (e.g., `pause_controls.test.js`). Run a single test file:
 ```bash
-npx ava src/utils/pause_controls.test.js --verbose
+pnpm vitest run src/utils/pause_controls.test.js
 ```
 
 ## Key Files
@@ -146,13 +155,11 @@ The project is planning a TypeScript conversion to improve type safety and devel
 
 - Obsidian Plugin API Docs: https://docs.obsidian.md/Home
 
-## CDP Testing
+## CDP Debugging
 
-Use `obsidian-cdp` skill for Playwright CDP automation:
-- Enable plugin: `enablePlugin(id)` + `enabledPlugins.add()` + `saveConfig()`
-- Check settings: `window.app.plugins.plugins['open-smart-connections'].settings`
-- Verify plugin load status with `verify-plugin.mjs`
-- Capture UI state with `screenshot.mjs`
+For runtime debugging, use the root `obsidian-cdp` skill instead of the former cdp-debugger agent.
+Available scripts: `verify-plugin.mjs`, `screenshot.mjs`
+Access via: `window.app.plugins` API for runtime state queries
 
 ## Current Known Issues
 
@@ -162,5 +169,6 @@ Use `obsidian-cdp` skill for Playwright CDP automation:
 
 ## Hot Reload
 
-- `DESTINATION_VAULTS` in `.env` auto-copies builds to vault on build
+- `pnpm dev` uses delegate mode: injects `DESTINATION_VAULTS` env, build script handles sync
+- `DESTINATION_VAULTS` in `.env` also works for direct `pnpm dev:build`
 - `.hotreload` file triggers Obsidian change detection

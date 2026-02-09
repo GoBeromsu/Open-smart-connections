@@ -402,7 +402,7 @@ export class TransformersEmbedAdapter {
     window.addEventListener('message', this._handle_message);
 
     // Generate the srcdoc with inline connector script
-const srcdoc = `<html><body><script type="module">
+    const srcdoc = `<html><body><script type="module">
 ${EMBED_CONNECTOR}
 const IFRAME_ID = '${this.iframe_id}';
 function post_fatal(error, id = null) {
@@ -427,7 +427,7 @@ window.addEventListener('message', async (event) => {
   }
 });
 console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
-<\/script></body></html>`;
+${'</'}script></body></html>`;
 
     this.iframe.srcdoc = srcdoc;
 
@@ -515,7 +515,7 @@ console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
       // Security is ensured by the iframe_id check in _handle_message.
       this.iframe.contentWindow.postMessage(
         { id, method, params, iframe_id: this.iframe_id },
-        '*'
+        '*',
       );
     });
   }

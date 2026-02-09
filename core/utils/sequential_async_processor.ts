@@ -31,12 +31,7 @@ export async function sequential_async_processor<T = any, O = any>(
       throw new TypeError('All elements in funcs array must be functions');
     }
 
-    try {
-      value = await func(value, opts);
-    } catch (error) {
-      // Rethrow to halt execution
-      throw error;
-    }
+    value = await func(value, opts);
   }
 
   return value;

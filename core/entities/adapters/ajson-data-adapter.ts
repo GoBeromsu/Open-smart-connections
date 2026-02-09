@@ -44,7 +44,7 @@ export class AjsonDataAdapter<T extends EmbeddingEntity> {
   constructor(
     collection: EntityCollection<T>,
     fs_adapter?: FsAdapter,
-    collection_key: string = 'smart_sources'
+    collection_key: string = 'smart_sources',
   ) {
     this.collection = collection;
     this.fs_adapter = fs_adapter;
@@ -273,7 +273,7 @@ export class AjsonDataAdapter<T extends EmbeddingEntity> {
     const base = key.split('#')[0];
     return base
       .replace(/\.md$/, '') // Remove .md extension first
-      .replace(/[\s\/\.]/g, '_'); // Then replace special chars
+      .replace(/[\s/.]/g, '_'); // Then replace special chars
   }
 
   /**
