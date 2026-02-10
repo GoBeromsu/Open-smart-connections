@@ -51,10 +51,6 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
         `Smart Connections is ready\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
       );
       break;
-    case 'loading_model':
-      plugin.status_msg.setText('SC: Loading model...');
-      plugin.status_container.setAttribute('title', 'Loading embedding model...');
-      break;
     case 'embedding': {
       const stats = plugin.embedding_pipeline?.get_stats();
       const current = ctx?.current ?? (stats ? stats.success + stats.failed : 0);
@@ -63,27 +59,10 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
       const currentNote = ctx?.currentSourcePath ?? '-';
       plugin.status_container.setAttribute(
         'title',
-        `Click to stop embedding\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
+        `Embedding in progress\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
       );
       break;
     }
-    case 'stopping': {
-      const current = ctx?.current ?? 0;
-      const total = ctx?.total ?? 0;
-      plugin.status_msg.setText(`SC: Stopping ${current}/${total} (${modelTag})`);
-      plugin.status_container.setAttribute(
-        'title',
-        'Stopping after current batch. Click to open Connections view.',
-      );
-      break;
-    }
-    case 'paused':
-      plugin.status_msg.setText(`SC: Paused (${modelTag})`);
-      plugin.status_container.setAttribute(
-        'title',
-        'Click to resume embedding for queued entities.',
-      );
-      break;
     case 'error':
       plugin.status_msg.setText('SC: Error');
       plugin.status_container.setAttribute('title', 'Click to open settings');
@@ -96,13 +75,6 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
  */
 export function handleStatusBarClick(plugin: SmartConnectionsPlugin): void {
   switch (plugin.status_state) {
-    case 'embedding':
-    case 'stopping':
-      plugin.requestEmbeddingStop('Status bar click');
-      break;
-    case 'paused':
-      void plugin.resumeEmbedding('Status bar resume');
-      break;
     case 'error':
       (plugin.app as any).setting?.open?.();
       break;

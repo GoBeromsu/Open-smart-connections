@@ -5,6 +5,7 @@
 
 import { requestUrl } from 'obsidian';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../../types/models';
+import { TransientError, FatalError } from '../../../../src/embedding/errors';
 
 /**
  * Base adapter class for API-based embedding models (e.g., OpenAI, Gemini)
@@ -140,11 +141,6 @@ export class EmbedModelApiAdapter {
     const request_params = _req.to_platform();
 
     const resp = await this.request(request_params);
-    if (!resp) {
-      console.error('No response received for embedding request.');
-      return [];
-    }
-    if (resp.error) return [resp];
 
     const _res = new this.res_adapter(this, resp);
     const embeddings = _res.to_openai();
@@ -184,12 +180,12 @@ export class EmbedModelApiAdapter {
   }
 
   /**
-   * Make API request with retry logic
+   * Make API request. Throws typed errors for the pipeline to handle.
+   * No retry at this level — the pipeline is the single retry layer.
    * @param req - Request configuration
-   * @param retries - Number of retries attempted
-   * @returns API response
+   * @returns API response JSON
    */
-  async request(req: Record<string, any>, retries: number = 0): Promise<any> {
+  async request(req: Record<string, any>): Promise<any> {
     try {
       const resp = await requestUrl({
         url: this.endpoint!,
@@ -200,38 +196,22 @@ export class EmbedModelApiAdapter {
       });
 
       if (resp.status >= 400) {
-        const error = {
-          error: {
-            message: resp.text || 'Request failed',
-            status: resp.status,
-          },
-        };
-        return error;
+        const message = resp.text || 'Request failed';
+        if (resp.status === 429 || resp.status >= 500) {
+          throw new TransientError(message, resp.status);
+        }
+        throw new FatalError(message, resp.status);
       }
 
       return resp.json;
     } catch (error: any) {
-      console.warn('Request error:', error);
-      return await this.handle_request_err(error, req, retries);
+      // Re-throw typed errors
+      if (error instanceof TransientError || error instanceof FatalError) {
+        throw error;
+      }
+      // Network/unknown errors are transient
+      throw new TransientError(error.message || 'Network error', 0);
     }
-  }
-
-  /**
-   * Handle API request errors with retry logic
-   * @param error - Error object
-   * @param req - Original request
-   * @param retries - Number of retries attempted
-   * @returns Retry response or null
-   */
-  async handle_request_err(error: any, req: Record<string, any>, retries: number): Promise<any> {
-    if (error.status === 429 && retries < 3) {
-      const backoff = Math.pow(retries + 1, 2);
-      console.log(`Retrying request (429) in ${backoff} seconds...`);
-      await new Promise((r) => setTimeout(r, 1000 * backoff));
-      return await this.request(req, retries + 1);
-    }
-    console.error(error);
-    return null;
   }
 
   /**

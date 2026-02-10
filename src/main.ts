@@ -54,9 +54,6 @@ import {
   switchEmbeddingModel as _switchEmbeddingModel,
   runEmbeddingJob as _runEmbeddingJob,
   runEmbeddingJobImmediate as _runEmbeddingJobImmediate,
-  requestEmbeddingStop as _requestEmbeddingStop,
-  waitForEmbeddingToStop as _waitForEmbeddingToStop,
-  resumeEmbedding as _resumeEmbedding,
   reembedStaleEntities as _reembedStaleEntities,
   getCurrentModelInfo as _getCurrentModelInfo,
   getActiveEmbeddingContext as _getActiveEmbeddingContext,
@@ -78,6 +75,7 @@ import type {
   EmbeddingKernelQueueSnapshot,
   EmbeddingKernelState,
 } from './embedding/kernel/types';
+import { EmbedJobQueue } from './embedding/queue/embed-job-queue';
 
 // Core type imports needed for plugin fields
 import type { EmbedModel } from '../core/models/embed';
@@ -86,15 +84,12 @@ import type { EmbeddingPipeline, EmbedQueueStats } from '../core/search/embeddin
 
 export type EmbedStatusState =
   | 'idle'
-  | 'loading_model'
   | 'embedding'
-  | 'stopping'
-  | 'paused'
   | 'error';
 
 export interface EmbeddingRunContext {
   runId: number;
-  phase: 'running' | 'stopping' | 'paused' | 'completed' | 'failed';
+  phase: 'running' | 'completed' | 'failed';
   reason: string;
   adapter: string;
   modelKey: string;
@@ -141,12 +136,10 @@ export default class SmartConnectionsPlugin extends Plugin {
   status_elm?: HTMLElement;
   status_container?: HTMLElement;
   status_msg?: HTMLElement;
-  re_import_queue: Record<string, any> = {};
   re_import_timeout?: number;
   re_import_retry_timeout?: number;
   re_import_halted = false;
   _unloading = false;
-  _stop_poll_timer?: number;
   _installed_at: number | null = null;
 
   // Core components
@@ -161,12 +154,12 @@ export default class SmartConnectionsPlugin extends Plugin {
   init_errors: Array<{ phase: string; error: Error }> = [];
   embed_run_seq: number = 0;
   active_embed_run_id: number | null = null;
-  embed_stop_requested: boolean = false;
   embed_notice_last_update = 0;
   embed_notice_last_percent = 0;
   current_embed_context: EmbeddingRunContext | null = null;
   embedding_kernel_store?: EmbeddingKernelStore;
   embedding_job_queue?: EmbeddingKernelJobQueue;
+  embed_job_queue?: EmbedJobQueue;
   private embedding_kernel_unsubscribe?: () => void;
   private _notices?: SmartConnectionsNotices;
 
@@ -443,9 +436,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> { return _getEmbedAdapterSettings(embedSettings); }
   queueUnembeddedEntities(): number { return _queueUnembeddedEntities(this); }
   getEmbeddingQueueSnapshot(): EmbeddingKernelQueueSnapshot { return _getEmbeddingQueueSnapshot(this); }
-  requestEmbeddingStop(reason: string = 'User requested stop'): boolean { return _requestEmbeddingStop(this, reason); }
-  async waitForEmbeddingToStop(timeoutMs: number = 30000): Promise<boolean> { return _waitForEmbeddingToStop(this, timeoutMs); }
-  async resumeEmbedding(reason: string = 'Resume requested'): Promise<void> { return _resumeEmbedding(this, reason); }
   async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
   async switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> { return _switchEmbeddingModel(this, reason); }
 
@@ -462,7 +452,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   queueSourceReImport(path: string): void { _queueSourceReImport(this, path); }
   removeSource(path: string): void { _removeSource(this, path); }
   debounceReImport(): void { _debounceReImport(this); }
-  async runReImport(forceWhilePaused: boolean = false): Promise<void> { return _runReImport(this, forceWhilePaused); }
+  async runReImport(): Promise<void> { return _runReImport(this); }
 
   setupStatusBar(): void { _setupStatusBar(this); }
   refreshStatus(): void { _refreshStatus(this); }
@@ -472,16 +462,22 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (this.embedding_kernel_store && this.embedding_job_queue) return;
     this.embedding_kernel_store = new EmbeddingKernelStore();
     this.embedding_job_queue = new EmbeddingKernelJobQueue();
-    this.embedding_kernel_unsubscribe = this.embedding_kernel_store.subscribe((state, prev, event) => {
-      logKernelTransition(this, prev, event, state);
-      this.embed_stop_requested = state.flags.stopRequested;
+    this.embed_job_queue = new EmbedJobQueue({
+      onQueueHasItems: () => {
+        this.dispatchKernelEvent({ type: 'QUEUE_HAS_ITEMS' });
+      },
+      onQueueEmpty: () => {
+        this.dispatchKernelEvent({ type: 'QUEUE_EMPTY' });
+      },
+    });
+    this.embedding_kernel_unsubscribe = this.embedding_kernel_store.subscribe((state, _prev, event) => {
+      logKernelTransition(this, _prev, event, state);
       this.app.workspace.trigger('smart-connections:embed-state-changed' as any, {
         state,
         event,
       });
       this.refreshStatus();
     });
-    this.embed_stop_requested = this.embedding_kernel_store.getState().flags.stopRequested;
   }
 
   getEmbeddingKernelState(): EmbeddingKernelState {
@@ -543,6 +539,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.embedding_kernel_unsubscribe?.();
     this.embedding_kernel_unsubscribe = undefined;
     this.embedding_job_queue?.clear('Plugin unload');
+    this.embed_job_queue?.clear();
 
     // Clear timeouts
     if (this.re_import_timeout) {
@@ -550,10 +547,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
     if (this.re_import_retry_timeout) {
       window.clearTimeout(this.re_import_retry_timeout);
-    }
-    if (this._stop_poll_timer) {
-      window.clearTimeout(this._stop_poll_timer);
-      this._stop_poll_timer = undefined;
     }
 
     // Fire-and-forget async cleanup with error handling

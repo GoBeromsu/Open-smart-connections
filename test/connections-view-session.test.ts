@@ -1,31 +1,10 @@
 /**
  * @file connections-view-session.test.ts
- * @description Session card visibility behavior tests for ConnectionsView
+ * @description ConnectionsView behavior tests (session card removed in Phase 5)
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionsView } from '../src/views/ConnectionsView';
-
-function createEmbeddingContext(phase: 'running' | 'stopping' | 'paused' | 'completed' | 'failed') {
-  return {
-    runId: 1,
-    phase,
-    reason: 'test',
-    adapter: 'openai',
-    modelKey: 'text-embedding-3-small',
-    dims: 1536,
-    currentEntityKey: null,
-    currentSourcePath: null,
-    startedAt: Date.now(),
-    current: 1,
-    total: 2,
-    sourceTotal: 2,
-    blockTotal: 0,
-    saveCount: 0,
-    sourceDataDir: '/tmp/sources',
-    blockDataDir: '/tmp/blocks',
-  };
-}
 
 function createPluginStub() {
   return {
@@ -95,80 +74,7 @@ function createObsidianLikeContainer(): any {
   return root;
 }
 
-describe('ConnectionsView embedding session snapshot', () => {
-  it('hides session snapshot when idle/completed', () => {
-    const plugin = createPluginStub();
-    plugin.status_state = 'idle';
-    plugin.getActiveEmbeddingContext.mockReturnValue(createEmbeddingContext('completed'));
-
-    const view = new ConnectionsView({} as any, plugin);
-    const snapshot = (view as any).getSessionSnapshot();
-    expect(snapshot).toBeNull();
-  });
-
-  it('returns snapshot for active statuses', () => {
-    const plugin = createPluginStub();
-    const view = new ConnectionsView({} as any, plugin);
-    const expectations: Array<{ status: string; phase: string }> = [
-      { status: 'embedding', phase: 'running' },
-      { status: 'stopping', phase: 'stopping' },
-      { status: 'paused', phase: 'paused' },
-      { status: 'error', phase: 'failed' },
-    ];
-
-    for (const item of expectations) {
-      plugin.status_state = item.status;
-      plugin.getActiveEmbeddingContext.mockReturnValue(null);
-      const snapshot = (view as any).getSessionSnapshot();
-      expect(snapshot?.phase).toBe(item.phase);
-    }
-  });
-
-  it('clears stale payload on done progress event', async () => {
-    const plugin = createPluginStub();
-    plugin.status_state = 'embedding';
-
-    const view = new ConnectionsView({} as any, plugin);
-    const renderSpy = vi
-      .spyOn(view as any, 'renderView')
-      .mockResolvedValue(undefined);
-
-    (view as any).handleEmbedProgressEvent({
-      current: 2,
-      total: 2,
-      done: true,
-    });
-
-    expect((view as any).lastEmbedPayload).toBeUndefined();
-    expect(renderSpy).toHaveBeenCalled();
-  });
-
-  it('invalidates local payload and rerenders when model is switched', async () => {
-    const plugin = createPluginStub();
-    plugin.status_state = 'embedding';
-
-    const view = new ConnectionsView({} as any, plugin);
-    (view as any).container = document.createElement('div');
-    (view as any).lastEmbedPayload = {
-      runId: 5,
-      phase: 'running',
-      current: 1,
-      total: 5,
-      percent: 20,
-      adapter: 'openai',
-      modelKey: 'text-embedding-3-small',
-      dims: 1536,
-    };
-
-    const renderSpy = vi.spyOn(view as any, 'renderView').mockResolvedValue(undefined);
-    vi.spyOn(view as any, 'renderEmbeddingSessionCard').mockImplementation(() => {});
-
-    (view as any).handleModelSwitched();
-
-    expect((view as any).lastEmbedPayload).toBeUndefined();
-    expect(renderSpy).toHaveBeenCalled();
-  });
-
+describe('ConnectionsView rendering states', () => {
   it('shows empty state when source is stale but no run/queue is active', async () => {
     const plugin = createPluginStub();
     plugin.status_state = 'idle';

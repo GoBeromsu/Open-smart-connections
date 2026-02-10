@@ -31,9 +31,6 @@ export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
  * Handles token counting and API communication for Gemini models
  */
 export class GeminiEmbedAdapter extends EmbedModelApiAdapter {
-  backoff_wait_time: number = 5000;
-  backoff_factor: number = 1;
-
   /**
    * Count tokens in input text using tokenizer
    * @param input - Text to tokenize
@@ -93,50 +90,17 @@ export class GeminiEmbedAdapter extends EmbedModelApiAdapter {
   }
 
   /**
-   * Embed batch with retry logic for rate limits
-   * @param inputs - Array of input objects
-   * @param retries - Number of retries attempted
-   * @returns Processed inputs with embeddings
+   * Embed batch — no retry at adapter level.
+   * Errors propagate as typed TransientError/FatalError from request().
+   * Pipeline handles all retry logic.
    */
-  async embed_batch(inputs: (EmbedInput | { _embed_input: string })[], retries: number = 0): Promise<EmbedResult[]> {
+  async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
     const token_cts = inputs.map((item) => {
       const embed_input = 'embed_input' in item ? item.embed_input : item._embed_input;
       return this.estimate_tokens(embed_input || '');
     });
 
     const resp = await super.embed_batch(inputs);
-
-    if (resp[0]?.error && resp[0].error.details && resp[0].error.details.code === 429) {
-      console.warn('Rate limit error detected in Gemini embed_batch response.', resp);
-      if (retries > 3) {
-        console.error('Max retries reached for rate limit errors.');
-        throw new Error('Max retries reached for rate limit errors.');
-      }
-
-      console.warn(resp[0].error.message);
-
-      // Get prescribed wait time from response
-      const retry_detail = resp[0].error.details?.details?.find((d: any) => d.retryDelay);
-      if (retry_detail?.retryDelay) {
-        const wait_time_ms = parseInt(retry_detail.retryDelay) * 1000 * 2;
-        console.warn(`Using server-specified retry delay of ${wait_time_ms} ms`);
-        await new Promise((resolve) => setTimeout(resolve, wait_time_ms));
-        return await this.embed_batch(inputs, retries + 1);
-      } else {
-        // Fallback to generic backoff
-        this.backoff_factor += 1;
-        console.warn(
-          `Rate limit exceeded, backing off for ${this.backoff_wait_time * this.backoff_factor} ms`,
-        );
-        await new Promise((resolve) =>
-          setTimeout(resolve, this.backoff_wait_time * this.backoff_factor),
-        );
-        return await this.embed_batch(inputs, retries + 1);
-      }
-    } else if (resp[0]?.error) {
-      console.error('Error in Gemini embed_batch response:', resp[0].error);
-      throw new Error(`Gemini embed_batch error: ${resp[0].error.message}`);
-    }
 
     resp.forEach((item, idx) => {
       item.tokens = token_cts[idx];
