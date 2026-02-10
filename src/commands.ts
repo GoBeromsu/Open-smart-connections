@@ -58,24 +58,6 @@ export function registerCommands(plugin: Plugin): void {
   });
 
   plugin.addCommand({
-    id: 'stop-embedding',
-    name: 'Stop embedding',
-    callback: () => {
-      const p = plugin as any;
-      p.requestEmbeddingStop?.('Command: Stop embedding');
-    },
-  });
-
-  plugin.addCommand({
-    id: 'resume-embedding',
-    name: 'Resume embedding',
-    callback: async () => {
-      const p = plugin as any;
-      await p.resumeEmbedding?.('Command: Resume embedding');
-    },
-  });
-
-  plugin.addCommand({
     id: 'reembed-stale-entities',
     name: 'Re-embed stale entities',
     callback: async () => {
@@ -90,8 +72,6 @@ export function registerCommands(plugin: Plugin): void {
     name: 'Clear embedding cache',
     callback: async () => {
       const p = plugin as any;
-      // Stop any active embedding before clearing cache to prevent data race
-      p.requestEmbeddingStop?.('Command: Clear cache');
       if (p.source_collection) {
         for (const source of p.source_collection.all) {
           source.remove_embeddings();

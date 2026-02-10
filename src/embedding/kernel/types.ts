@@ -4,12 +4,8 @@
  */
 
 export type EmbeddingKernelPhase =
-  | 'booting'
-  | 'loading_model'
   | 'idle'
   | 'running'
-  | 'stopping'
-  | 'paused'
   | 'error';
 
 export interface EmbeddingKernelModel {
@@ -51,9 +47,6 @@ export interface EmbeddingKernelState {
   model: EmbeddingKernelModel | null;
   run: EmbeddingKernelRun | null;
   queue: EmbeddingKernelQueueSnapshot;
-  flags: {
-    stopRequested: boolean;
-  };
   lastError: EmbeddingKernelError | null;
 }
 
@@ -64,6 +57,8 @@ export type EmbeddingKernelEvent =
   | { type: 'MODEL_SWITCH_SUCCEEDED'; model: EmbeddingKernelModel }
   | { type: 'MODEL_SWITCH_FAILED'; reason: string; error: string }
   | { type: 'QUEUE_SNAPSHOT_UPDATED'; queue: EmbeddingKernelQueueSnapshot }
+  | { type: 'QUEUE_HAS_ITEMS' }
+  | { type: 'QUEUE_EMPTY' }
   | { type: 'RUN_REQUESTED'; reason: string }
   | { type: 'RUN_STARTED'; run: EmbeddingKernelRun }
   | {
@@ -75,10 +70,9 @@ export type EmbeddingKernelEvent =
   }
   | { type: 'RUN_FINISHED' }
   | { type: 'RUN_FAILED'; error: string }
-  | { type: 'STOP_REQUESTED'; reason: string }
-  | { type: 'STOP_COMPLETED' }
-  | { type: 'STOP_TIMEOUT' }
-  | { type: 'RESUME_REQUESTED'; reason: string }
+  | { type: 'FATAL_ERROR'; error: string; code: string }
+  | { type: 'RETRY_SUCCESS' }
+  | { type: 'MANUAL_RETRY' }
   | { type: 'REFRESH_REQUESTED'; reason: string }
   | { type: 'REIMPORT_REQUESTED'; reason: string }
   | { type: 'REIMPORT_COMPLETED' }
@@ -92,8 +86,6 @@ export type EmbeddingKernelJobType =
   | 'QUEUE_STALE_ENTITIES'
   | 'RUN_EMBED_BATCH'
   | 'REIMPORT_SOURCES'
-  | 'STOP_RUN'
-  | 'RESUME_RUN'
   | 'REFRESH_REQUEST';
 
 export interface EmbeddingKernelJob<T = unknown> {

@@ -1,6 +1,6 @@
 /**
  * @file embedding-kernel-effects.test.ts
- * @description Kernel effect helper tests
+ * @description Kernel effect helper tests (updated for 3-state FSM)
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -23,16 +23,17 @@ describe('kernel effects', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plugin = {} as any;
     const prev = createInitialKernelState();
+    // In 3-state FSM, initial phase is 'idle', and QUEUE_HAS_ITEMS transitions to 'running'
     const next = {
       ...prev,
-      phase: 'loading_model' as const,
+      phase: 'running' as const,
       queue: {
         ...prev.queue,
         pendingJobs: 1,
       },
     };
-    logKernelTransition(plugin, prev, { type: 'MODEL_SWITCH_REQUESTED', reason: 'unit' }, next);
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('[SC][FSM] booting --MODEL_SWITCH_REQUESTED--> loading_model'));
+    logKernelTransition(plugin, prev, { type: 'QUEUE_HAS_ITEMS' }, next);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('[SC][FSM] idle --QUEUE_HAS_ITEMS--> running'));
     spy.mockRestore();
   });
 });

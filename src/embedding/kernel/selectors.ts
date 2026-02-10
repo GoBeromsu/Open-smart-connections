@@ -10,8 +10,6 @@ export function toLegacyStatusState(state: EmbeddingKernelState): EmbedStatusSta
   switch (state.phase) {
     case 'running':
       return 'embedding';
-    case 'booting':
-      return 'loading_model';
     default:
       return state.phase;
   }
@@ -19,9 +17,9 @@ export function toLegacyStatusState(state: EmbeddingKernelState): EmbedStatusSta
 
 export function isEmbedReady(state: EmbeddingKernelState): boolean {
   if (!state.model) return false;
-  return !['booting', 'loading_model', 'error'].includes(state.phase);
+  return state.phase !== 'error';
 }
 
 export function isKernelBusy(state: EmbeddingKernelState): boolean {
-  return ['loading_model', 'running', 'stopping'].includes(state.phase);
+  return state.phase === 'running';
 }

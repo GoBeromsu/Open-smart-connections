@@ -113,119 +113,6 @@
   color: var(--text-faint);
 }
 
-/* ─── Embedding Session Card ─── */
-.osc-embed-session {
-  margin: 8px 12px 6px;
-  padding: 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m, 8px);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--background-secondary) 92%, var(--interactive-accent) 8%),
-    var(--background-secondary)
-  );
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.osc-embed-session-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.osc-embed-session-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.osc-embed-session-icon svg {
-  width: 14px;
-  height: 14px;
-  color: var(--text-muted);
-}
-
-.osc-embed-session-title {
-  font-size: var(--font-ui-small, 13px);
-  font-weight: 600;
-  color: var(--text-normal);
-}
-
-.osc-embed-session-status-badge {
-  font-size: var(--font-smallest, 11px);
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-}
-
-.osc-embed-session-status--running {
-  color: var(--text-accent);
-  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--interactive-accent) 45%, transparent);
-}
-
-.osc-embed-session-status--stopping {
-  color: var(--osc-color-warning);
-  background: var(--osc-color-warning-bg);
-  border-color: color-mix(in srgb, var(--osc-color-warning) 40%, transparent);
-}
-
-.osc-embed-session-status--paused {
-  color: var(--text-muted);
-  background: var(--background-modifier-hover);
-  border-color: var(--background-modifier-border);
-}
-
-.osc-embed-session-status--completed {
-  color: var(--osc-color-success);
-  background: var(--osc-color-success-bg);
-  border-color: color-mix(in srgb, var(--osc-color-success) 36%, transparent);
-}
-
-.osc-embed-session-status--failed {
-  color: var(--osc-color-error);
-  background: var(--osc-color-error-bg);
-  border-color: color-mix(in srgb, var(--osc-color-error) 36%, transparent);
-}
-
-.osc-embed-session-model,
-.osc-embed-session-progress,
-.osc-embed-session-storage {
-  font-size: var(--font-smallest, 11px);
-  color: var(--text-muted);
-  word-break: break-all;
-}
-
-.osc-embed-session-progress {
-  font-variant-numeric: tabular-nums;
-}
-
-.osc-embed-session-progressbar {
-  width: 100%;
-  height: 6px;
-  border-radius: 4px;
-}
-
-.osc-embed-session-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.osc-btn--session {
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  padding: 4px 10px;
-}
-
-.osc-btn--session:hover {
-  background-color: var(--background-modifier-hover);
-}
-
 /* ─── Notices ─── */
 .notice.osc-notice-host {
   background: var(--background-primary);
@@ -323,47 +210,6 @@
   color: var(--text-muted);
 }
 
-/* ─── Embedding Progress ─── */
-.osc-embed-progress {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background-color: var(--background-secondary);
-}
-
-.osc-embed-progress-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--font-smallest, 11px);
-  color: var(--text-muted);
-  margin-bottom: 6px;
-}
-
-.osc-embed-progress-count {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-accent);
-}
-
-.osc-progress-track {
-  width: 100%;
-  height: 4px;
-  background-color: var(--background-modifier-border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.osc-progress-track--settings {
-  height: 6px;
-  border-radius: 3px;
-  margin: 12px 0;
-}
-
-.osc-progress-fill {
-  height: 100%;
-  background-color: var(--interactive-accent, #7f6df2);
-  border-radius: inherit;
-  transition: width 0.3s ease;
-}
 
 /* ─── State Displays (Loading/Empty/Error) ─── */
 .osc-state {
@@ -411,30 +257,8 @@
   to { transform: rotate(360deg); }
 }
 
-/* ─── Buttons ─── */
-.osc-btn {
-  border: none;
-  border-radius: var(--radius-s, 4px);
-  padding: 6px 16px;
-  font-size: var(--font-ui-small, 13px);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.osc-btn--primary {
-  background-color: var(--interactive-accent, #7f6df2);
-  color: var(--text-on-accent, #fff);
-}
-
-.osc-btn--primary:hover {
-  background-color: var(--interactive-accent-hover, #8b7cf3);
-}
 
 /* ─── Settings ─── */
-.osc-settings .setting-item-heading {
-  margin-top: 24px;
-}
-
 .osc-model-status {
   display: flex;
   align-items: center;
@@ -972,8 +796,7 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
   transition: all 0.15s ease;
 }
 
-.osc-history-item:hover,
-.osc-history-item--hover {
+.osc-history-item:hover {
   background: var(--background-modifier-hover);
   border-color: var(--interactive-accent);
   transform: translateX(2px);
@@ -1035,15 +858,6 @@ div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.osc-btn--danger {
-  background-color: var(--osc-color-error);
-  color: white;
-}
-
-.osc-btn--danger:hover {
-  background-color: color-mix(in srgb, var(--osc-color-error) 85%, black);
 }
 
 /* ─── Empty/Error States ─── */

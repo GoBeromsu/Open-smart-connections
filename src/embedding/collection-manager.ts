@@ -7,13 +7,6 @@ import type SmartConnectionsPlugin from '../main';
 import { SourceCollection, BlockCollection } from '../../core/entities';
 import type { EmbeddingKernelQueueSnapshot } from './kernel/types';
 
-export interface EmbedModelFingerprint {
-  adapter: string;
-  modelKey: string;
-  host: string;
-  value: string;
-}
-
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     const dataDir = `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/.smart-env`;
@@ -76,22 +69,31 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
 
 export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number {
   let queued = 0;
+  const now = Date.now();
+
+  const enqueueEntity = (entity: any): void => {
+    if (!entity.is_unembedded) return;
+    // Set _queue_embed for pipeline compatibility
+    entity.queue_embed();
+    if (!entity._queue_embed) return;
+    // Enqueue into the unified EmbedJobQueue (single source of truth)
+    plugin.embed_job_queue?.enqueue({
+      entityKey: entity.key,
+      contentHash: entity.read_hash || '',
+      sourcePath: String(entity.key || '').split('#')[0],
+      enqueuedAt: now,
+    });
+    queued++;
+  };
 
   if (plugin.source_collection) {
     for (const source of plugin.source_collection.all) {
-      if (!source.is_unembedded) continue;
-      const was_queued = source._queue_embed;
-      source.queue_embed();
-      if (!was_queued && source._queue_embed) queued++;
+      enqueueEntity(source);
     }
   }
-
   if (plugin.block_collection) {
     for (const block of plugin.block_collection.all) {
-      if (!block.is_unembedded) continue;
-      const was_queued = block._queue_embed;
-      block.queue_embed();
-      if (!was_queued && block._queue_embed) queued++;
+      enqueueEntity(block);
     }
   }
 
@@ -101,11 +103,12 @@ export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number 
 export function getEmbeddingQueueSnapshot(plugin: SmartConnectionsPlugin): EmbeddingKernelQueueSnapshot {
   let staleTotal = 0;
   let staleEmbeddableTotal = 0;
-  let queuedTotal = 0;
+
+  // Use EmbedJobQueue as the single source of truth for queued count
+  const queuedTotal = plugin.embed_job_queue?.size() ?? 0;
 
   const accountEntity = (entity: any): void => {
     if (!entity) return;
-    if (entity._queue_embed) queuedTotal += 1;
     if (!entity.is_unembedded) return;
     staleTotal += 1;
     if (entity.should_embed) staleEmbeddableTotal += 1;
@@ -124,81 +127,6 @@ export function getEmbeddingQueueSnapshot(plugin: SmartConnectionsPlugin): Embed
     staleEmbeddableTotal,
     queuedTotal,
   };
-}
-
-export function getTargetEmbeddingFingerprint(plugin: SmartConnectionsPlugin): EmbedModelFingerprint {
-  const embedSettings = plugin.settings?.smart_sources?.embed_model as Record<string, any> | undefined;
-  const adapter = normalizeFingerprintValue(embedSettings?.adapter);
-  const adapterSettings = getEmbedAdapterSettings(embedSettings);
-  const modelKey = normalizeFingerprintValue(adapterSettings?.model_key);
-  const host = normalizeFingerprintValue(adapterSettings?.host);
-  return {
-    adapter,
-    modelKey,
-    host,
-    value: `${adapter}|${modelKey}|${host}`,
-  };
-}
-
-export function getActiveEmbeddingFingerprint(plugin: SmartConnectionsPlugin): EmbedModelFingerprint | null {
-  if (!plugin.embed_model) return null;
-  const adapter = normalizeFingerprintValue(
-    (plugin.embed_model as any)?.adapter?.adapter
-      || plugin.settings?.smart_sources?.embed_model?.adapter,
-  );
-  const modelKey = normalizeFingerprintValue(plugin.embed_model.model_key);
-  const host = normalizeFingerprintValue((plugin.embed_model as any)?.adapter?.host);
-  return {
-    adapter,
-    modelKey,
-    host,
-    value: `${adapter}|${modelKey}|${host}`,
-  };
-}
-
-export function hasEmbeddingFingerprintChanged(
-  previous: EmbedModelFingerprint | null,
-  current: EmbedModelFingerprint | null,
-): boolean {
-  if (!previous || !current) return false;
-  return previous.value !== current.value;
-}
-
-export function markAllEntitiesStaleForModelSwitch(
-  plugin: SmartConnectionsPlugin,
-  reason: string,
-  fingerprint: EmbedModelFingerprint,
-): number {
-  const now = Date.now();
-  const reasonKey = normalizeReason(reason);
-  const dims = plugin.embed_model?.adapter?.dims;
-  let marked = 0;
-
-  const markEntity = (entity: any): void => {
-    if (!entity || typeof entity.set_active_embedding_meta !== 'function') {
-      return;
-    }
-    const readHash = typeof entity.read_hash === 'string' && entity.read_hash.length > 0
-      ? entity.read_hash
-      : 'no_read_hash';
-    entity.set_active_embedding_meta({
-      hash: `__forced_stale__${reasonKey}__${now}__${readHash}`,
-      updated_at: now,
-      adapter: fingerprint.adapter,
-      dims,
-    });
-    entity.queue_embed?.();
-    marked++;
-  };
-
-  for (const source of plugin.source_collection?.all || []) {
-    markEntity(source);
-  }
-  for (const block of plugin.block_collection?.all || []) {
-    markEntity(block);
-  }
-
-  return marked;
 }
 
 export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): void {
@@ -222,14 +150,4 @@ export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Re
   if (typeof adapterType !== 'string' || adapterType.length === 0) return {};
   const settings = embedSettings[adapterType];
   return settings && typeof settings === 'object' ? settings : {};
-}
-
-function normalizeFingerprintValue(value: unknown): string {
-  if (typeof value !== 'string') return '';
-  return value.trim().toLowerCase();
-}
-
-function normalizeReason(reason: string): string {
-  const raw = String(reason || '').trim().toLowerCase();
-  return raw.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'model_switch';
 }

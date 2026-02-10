@@ -1,6 +1,7 @@
 /**
  * @file file-watcher.ts
- * @description File system event handlers and re-import queue management
+ * @description File system event handlers and re-import queue management.
+ *              Uses EmbedJobQueue as the single source of truth for pending re-imports.
  */
 
 import { TFile } from 'obsidian';
@@ -61,17 +62,20 @@ export function isSourceFile(file: TFile): boolean {
 }
 
 export function queueSourceReImport(plugin: SmartConnectionsPlugin, path: string): void {
-  if (!plugin.re_import_queue[path]) {
-    plugin.re_import_queue[path] = { path, queued_at: Date.now() };
-  } else {
-    // Update timestamp for already-queued path (external modification may still be writing)
-    plugin.re_import_queue[path].queued_at = Date.now();
-  }
+  // Enqueue into the unified EmbedJobQueue. LWW dedup ensures rapid edits
+  // to the same file collapse into one entry with the latest timestamp.
+  plugin.embed_job_queue?.enqueue({
+    entityKey: path,
+    contentHash: '', // unknown until file is imported
+    sourcePath: path.split('#')[0],
+    enqueuedAt: Date.now(),
+  });
   debounceReImport(plugin);
 }
 
 export function removeSource(plugin: SmartConnectionsPlugin, path: string): void {
-  delete plugin.re_import_queue[path];
+  // Remove from the unified queue (source + all block keys under this source)
+  plugin.embed_job_queue?.removeBySourcePath(path);
 
   if (plugin.source_collection) {
     plugin.source_collection.delete(path);
@@ -128,7 +132,7 @@ function resetDeferRetryCount(): void {
   deferRetryCount = 0;
 }
 
-function enqueueReImportJob(plugin: SmartConnectionsPlugin, reason: string): Promise<void> {
+function enqueueReImportJob(plugin: SmartConnectionsPlugin, _reason: string): Promise<void> {
   return plugin.enqueueEmbeddingJob({
     type: 'REIMPORT_SOURCES',
     key: 'REIMPORT_SOURCES',
@@ -139,17 +143,24 @@ function enqueueReImportJob(plugin: SmartConnectionsPlugin, reason: string): Pro
   });
 }
 
-export async function runReImport(plugin: SmartConnectionsPlugin, forceWhilePaused: boolean = false): Promise<void> {
+/**
+ * Collect source-level file paths from the EmbedJobQueue.
+ * Only returns entries whose entityKey looks like a source path (no '#' block ref).
+ */
+function getReImportPaths(plugin: SmartConnectionsPlugin): string[] {
+  if (!plugin.embed_job_queue) return [];
+  return plugin.embed_job_queue
+    .toArray()
+    .filter((j) => !j.entityKey.includes('#'))
+    .map((j) => j.entityKey);
+}
+
+export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void> {
   plugin.re_import_halted = false;
   plugin.dispatchKernelEvent({ type: 'REIMPORT_REQUESTED', reason: 'runReImport' });
 
   if (!plugin.source_collection || !plugin.embedding_pipeline) {
     console.warn('Collections or pipeline not initialized');
-    return;
-  }
-
-  if (plugin.status_state === 'paused' && !forceWhilePaused) {
-    plugin.logEmbed('reimport-skip-paused');
     return;
   }
 
@@ -161,7 +172,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin, forceWhilePaus
     return;
   }
 
-  const queue_paths = Object.keys(plugin.re_import_queue);
+  const queue_paths = getReImportPaths(plugin);
   if (queue_paths.length === 0) return;
 
   console.log(`Re-importing ${queue_paths.length} sources...`);
@@ -194,18 +205,18 @@ export async function runReImport(plugin: SmartConnectionsPlugin, forceWhilePaus
 
     await plugin.runEmbeddingJobImmediate(`Re-import (${queue_paths.length} files)`);
 
-    processed_paths.forEach((path) => {
-      if (plugin.re_import_queue[path]) {
-        delete plugin.re_import_queue[path];
-      }
-    });
+    // Remove processed source-level entries from the queue
+    for (const path of processed_paths) {
+      plugin.embed_job_queue?.remove(path);
+    }
 
     plugin.refreshStatus();
     resetDeferRetryCount();
     console.log('Re-import completed');
     plugin.dispatchKernelEvent({ type: 'REIMPORT_COMPLETED' });
 
-    if (Object.keys(plugin.re_import_queue).length > 0) {
+    // If the queue still has source-level items, schedule another re-import
+    if (getReImportPaths(plugin).length > 0) {
       deferReImport(plugin, 'Re-import queue still has pending updates');
     }
   } catch (error) {

@@ -27,7 +27,7 @@ interface SmartConnectionsPlugin extends Plugin {
   block_collection?: any;
   embed_ready?: boolean;
   ready?: boolean;
-  status_state?: 'idle' | 'loading_model' | 'embedding' | 'stopping' | 'paused' | 'error';
+  status_state?: 'idle' | 'embedding' | 'error';
   embedding_pipeline?: any;
   initEmbedModel?: () => Promise<void>;
   initPipeline?: () => Promise<void>;
@@ -37,10 +37,7 @@ interface SmartConnectionsPlugin extends Plugin {
   initializeEmbedding?: () => Promise<void>;
   switchEmbeddingModel?: (reason?: string) => Promise<void>;
   reembedStaleEntities?: (reason?: string) => Promise<number>;
-  resumeEmbedding?: (reason?: string) => Promise<void>;
   refreshStatus?: () => void;
-  requestEmbeddingStop?: (reason?: string) => boolean;
-  waitForEmbeddingToStop?: (timeoutMs?: number) => Promise<boolean>;
   getActiveEmbeddingContext?: () => {
     runId: number;
     current: number;
@@ -383,7 +380,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       statusRow,
       'Run',
       runLabel,
-      status === 'embedding' || status === 'stopping' || status === 'paused',
+      status === 'embedding',
       this.getRunStateTone(status),
     );
 
@@ -401,7 +398,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
     const currentItem = activeCtx?.currentSourcePath ?? activeCtx?.currentEntityKey ?? '-';
 
-    if (status === 'embedding' || status === 'stopping' || status === 'paused') {
+    if (status === 'embedding') {
       new Setting(containerEl)
         .setName('Current run')
         .setDesc(
@@ -416,30 +413,6 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     const actionSetting = new Setting(containerEl)
       .setName('Actions')
       .setDesc('Control the embedding pipeline.');
-
-    if (status === 'embedding' || status === 'stopping') {
-      actionSetting.addButton((button) => {
-        button
-          .setButtonText(status === 'stopping' ? 'Stopping...' : 'Stop')
-          .setDisabled(status === 'stopping')
-          .onClick(() => {
-            this.plugin.requestEmbeddingStop?.('Settings stop button');
-            this.display();
-          });
-      });
-    }
-
-    if (status === 'paused') {
-      actionSetting.addButton((button) => {
-        button
-          .setButtonText('Resume')
-          .setCta()
-          .onClick(async () => {
-            await this.plugin.resumeEmbedding?.('Settings resume');
-            this.display();
-          });
-      });
-    }
 
     actionSetting.addButton((button) => {
       button
@@ -458,14 +431,8 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     status: NonNullable<SmartConnectionsPlugin['status_state']>,
   ): string {
     switch (status) {
-      case 'loading_model':
-        return 'Loading';
       case 'embedding':
         return 'Running';
-      case 'stopping':
-        return 'Stopping';
-      case 'paused':
-        return 'Paused';
       case 'error':
         return 'Error';
       default:
@@ -480,8 +447,6 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       case 'error':
         return 'error';
       case 'embedding':
-      case 'stopping':
-      case 'paused':
         return 'ready';
       default:
         return 'loading';

@@ -21,11 +21,7 @@ import {
   type EmbedQueueStats,
 } from '../../core/search/embedding-pipeline';
 import {
-  getActiveEmbeddingFingerprint,
   getEmbeddingQueueSnapshot,
-  getTargetEmbeddingFingerprint,
-  hasEmbeddingFingerprintChanged,
-  markAllEntitiesStaleForModelSwitch,
 } from './collection-manager';
 import { buildKernelModel } from './kernel/effects';
 import type { EmbeddingKernelJobType } from './kernel/types';
@@ -355,69 +351,7 @@ export async function initPipeline(plugin: SmartConnectionsPlugin): Promise<void
   }
 }
 
-// ── Stop / Resume / Re-embed ────────────────────────────────────────
-
-export function requestEmbeddingStop(plugin: SmartConnectionsPlugin, reason: string = 'User requested stop'): boolean {
-  if (!plugin.embedding_pipeline?.is_active()) {
-    return false;
-  }
-
-  console.log(`Stopping embedding pipeline: ${reason}`);
-  plugin.embedding_pipeline.halt();
-  plugin.dispatchKernelEvent({ type: 'STOP_REQUESTED', reason });
-  plugin.logEmbed('stop-requested', { reason });
-  clearEmbedNotice(plugin);
-  plugin.notices.show('embedding_stopping');
-
-  if (plugin.current_embed_context) {
-    plugin.current_embed_context.phase = 'stopping';
-    emitEmbedProgress(plugin, plugin.current_embed_context);
-  }
-
-  return true;
-}
-
-export async function waitForEmbeddingToStop(plugin: SmartConnectionsPlugin, timeoutMs: number = 30000): Promise<boolean> {
-  if (!plugin.embedding_pipeline?.is_active()) return true;
-
-  const start = Date.now();
-  while (plugin.embedding_pipeline?.is_active()) {
-    if (plugin._unloading) return false;
-    if (Date.now() - start > timeoutMs) {
-      plugin.logEmbed('stop-timeout', { reason: `timeoutMs=${timeoutMs}` });
-      return false;
-    }
-    await new Promise<void>((resolve) => {
-      plugin._stop_poll_timer = window.setTimeout(() => {
-        plugin._stop_poll_timer = undefined;
-        resolve();
-      }, 100);
-    });
-  }
-  return true;
-}
-
-export async function resumeEmbedding(plugin: SmartConnectionsPlugin, reason: string = 'Resume requested'): Promise<void> {
-  await enqueueKernelJob(
-    plugin,
-    'RESUME_RUN',
-    'RESUME_RUN',
-    30,
-    async () => {
-      await resumeEmbeddingNow(plugin, reason);
-    },
-  );
-}
-
-async function resumeEmbeddingNow(plugin: SmartConnectionsPlugin, reason: string = 'Resume requested'): Promise<void> {
-  if (!plugin.source_collection || !plugin.embedding_pipeline) return;
-  plugin.dispatchKernelEvent({ type: 'RESUME_REQUESTED', reason });
-  if (Object.keys(plugin.re_import_queue).length > 0) {
-    await plugin.runReImport(true);
-    return;
-  }
-  await runEmbeddingJobNow(plugin, reason);
-}
+// ── Re-embed stale entities ─────────────────────────────────────────
 
 export async function reembedStaleEntities(plugin: SmartConnectionsPlugin, reason: string = 'Manual re-embed'): Promise<number> {
   return enqueueKernelJob(
@@ -455,26 +389,20 @@ export async function switchEmbeddingModel(plugin: SmartConnectionsPlugin, reaso
   );
 }
 
-async function stopActivePipelineForSwitch(
+async function haltActivePipelineForSwitch(
   plugin: SmartConnectionsPlugin,
   reason: string,
   previous: { adapter: string; modelKey: string; dims: number | null },
 ): Promise<void> {
   if (!plugin.embedding_pipeline?.is_active()) return;
 
-  plugin.requestEmbeddingStop(reason);
-  const stopped = await plugin.waitForEmbeddingToStop(60000);
-  plugin.logEmbed('switch-stop-result', {
+  plugin.embedding_pipeline.halt();
+  plugin.logEmbed('switch-halt-pipeline', {
     reason,
     adapter: previous.adapter,
     modelKey: previous.modelKey,
     dims: previous.dims,
-    error: stopped ? undefined : 'timeout',
   });
-  if (!stopped) {
-    plugin.dispatchKernelEvent({ type: 'STOP_TIMEOUT' });
-    throw new Error('Failed to stop previous embedding run before switch.');
-  }
 }
 
 async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void> {
@@ -534,10 +462,14 @@ function notifyModelSwitchSuccess(
 async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding model switch'): Promise<void> {
   plugin.dispatchKernelEvent({ type: 'MODEL_SWITCH_REQUESTED', reason });
   const previous = getCurrentModelInfo(plugin);
-  const previousFingerprint = getActiveEmbeddingFingerprint(plugin);
-  const targetFingerprint = getTargetEmbeddingFingerprint(plugin);
+  const previousModelKey = plugin.embed_model?.model_key ?? '';
+  const targetAdapterSettings = plugin.getEmbedAdapterSettings(
+    plugin.settings?.smart_sources?.embed_model as any,
+  );
+  const targetAdapter = plugin.settings?.smart_sources?.embed_model?.adapter ?? '';
+  const targetModelKey = (targetAdapterSettings as any)?.model_key ?? '';
   const shouldForceReembed =
-    !!plugin.embed_model && hasEmbeddingFingerprintChanged(previousFingerprint, targetFingerprint);
+    !!plugin.embed_model && (previousModelKey !== targetModelKey || previous.adapter !== targetAdapter);
   plugin.logEmbed('switch-start', {
     reason,
     adapter: previous.adapter,
@@ -547,9 +479,12 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
 
   try {
     let t = performance.now();
-    console.log('[SC][Init]   [switch] Stopping active pipeline...');
-    await stopActivePipelineForSwitch(plugin, reason, previous);
-    console.log(`[SC][Init]   [switch] Pipeline stopped ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+    console.log('[SC][Init]   [switch] Halting active pipeline...');
+    await haltActivePipelineForSwitch(plugin, reason, previous);
+    console.log(`[SC][Init]   [switch] Pipeline halted ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+
+    // Clear orchestration queue; entities will be re-scanned after the new model loads
+    plugin.embed_job_queue?.clear();
 
     t = performance.now();
     console.log('[SC][Init]   [switch] Unloading previous model...');
@@ -558,11 +493,11 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
 
     const modelLoadTimeoutMs = getModelLoadTimeoutMs(plugin);
     t = performance.now();
-    console.log(`[SC][Init]   [switch] Loading model: ${targetFingerprint.adapter}/${targetFingerprint.modelKey} (timeout: ${(modelLoadTimeoutMs / 1000).toFixed(0)}s)...`);
+    console.log(`[SC][Init]   [switch] Loading model: ${targetAdapter}/${targetModelKey} (timeout: ${(modelLoadTimeoutMs / 1000).toFixed(0)}s)...`);
     await withTimeout(
       plugin.initEmbedModel(),
       modelLoadTimeoutMs,
-      `Timed out while loading embedding model (${targetFingerprint.adapter}/${targetFingerprint.modelKey}).`,
+      `Timed out while loading embedding model (${targetAdapter}/${targetModelKey}).`,
     );
     console.log(`[SC][Init]   [switch] Model loaded ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
@@ -572,11 +507,21 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     console.log(`[SC][Init]   [switch] Context synced ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     if (shouldForceReembed) {
-      const forced = markAllEntitiesStaleForModelSwitch(plugin, reason, targetFingerprint);
+      let forced = 0;
+      const allEntities = [
+        ...(plugin.source_collection?.all || []),
+        ...(plugin.block_collection?.all || []),
+      ];
+      for (const entity of allEntities) {
+        if (!entity) continue;
+        entity.set_active_embedding_meta?.();
+        entity.queue_embed?.();
+        forced++;
+      }
       plugin.logEmbed('switch-force-reembed', {
         reason,
-        adapter: targetFingerprint.adapter,
-        modelKey: targetFingerprint.modelKey,
+        adapter: targetAdapter,
+        modelKey: targetModelKey,
         current: forced,
         total: forced,
       });
@@ -644,7 +589,7 @@ function createProgressCallback(
     if (progress?.current_source_path) {
       ctx.currentSourcePath = progress.current_source_path;
     }
-    ctx.phase = plugin.embed_stop_requested ? 'stopping' : 'running';
+    ctx.phase = 'running';
     plugin.dispatchKernelEvent({
       type: 'RUN_PROGRESS',
       current: ctx.current,
@@ -686,16 +631,12 @@ function handleRunCompleted(
   ctx: EmbeddingRunContext,
   stats: EmbedQueueStats,
 ): number {
-  if (plugin.embed_stop_requested) {
-    ctx.phase = 'paused';
-    plugin.dispatchKernelEvent({ type: 'STOP_COMPLETED' });
-    plugin.notices.show('embedding_paused');
-    return 0;
-  }
-
   ctx.phase = 'completed';
   plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
   plugin.notices.show('embedding_complete', { success: stats.success });
+  // Clear the orchestration queue before re-scanning; queueUnembeddedEntities
+  // will re-populate it with any entities that still need embedding.
+  plugin.embed_job_queue?.clear();
   const unresolvedAfterRun = plugin.queueUnembeddedEntities();
   dispatchQueueSnapshot(plugin);
   if (unresolvedAfterRun > 0) {
@@ -715,15 +656,11 @@ function handleRunFailed(
   ctx: EmbeddingRunContext,
   error: unknown,
 ): void {
-  ctx.phase = plugin.embed_stop_requested ? 'paused' : 'failed';
-  if (plugin.embed_stop_requested) {
-    plugin.dispatchKernelEvent({ type: 'STOP_COMPLETED' });
-  } else {
-    plugin.dispatchKernelEvent({
-      type: 'RUN_FAILED',
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  ctx.phase = 'failed';
+  plugin.dispatchKernelEvent({
+    type: 'RUN_FAILED',
+    error: error instanceof Error ? error.message : String(error),
+  });
   plugin.logEmbed('run-failed', {
     runId: ctx.runId,
     adapter: ctx.adapter,
@@ -734,9 +671,7 @@ function handleRunFailed(
     currentSourcePath: ctx.currentSourcePath,
     error: error instanceof Error ? error.message : String(error),
   });
-  if (!plugin.embed_stop_requested) {
-    plugin.notices.show('embedding_failed');
-  }
+  plugin.notices.show('embedding_failed');
 }
 
 function scheduleStaleRetry(
@@ -761,9 +696,9 @@ function scheduleStaleRetry(
 }
 
 async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
-  // Phase guard: reject runs when kernel is in an invalid state for embedding
-  const phase = plugin.status_state;
-  if (phase === 'loading_model' || phase === 'error') {
+  // Phase guard: reject runs when kernel is in an error state
+  const phase = plugin.getEmbeddingKernelState().phase;
+  if (phase === 'error') {
     console.warn(`[SC] runEmbeddingJobNow rejected: kernel phase is '${phase}'`);
     return null;
   }
@@ -785,8 +720,18 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     return null;
   }
 
-  const sourcesToEmbed = plugin.source_collection.embed_queue;
-  const blocksToEmbed = plugin.block_collection?.embed_queue || [];
+  // Collect entities to embed from the unified EmbedJobQueue.
+  // The pipeline still reads _queue_embed internally, so we resolve entity objects
+  // from the queue's entityKeys and filter for those with _queue_embed set.
+  const jobKeys = plugin.embed_job_queue
+    ? new Set(plugin.embed_job_queue.toArray().map(j => j.entityKey))
+    : new Set<string>();
+  const sourcesToEmbed = plugin.source_collection.all.filter(
+    (s: any) => s._queue_embed && s.should_embed && jobKeys.has(s.key),
+  );
+  const blocksToEmbed = (plugin.block_collection?.all || []).filter(
+    (b: any) => b._queue_embed && b.should_embed && jobKeys.has(b.key),
+  );
   const entitiesToEmbed = [...sourcesToEmbed, ...blocksToEmbed];
 
   if (entitiesToEmbed.length === 0) {
@@ -862,6 +807,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     });
 
     if (plugin.active_embed_run_id !== runId) {
+      plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
       return stats;
     }
 
@@ -886,6 +832,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     return stats;
   } catch (error) {
     if (plugin.active_embed_run_id !== runId) {
+      plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
       throw error;
     }
     handleRunFailed(plugin, ctx, error);

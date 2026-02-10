@@ -1,6 +1,6 @@
 /**
  * @file embedding/kernel/reducer.ts
- * @description Pure reducer for embedding kernel state transitions
+ * @description Pure reducer for embedding kernel state transitions (3-state: idle/running/error)
  */
 
 import type {
@@ -11,7 +11,7 @@ import type {
 
 export function createInitialKernelState(): EmbeddingKernelState {
   return {
-    phase: 'booting',
+    phase: 'idle',
     model: null,
     run: null,
     queue: {
@@ -19,9 +19,6 @@ export function createInitialKernelState(): EmbeddingKernelState {
       staleTotal: 0,
       staleEmbeddableTotal: 0,
       queuedTotal: 0,
-    },
-    flags: {
-      stopRequested: false,
     },
     lastError: null,
   };
@@ -33,10 +30,7 @@ export function reduceEmbeddingKernelState(
 ): EmbeddingKernelState {
   switch (event.type) {
     case 'INIT_CORE_READY':
-      return {
-        ...prev,
-        phase: prev.phase === 'booting' ? 'idle' : prev.phase,
-      };
+      return prev;
 
     case 'INIT_CORE_FAILED':
       return {
@@ -52,8 +46,6 @@ export function reduceEmbeddingKernelState(
     case 'MODEL_SWITCH_REQUESTED':
       return {
         ...prev,
-        phase: 'loading_model',
-        flags: { ...prev.flags, stopRequested: false },
         lastError: null,
       };
 
@@ -63,7 +55,6 @@ export function reduceEmbeddingKernelState(
         phase: 'idle',
         model: event.model,
         run: null,
-        flags: { ...prev.flags, stopRequested: false },
         lastError: null,
       };
 
@@ -86,6 +77,21 @@ export function reduceEmbeddingKernelState(
         queue: event.queue,
       };
 
+    case 'QUEUE_HAS_ITEMS':
+      if (prev.phase !== 'idle') return prev;
+      return {
+        ...prev,
+        phase: 'running',
+      };
+
+    case 'QUEUE_EMPTY':
+      if (prev.phase !== 'running') return prev;
+      return {
+        ...prev,
+        phase: 'idle',
+        run: null,
+      };
+
     case 'RUN_REQUESTED':
       return {
         ...prev,
@@ -93,9 +99,7 @@ export function reduceEmbeddingKernelState(
       };
 
     case 'RUN_STARTED': {
-      // Guard: only allow transition to 'running' from valid phases
-      const canStartFrom: EmbeddingKernelPhase[] = ['idle', 'paused', 'booting'];
-      if (!canStartFrom.includes(prev.phase)) {
+      if (prev.phase !== 'idle') {
         console.warn(`[SC][FSM] RUN_STARTED blocked: cannot start from '${prev.phase}'`);
         return prev;
       }
@@ -103,7 +107,6 @@ export function reduceEmbeddingKernelState(
         ...prev,
         phase: 'running',
         run: event.run,
-        flags: { ...prev.flags, stopRequested: false },
         lastError: null,
       };
     }
@@ -130,63 +133,49 @@ export function reduceEmbeddingKernelState(
     case 'RUN_FINISHED':
       return {
         ...prev,
-        phase: prev.flags.stopRequested ? 'paused' : 'idle',
+        phase: 'idle',
         run: null,
-        flags: {
-          ...prev.flags,
-          stopRequested: false,
-        },
       };
 
     case 'RUN_FAILED':
       return {
         ...prev,
-        phase: prev.flags.stopRequested ? 'paused' : 'error',
+        phase: 'error',
         run: null,
-        lastError: prev.flags.stopRequested
-          ? prev.lastError
-          : {
-            code: 'RUN_FAILED',
-            message: event.error,
-            at: Date.now(),
-          },
-      };
-
-    case 'STOP_REQUESTED':
-      return {
-        ...prev,
-        phase: prev.phase === 'running' ? 'stopping' : prev.phase,
-        flags: { ...prev.flags, stopRequested: true },
-      };
-
-    case 'STOP_COMPLETED':
-      return {
-        ...prev,
-        phase: 'paused',
-        run: null,
-        flags: {
-          ...prev.flags,
-          stopRequested: false,
+        lastError: {
+          code: 'RUN_FAILED',
+          message: event.error,
+          at: Date.now(),
         },
       };
 
-    case 'STOP_TIMEOUT':
+    case 'FATAL_ERROR':
+      if (prev.phase !== 'running') return prev;
       return {
         ...prev,
         phase: 'error',
         run: null,
         lastError: {
-          code: 'STOP_TIMEOUT',
-          message: 'Stopping embedding run timed out.',
+          code: event.code,
+          message: event.error,
           at: Date.now(),
         },
       };
 
-    case 'RESUME_REQUESTED':
+    case 'RETRY_SUCCESS':
+      if (prev.phase !== 'error') return prev;
       return {
         ...prev,
-        phase: prev.phase === 'paused' ? 'idle' : prev.phase,
-        flags: { ...prev.flags, stopRequested: false },
+        phase: 'running',
+        lastError: null,
+      };
+
+    case 'MANUAL_RETRY':
+      if (prev.phase !== 'error') return prev;
+      return {
+        ...prev,
+        phase: 'running',
+        lastError: null,
       };
 
     case 'REFRESH_REQUESTED':
@@ -210,15 +199,10 @@ export function reduceEmbeddingKernelState(
       };
 
     case 'SET_PHASE': {
-      // Guard: only allow SET_PHASE for transitions that don't bypass FSM invariants
       const validSetPhaseTransitions: Record<string, EmbeddingKernelPhase[]> = {
-        booting: ['idle', 'error'],
-        idle: ['loading_model', 'error'],
-        running: ['loading_model', 'error'],
-        paused: ['idle', 'error'],
-        error: ['idle', 'booting'],
-        loading_model: ['idle', 'error'],
-        stopping: ['error'],
+        idle: ['error'],
+        running: ['error'],
+        error: ['idle'],
       };
       const allowed = validSetPhaseTransitions[prev.phase] ?? [];
       if (!allowed.includes(event.phase)) {

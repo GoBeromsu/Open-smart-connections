@@ -1,6 +1,15 @@
 /**
  * @file main-embedding-control.test.ts
  * @description Regression tests for embedding run control and model switch flow
+ *              (updated for 3-state FSM: idle/running/error)
+ *
+ * Removed tests:
+ * - "transitions to paused only after stop completes" (paused/stopping removed)
+ * - "sets error state when model switch cannot stop previous run" (stop flow removed)
+ *
+ * Modified tests:
+ * - "keeps newer run state when stale run finalizes" (no loading_model, use idle)
+ * - "sets error state when model load times out during switch" (phase assertions updated)
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -28,17 +37,19 @@ function createPlugin() {
   } as any;
 
   plugin.source_collection = {
-    embed_queue: [{ id: 's1' }, { id: 's2' }],
     data_adapter: {
       save: vi.fn(async () => {}),
     },
     data_dir: '/tmp/sources',
     size: 2,
-    all: [{ vec: [1, 2, 3] }, { vec: null }],
+    all: [
+      { key: 's1', vec: [1, 2, 3], _queue_embed: true, should_embed: true },
+      { key: 's2', vec: null, _queue_embed: true, should_embed: true },
+    ],
   } as any;
 
   plugin.block_collection = {
-    embed_queue: [],
+    all: [],
     data_adapter: {
       save: vi.fn(async () => {}),
     },
@@ -52,6 +63,16 @@ function createPlugin() {
   } as any;
 
   plugin.ensureEmbeddingKernel();
+
+  // Pre-populate EmbedJobQueue with the source entities
+  for (const entity of (plugin.source_collection as any).all) {
+    plugin.embed_job_queue!.enqueue({
+      entityKey: entity.key,
+      contentHash: '',
+      sourcePath: entity.key,
+      enqueuedAt: Date.now(),
+    });
+  }
 
   return { app, plugin };
 }
@@ -105,32 +126,22 @@ function createControlledPipeline() {
 }
 
 describe('SmartConnectionsPlugin embedding control', () => {
-  it('transitions to paused only after stop completes', async () => {
+  it('transitions to idle after run completes normally', async () => {
     const { app, plugin } = createPlugin();
     const { pipeline, release } = createControlledPipeline();
     plugin.embedding_pipeline = pipeline as any;
 
-    // Transition FSM from 'booting' to 'idle' (simulating successful init)
-    plugin.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
-
-    const runPromise = plugin.runEmbeddingJob('test-stop-flow');
+    // In 3-state FSM, initial phase is idle (no booting -> INIT_CORE_READY needed)
+    const runPromise = plugin.runEmbeddingJob('test-normal-finish');
     await Promise.resolve();
 
     expect(plugin.status_state).toBe('embedding');
 
-    const stopAccepted = plugin.requestEmbeddingStop('unit-test-stop');
-    expect(stopAccepted).toBe(true);
-    expect(plugin.status_state).toBe('stopping');
-
     release();
     await runPromise;
 
-    expect(plugin.status_state).toBe('paused');
-    expect(plugin.current_embed_context?.phase).toBe('paused');
-    expect((app as any).workspace.trigger).toHaveBeenCalledWith(
-      'smart-connections:embed-progress',
-      expect.objectContaining({ done: true, phase: 'paused' }),
-    );
+    // In 3-state FSM, run completes -> idle (not paused)
+    expect(plugin.status_state).toBe('idle');
   });
 
   it('keeps newer run state when stale run finalizes', async () => {
@@ -138,44 +149,21 @@ describe('SmartConnectionsPlugin embedding control', () => {
     const { pipeline, release } = createControlledPipeline();
     plugin.embedding_pipeline = pipeline as any;
 
-    // Transition FSM from 'booting' to 'idle' (simulating successful init)
-    plugin.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
-
     const runPromise = plugin.runEmbeddingJob('run-guard');
     await Promise.resolve();
 
-    plugin.dispatchKernelEvent({ type: 'SET_PHASE', phase: 'loading_model' });
+    // In 3-state FSM, MODEL_SWITCH_REQUESTED doesn't change phase (no loading_model)
+    // Phase stays 'running' until MODEL_SWITCH_SUCCEEDED fires
+    plugin.dispatchKernelEvent({ type: 'MODEL_SWITCH_REQUESTED', reason: 'test' });
     plugin.active_embed_run_id = 999;
 
     release();
     await runPromise;
 
-    expect(plugin.status_state).toBe('loading_model');
+    // Stale run dispatches RUN_FINISHED to clean up FSM, transitioning to idle
+    // The key invariant: active_embed_run_id stays at 999 (newer run was not overwritten)
+    expect(plugin.status_state).toBe('idle');
     expect(plugin.active_embed_run_id).toBe(999);
-  });
-
-  it('sets error state when model switch cannot stop previous run', async () => {
-    const { app, plugin } = createPlugin();
-
-    plugin.embedding_pipeline = {
-      is_active: vi.fn(() => true),
-      halt: vi.fn(),
-      get_stats: vi.fn(() => ({ total: 0, success: 0, failed: 0, skipped: 0 })),
-    } as any;
-
-    vi.spyOn(plugin, 'waitForEmbeddingToStop').mockResolvedValue(false);
-    const initSpy = vi.spyOn(plugin, 'initEmbedModel').mockResolvedValue();
-
-    await expect(plugin.switchEmbeddingModel('switch-timeout-test')).rejects.toThrow(
-      /Failed to stop previous embedding run/i,
-    );
-
-    expect(plugin.status_state).toBe('error');
-    expect(plugin.embed_ready).toBe(false);
-    expect(initSpy).not.toHaveBeenCalled();
-    expect((app as any).workspace.trigger).not.toHaveBeenCalledWith(
-      'smart-connections:embed-ready',
-    );
   });
 
   it('sets error state when model load times out during switch', async () => {

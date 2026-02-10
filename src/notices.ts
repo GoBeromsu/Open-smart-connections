@@ -37,12 +37,6 @@ const NOTICE_CATALOG: Record<string, NoticeDefinition> = {
     text: 'Smart Connections: {{adapter}}/{{modelKey}} {{current}}/{{total}} ({{percent}}%)',
     timeout: 0,
   },
-  embedding_stopping: {
-    text: 'Smart Connections: Stopping embedding...',
-  },
-  embedding_paused: {
-    text: 'Smart Connections: Embedding paused.',
-  },
   embedding_complete: {
     text: 'Smart Connections: Embedding complete! {{success}} notes embedded.',
   },
@@ -72,12 +66,6 @@ const NOTICE_CATALOG: Record<string, NoticeDefinition> = {
   },
   reinitializing_embedding_model: {
     text: 'Smart Connections: Re-initializing embedding model...',
-  },
-  failed_stop_previous_embedding: {
-    text: 'Smart Connections: Failed to stop previous embedding run. Try again.',
-  },
-  reembedding_failed: {
-    text: 'Smart Connections: Re-embedding failed. See console for details.',
   },
   embedding_model_switched: {
     text: 'Smart Connections: Embedding model switched.',
