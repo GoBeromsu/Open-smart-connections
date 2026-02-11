@@ -302,7 +302,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       }
     }
 
-    // 4. Load collections from AJSON
+    // 4. Load collections from storage adapter
     {
       const t = performance.now();
       logStep('Loading collections', 4);

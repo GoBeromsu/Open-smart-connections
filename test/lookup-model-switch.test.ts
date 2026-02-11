@@ -5,19 +5,23 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { LookupView } from '../src/views/LookupView';
-import * as lookupModule from '../core/search/lookup';
 
 function createPluginStub() {
+  const nearest = vi.fn().mockResolvedValue([]);
   return {
     embed_ready: true,
     embed_model: {
-      adapter: {},
+      adapter: {
+        embed_batch: vi.fn().mockResolvedValue([{ vec: [1, 0] }]),
+      },
     },
     source_collection: {
       all: [],
+      nearest,
     },
     block_collection: {
       all: [],
+      nearest,
     },
   } as any;
 }
@@ -36,34 +40,20 @@ describe('LookupView model-switch safety', () => {
     );
   });
 
-  it('filters stale entities before semantic lookup', async () => {
+  it('queries active collections through nearest API', async () => {
     const plugin = createPluginStub();
-    plugin.source_collection.all = [
-      { key: 'source-fresh.md', vec: [1, 0], is_unembedded: false },
-      { key: 'source-stale.md', vec: [1, 0], is_unembedded: true },
-      { key: 'source-empty.md', vec: null, is_unembedded: false },
-    ];
-    plugin.block_collection.all = [
-      { key: 'source-fresh.md#h1', vec: [0, 1], is_unembedded: false },
-      { key: 'source-stale.md#h1', vec: [0, 1], is_unembedded: true },
-    ];
-
-    const lookupSpy = vi
-      .spyOn(lookupModule, 'lookup')
-      .mockResolvedValue([]);
 
     const view = new LookupView({} as any, plugin);
     (view as any).resultsContainer = document.createElement('div');
+    (view as any).searchMetaEl = document.createElement('div');
     vi.spyOn(view as any, 'showLoading').mockImplementation(() => {});
+    vi.spyOn(view as any, 'showError').mockImplementation(() => {});
     vi.spyOn(view as any, 'renderResults').mockImplementation(() => {});
 
     await view.performSearch('query');
 
-    expect(lookupSpy).toHaveBeenCalledTimes(1);
-    const entities = lookupSpy.mock.calls[0][2] as Array<{ key: string }>;
-    expect(entities.map((item) => item.key)).toEqual([
-      'source-fresh.md',
-      'source-fresh.md#h1',
-    ]);
+    expect(plugin.embed_model.adapter.embed_batch).toHaveBeenCalledTimes(1);
+    expect(plugin.source_collection.nearest).toHaveBeenCalledWith([1, 0], { limit: 20 });
+    expect(plugin.block_collection.nearest).toHaveBeenCalledWith([1, 0], { limit: 20 });
   });
 });

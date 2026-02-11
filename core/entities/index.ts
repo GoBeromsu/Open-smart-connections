@@ -10,4 +10,4 @@ export { EntityCollection } from './EntityCollection';
 export { SourceCollection } from './SourceCollection';
 export { BlockCollection } from './BlockCollection';
 export { parse_markdown_blocks } from './parsers/markdown-splitter';
-export { AjsonDataAdapter } from './adapters/ajson-data-adapter';
+export { PgliteDataAdapter } from './adapters/pglite-data-adapter';
