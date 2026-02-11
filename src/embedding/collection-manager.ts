@@ -4,12 +4,16 @@
  */
 
 import type SmartConnectionsPlugin from '../main';
-import { SourceCollection, BlockCollection } from '../../core/entities';
+import { SourceCollection, BlockCollection, PgliteDataAdapter } from '../../core/entities';
 import type { EmbeddingKernelQueueSnapshot } from './kernel/types';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     const dataDir = `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/.smart-env`;
+    const storageNamespace = resolveStorageNamespace(plugin, dataDir);
+
+    await maybeResetLegacyStorage(plugin, dataDir, storageNamespace);
+
     const adapterSettings = getEmbedAdapterSettings(
       plugin.settings.smart_sources.embed_model as unknown as Record<string, any>,
     );
@@ -24,6 +28,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
       modelKey,
       plugin.app.vault,
       plugin.app.metadataCache,
+      storageNamespace,
     );
 
     plugin.block_collection = new BlockCollection(
@@ -31,6 +36,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
       plugin.settings.smart_blocks,
       modelKey,
       plugin.source_collection,
+      storageNamespace,
     );
 
     plugin.source_collection.block_collection = plugin.block_collection;
@@ -150,4 +156,49 @@ export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Re
   if (typeof adapterType !== 'string' || adapterType.length === 0) return {};
   const settings = embedSettings[adapterType];
   return settings && typeof settings === 'object' ? settings : {};
+}
+
+function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
+  const adapter: any = plugin.app.vault.adapter as any;
+  const basePath = typeof adapter?.getBasePath === 'function'
+    ? String(adapter.getBasePath())
+    : '';
+  const vaultName = plugin.app.vault.getName();
+  return `${plugin.manifest.id}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
+}
+
+async function maybeResetLegacyStorage(
+  plugin: SmartConnectionsPlugin,
+  dataDir: string,
+  storageNamespace: string,
+): Promise<void> {
+  if (plugin.settings.storage_engine !== 'pglite') return;
+  if (!plugin.settings.storage_reset_on_upgrade) return;
+  if (plugin.settings.storage_reset_applied_version === plugin.manifest.version) return;
+
+  const adapter = plugin.app.vault.adapter;
+  const targets = [`${dataDir}/sources`, `${dataDir}/blocks`];
+
+  for (const dir of targets) {
+    try {
+      if (!await adapter.exists(dir)) continue;
+      const listed = await adapter.list(dir);
+      for (const filePath of listed.files) {
+        if (filePath.endsWith('.ajson')) {
+          await adapter.remove(filePath);
+        }
+      }
+    } catch (error) {
+      console.warn(`[SC][Storage] Failed to clean legacy AJSON files in ${dir}:`, error);
+    }
+  }
+
+  try {
+    await PgliteDataAdapter.reset_storage(storageNamespace);
+  } catch (error) {
+    console.warn('[SC][Storage] Failed to reset PGlite storage:', error);
+  }
+
+  plugin.settings.storage_reset_applied_version = plugin.manifest.version;
+  await plugin.saveSettings();
 }
