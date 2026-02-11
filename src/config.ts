@@ -52,6 +52,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   smart_notices: {
     muted: {},
   },
+
+  storage_engine: 'pglite',
+  storage_reset_on_upgrade: true,
+  vector_search_mode: 'exact',
+  storage_reset_applied_version: '',
 };
 
 /**

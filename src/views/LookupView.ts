@@ -1,7 +1,6 @@
 import { ItemView, WorkspaceLeaf, ButtonComponent, debounce, setIcon, Platform } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
-import { lookup } from '../../core/search/lookup';
-import type { LookupOptions } from '../../core/search/lookup';
+import type { SearchFilter, ConnectionResult } from '../../core/types/entities';
 import { showResultContextMenu } from './result-context-menu';
 
 export const LOOKUP_VIEW_TYPE = 'smart-connections-lookup';
@@ -57,16 +56,6 @@ export class LookupView extends ItemView {
     return collections;
   }
 
-  private getEntities(): any[] {
-    const entities: any[] = [];
-    for (const collection of this.getActiveCollections()) {
-      for (const entity of collection.all) {
-        if (entity.vec && !entity.is_unembedded) entities.push(entity);
-      }
-    }
-    return entities;
-  }
-
   private getEntityCount(): number {
     let count = 0;
     for (const collection of this.getActiveCollections()) {
@@ -114,6 +103,39 @@ export class LookupView extends ItemView {
     this.updateClearButton();
     this.searchMetaEl?.empty();
     this.showEmpty('Type a query to search your notes semantically');
+  }
+
+  private async searchCollections(queryVec: number[], limit: number): Promise<ConnectionResult[]> {
+    const collections = this.getActiveCollections();
+    if (collections.length === 0) return [];
+
+    const filter: SearchFilter = { limit };
+
+    const perCollection = await Promise.all(
+      collections.map(async (collection) => {
+        try {
+          return await collection.nearest(queryVec, filter);
+        } catch (error) {
+          console.warn('[LookupView] Collection nearest query failed:', error);
+          return [];
+        }
+      }),
+    );
+
+    const merged = perCollection.flat();
+    merged.sort((a, b) => b.score - a.score);
+
+    const unique: ConnectionResult[] = [];
+    const seen = new Set<string>();
+    for (const result of merged) {
+      if (!result?.item?.key) continue;
+      if (seen.has(result.item.key)) continue;
+      seen.add(result.item.key);
+      unique.push(result);
+      if (unique.length >= limit) break;
+    }
+
+    return unique;
   }
 
   /* ─── Lifecycle ─── */
@@ -223,25 +245,20 @@ export class LookupView extends ItemView {
     const startTime = performance.now();
 
     try {
-      const entities = this.getEntities();
-
-      if (entities.length === 0) {
-        this.showEmpty('No embedded notes found. Wait for embedding to complete.');
+      const activeCollections = this.getActiveCollections();
+      if (activeCollections.length === 0) {
+        this.showEmpty('No searchable collections are active.');
         return;
       }
 
-      const opts: LookupOptions = {
-        limit: 20,
-        sources_only: this.activeFilter === 'notes',
-        blocks_only: this.activeFilter === 'blocks',
-      };
+      const embedResults = await this.plugin.embed_model.adapter.embed_batch([{ _embed_input: query }]);
+      const queryVec = embedResults?.[0]?.vec;
+      if (!queryVec || queryVec.length === 0) {
+        this.showError('Failed to embed search query.');
+        return;
+      }
 
-      const results = await lookup(
-        query,
-        this.plugin.embed_model.adapter,
-        entities,
-        opts,
-      );
+      const results = await this.searchCollections(queryVec, 20);
 
       const elapsedMs = Math.round(performance.now() - startTime);
       this.renderResults(query, results, elapsedMs);

@@ -21,7 +21,7 @@ export class EmbeddingEntity {
   /** Entity key (path for sources, path#heading for blocks) */
   key: string;
 
-  /** Entity data (persisted to AJSON) */
+  /** Entity data (persisted via storage adapter) */
   data: EntityData;
 
   /** Parent collection */
@@ -35,6 +35,9 @@ export class EmbeddingEntity {
 
   /** Cached embed input text */
   _embed_input: string | null = null;
+
+  /** Flag for deleting all persisted embeddings for this entity */
+  _remove_all_embeddings: boolean = false;
 
   constructor(collection: EntityCollection<any>, data: Partial<EntityData> = {}) {
     this.collection = collection;
@@ -65,9 +68,13 @@ export class EmbeddingEntity {
   init(): void {
     const current_vec = this.vec;
 
-    // Check if vector exists and matches model dimensions
-    if (!current_vec || !current_vec.length || this.has_dim_mismatch(current_vec)) {
+    // Drop in-memory vec when model dimensions mismatch.
+    if (current_vec && this.has_dim_mismatch(current_vec)) {
       this.vec = null;
+    }
+
+    // Queue only when the active-model embedding is actually stale/missing.
+    if (this.is_unembedded) {
       this.queue_embed();
     }
   }
@@ -100,7 +107,7 @@ export class EmbeddingEntity {
    * Queue entity for embedding
    */
   queue_embed(): void {
-    if (this.should_embed) {
+    if (this.should_embed && this.is_unembedded) {
       this._queue_embed = true;
     }
   }
@@ -176,6 +183,7 @@ export class EmbeddingEntity {
     } else {
       this.embedding_data.vec = vec;
       this._queue_embed = false;  // Only clear when setting real vector
+      this._remove_all_embeddings = false;
     }
     this._embed_input = null;
     this.queue_save();
@@ -214,6 +222,7 @@ export class EmbeddingEntity {
     } else {
       this.data.last_read.hash = hash;
     }
+    this.queue_save();
   }
 
   /**
@@ -278,10 +287,27 @@ export class EmbeddingEntity {
    */
   get is_unembedded(): boolean {
     const current_vec = this.vec;
-    if (!current_vec) return true;
-    if (this.has_dim_mismatch(current_vec)) return true;
     const read_hash = this.read_hash;
     const active_hash = this.active_embedding_meta?.hash;
+    const expected_dims = (this.collection as any).embed_model_dims;
+    const active_dims = this.active_embedding_meta?.dims;
+
+    if (!current_vec) {
+      if (!read_hash) return true;
+      if (!active_hash || active_hash !== read_hash) return true;
+      if (
+        typeof expected_dims === 'number' &&
+        expected_dims > 0 &&
+        typeof active_dims === 'number' &&
+        active_dims > 0 &&
+        active_dims !== expected_dims
+      ) {
+        return true;
+      }
+      return false;
+    }
+
+    if (this.has_dim_mismatch(current_vec)) return true;
     if (!read_hash) return true;
     if (!active_hash || active_hash !== read_hash) return true;
     return false;
@@ -291,7 +317,10 @@ export class EmbeddingEntity {
    * Check if entity has valid embedding
    */
   has_embed(): boolean {
-    return !!this.vec && this.vec.length > 0;
+    if (this.vec && this.vec.length > 0) return true;
+    const read_hash = this.read_hash;
+    const active_hash = this.active_embedding_meta?.hash;
+    return !!read_hash && !!active_hash && read_hash === active_hash;
   }
 
   /**
@@ -303,6 +332,7 @@ export class EmbeddingEntity {
       this.data.embedding_meta = {};
     }
     delete this.data.last_embed;
+    this._remove_all_embeddings = true;
     this.queue_save();
   }
 
@@ -316,7 +346,7 @@ export class EmbeddingEntity {
     }
 
     // Use collection's search function
-    return this.collection.nearest(this.vec, {
+    return await this.collection.nearest(this.vec, {
       ...filter,
       exclude: [...(filter.exclude || []), this.key],
     });

@@ -28,8 +28,9 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
     embed_model_key: string = 'None',
     vault?: Vault,
     metadata_cache?: MetadataCache,
+    storage_namespace?: string,
   ) {
-    super(data_dir, settings, embed_model_key, vault?.adapter, 'smart_sources');
+    super(data_dir, settings, embed_model_key, vault?.adapter, 'smart_sources', storage_namespace);
     this.vault = vault;
     this.metadata_cache = metadata_cache;
   }
