@@ -129,7 +129,7 @@ export class ConnectionsView extends ItemView {
           }
           return;
         }
-        const cached = this.findCachedConnections(source);
+        const cached = await this.findCachedConnections(source);
         if (cached.length > 0) {
           this.renderResults(targetPath, cached);
           this.addBanner('Embedding model loading... Results may be incomplete.');
@@ -170,12 +170,10 @@ export class ConnectionsView extends ItemView {
     }
   }
 
-  private findCachedConnections(source: any): any[] {
-    if (!source.vec || !this.plugin.source_collection) return [];
+  private async findCachedConnections(source: any): Promise<any[]> {
+    if (!this.plugin.source_collection) return [];
     try {
-      return this.plugin.source_collection.nearest(source.vec, {
-        exclude: [source.key],
-      });
+      return await this.plugin.source_collection.nearest_to(source, {});
     } catch {
       return [];
     }

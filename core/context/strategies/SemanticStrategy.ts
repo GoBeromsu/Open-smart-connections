@@ -13,7 +13,6 @@ import type { EntityCollection } from '../../entities/EntityCollection';
 import type { EmbeddingEntity } from '../../entities/EmbeddingEntity';
 import type { ConnectionResult } from '../../types/entities';
 import type { EmbedModelAdapter } from '../../types/models';
-import { lookup } from '../../search/lookup';
 import { countTokens } from '../token-counter';
 
 /**
@@ -68,6 +67,12 @@ export class SemanticStrategy implements ContextStrategy {
     const items: ContextItem[] = [];
     let tokens_used = 0;
 
+    const embed_results = await this.embed_model.embed_batch([{ _embed_input: query }]);
+    const query_vec = embed_results?.[0]?.vec;
+    if (!query_vec || query_vec.length === 0) {
+      return [];
+    }
+
     // Determine budget split: 60% blocks, 40% sources (if blocks enabled)
     const use_blocks = !!this.block_collection;
     const block_budget = use_blocks
@@ -78,19 +83,13 @@ export class SemanticStrategy implements ContextStrategy {
     try {
       // Search blocks first (more granular)
       if (use_blocks && block_budget > 0 && this.block_collection) {
-        const block_results = await lookup(
-          query,
-          this.embed_model,
-          this.block_collection.all,
-          {
-            limit: 20,
-            min_score,
-            exclude: filter?.exclude_paths,
-            include: filter?.include_paths,
-            key_starts_with: filter?.include_paths?.[0],
-            blocks_only: true,
-          },
-        );
+        const block_results = await this.block_collection.nearest(query_vec, {
+          limit: 20,
+          min_score,
+          exclude: filter?.exclude_paths,
+          include: filter?.include_paths,
+          key_starts_with: filter?.include_paths?.[0],
+        });
 
         const block_items = await this.process_results(
           block_results,
@@ -103,19 +102,13 @@ export class SemanticStrategy implements ContextStrategy {
 
       // Search sources
       if (source_budget > 0) {
-        const source_results = await lookup(
-          query,
-          this.embed_model,
-          this.source_collection.all,
-          {
-            limit: 10,
-            min_score,
-            exclude: filter?.exclude_paths,
-            include: filter?.include_paths,
-            key_starts_with: filter?.include_paths?.[0],
-            sources_only: true,
-          },
-        );
+        const source_results = await this.source_collection.nearest(query_vec, {
+          limit: 10,
+          min_score,
+          exclude: filter?.exclude_paths,
+          include: filter?.include_paths,
+          key_starts_with: filter?.include_paths?.[0],
+        });
 
         const source_items = await this.process_results(
           source_results,

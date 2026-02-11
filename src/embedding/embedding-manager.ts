@@ -514,7 +514,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
       ];
       for (const entity of allEntities) {
         if (!entity) continue;
-        entity.set_active_embedding_meta?.();
+        entity.set_active_embedding_meta?.({ hash: '' });
         entity.queue_embed?.();
         forced++;
       }
@@ -578,7 +578,7 @@ function createProgressCallback(
   plugin: SmartConnectionsPlugin,
   runId: number,
   ctx: EmbeddingRunContext,
-): (current: number, total: number, progress?: { current_key?: string; current_source_path?: string }) => void {
+): (current: number, total: number, progress?: { current_key: string | null; current_source_path: string | null }) => void {
   return (current, total, progress) => {
     if (plugin.active_embed_run_id !== runId) return;
     ctx.current = current;
@@ -620,6 +620,7 @@ function createSaveCallback(
 }
 
 async function saveCollections(plugin: SmartConnectionsPlugin): Promise<void> {
+  if (!plugin.source_collection) return;
   await plugin.source_collection.data_adapter.save();
   if (plugin.block_collection) {
     await plugin.block_collection.data_adapter.save();
