@@ -1,7 +1,3 @@
-declare module 'smart-collections/adapters/ajson_multi_file.js' {
-  export const AjsonMultiFileCollectionDataAdapter: any;
-}
-
 declare module 'smart-file-system/smart_fs.js' {
   export const SmartFs: any;
 }

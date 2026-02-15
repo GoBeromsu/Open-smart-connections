@@ -228,15 +228,6 @@ export class PgliteDataAdapter<T extends EmbeddingEntity> {
     this.entity_type = get_entity_type(collection_key);
   }
 
-  static async reset_storage(storage_namespace: string): Promise<void> {
-    const db = await get_db(storage_namespace);
-    await db.exec(`
-      DROP TABLE IF EXISTS entity_embeddings;
-      DROP TABLE IF EXISTS entities;
-    `);
-    await ensure_schema(db);
-  }
-
   async load(): Promise<void> {
     const db = await get_db(this.storage_namespace);
     const model_key = this.collection.embed_model_key;
