@@ -56,115 +56,6 @@ export interface EmbedModelSettings {
 }
 
 /**
- * Chat model configuration
- */
-export interface ChatModelSettings {
-  /** Adapter name (openai, anthropic, ollama, google, etc.) */
-  adapter: string;
-
-  /** OpenAI-specific settings */
-  openai?: {
-    api_key?: string;
-    model_key?: string;
-    endpoint?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Anthropic-specific settings */
-  anthropic?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Ollama-specific settings */
-  ollama?: {
-    model_key?: string;
-    endpoint?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Google-specific settings */
-  google?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Gemini-specific settings */
-  gemini?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Azure-specific settings */
-  azure?: {
-    api_key?: string;
-    deployment_id?: string;
-    endpoint?: string;
-    api_version?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Groq-specific settings */
-  groq?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** LM Studio settings */
-  lm_studio?: {
-    endpoint?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Open Router settings */
-  open_router?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** XAI settings */
-  xai?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Deepseek settings */
-  deepseek?: {
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-  };
-
-  /** Custom adapter settings */
-  custom?: {
-    endpoint?: string;
-    api_key?: string;
-    model_key?: string;
-    max_tokens?: number;
-    temperature?: number;
-    headers?: Record<string, string>;
-  };
-}
-
-/**
  * Source (file) settings
  */
 export interface SourceSettings {
@@ -210,20 +101,6 @@ export interface ViewFilterSettings {
 }
 
 /**
- * Chat settings
- */
-export interface ChatSettings {
-  /** Chat model configuration */
-  chat_model: ChatModelSettings;
-
-  /** Context token budget */
-  context_max_tokens?: number;
-
-  /** Context strategies to use */
-  context_strategies?: string[];
-}
-
-/**
  * Notice settings
  */
 export interface SmartNoticesSettings {
@@ -250,9 +127,6 @@ export interface PluginSettings {
   /** Whether this is an Obsidian vault */
   is_obsidian_vault: boolean;
 
-  /** Enable chat feature (beta, default false) */
-  enable_chat?: boolean;
-
   /** Source (file) settings */
   smart_sources: SourceSettings;
 
@@ -261,9 +135,6 @@ export interface PluginSettings {
 
   /** View filter settings */
   smart_view_filter: ViewFilterSettings;
-
-  /** Chat thread settings */
-  smart_chat_threads: ChatSettings;
 
   /** Smart notices settings */
   smart_notices: SmartNoticesSettings;
