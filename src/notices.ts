@@ -73,9 +73,6 @@ const NOTICE_CATALOG: Record<string, NoticeDefinition> = {
   failed_reinitialize_model: {
     text: 'Smart Connections: Failed to re-initialize model. Check console.',
   },
-  restart_plugin_chat: {
-    text: 'Smart Connections: Restart plugin for chat changes to take effect.',
-  },
 };
 
 export class SmartConnectionsNotices {

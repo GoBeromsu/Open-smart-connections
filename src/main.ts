@@ -15,7 +15,6 @@ import SmartConnectionsNotices from './notices';
 import { SmartConnectionsSettingsTab } from './settings';
 import { registerCommands } from './commands';
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/ConnectionsView';
-import { ChatView, CHAT_VIEW_TYPE } from './views/ChatView';
 import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
 import { setupStatusBar as _setupStatusBar, refreshStatus as _refreshStatus, handleStatusBarClick as _handleStatusBarClick } from './status-bar';
 import {
@@ -147,7 +146,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   source_collection?: SourceCollection;
   block_collection?: BlockCollection;
   embedding_pipeline?: EmbeddingPipeline;
-  chat_model?: any; // For future chat integration
 
   // Initialization state flags
   ready: boolean = false;
@@ -201,14 +199,6 @@ export default class SmartConnectionsPlugin extends Plugin {
       CONNECTIONS_VIEW_TYPE,
       (leaf) => new ConnectionsView(leaf, this),
     );
-
-    // Conditionally register ChatView based on enable_chat setting
-    if (this.settings.enable_chat) {
-      this.registerView(
-        CHAT_VIEW_TYPE,
-        (leaf) => new ChatView(leaf, this),
-      );
-    }
 
     // Register Lookup view
     this.registerView(
@@ -390,7 +380,21 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const data = await this.loadData();
-    const settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings || {}) as PluginSettings;
+    const loadedSettings = (data?.settings && typeof data.settings === 'object')
+      ? { ...data.settings as Record<string, unknown> }
+      : {};
+    let removedLegacyKeys = false;
+
+    if (Object.prototype.hasOwnProperty.call(loadedSettings, 'enable_chat')) {
+      delete loadedSettings.enable_chat;
+      removedLegacyKeys = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(loadedSettings, 'smart_chat_threads')) {
+      delete loadedSettings.smart_chat_threads;
+      removedLegacyKeys = true;
+    }
+
+    const settings = Object.assign({}, DEFAULT_SETTINGS, loadedSettings) as PluginSettings;
     if (!settings.smart_notices || typeof settings.smart_notices !== 'object') {
       settings.smart_notices = { muted: {} };
     }
@@ -398,6 +402,9 @@ export default class SmartConnectionsPlugin extends Plugin {
       settings.smart_notices.muted = {};
     }
     this.settings = settings;
+    if (removedLegacyKeys) {
+      await this.saveSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {

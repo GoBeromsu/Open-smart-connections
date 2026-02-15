@@ -7,11 +7,9 @@
 // Settings types
 export type {
   EmbedModelSettings,
-  ChatModelSettings,
   SourceSettings,
   BlockSettings,
   ViewFilterSettings,
-  ChatSettings,
   PluginSettings,
 } from './settings';
 
@@ -33,28 +31,4 @@ export type {
   EmbedInput,
   EmbedResult,
   EmbedModelAdapter,
-  ChatModelAdapter,
-  ChatMessage,
-  ToolCall,
-  ToolDefinition,
-  ChatRequest as ModelChatRequest,
-  ChatResponse,
-  StreamHandlers,
 } from './models';
-
-// Context types
-export type {
-  ContextItem,
-  ContextParams,
-  ContextResult,
-  ContextStrategy,
-  ContextManagerConfig,
-} from './context';
-
-// Chat types
-export type {
-  ChatRequest,
-  ChatThread,
-  ChatHistoryEntry,
-  ChatUIState,
-} from './chat';

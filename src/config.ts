@@ -15,7 +15,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   new_user: true,
   re_import_wait_time: 13,
   is_obsidian_vault: true,
-  enable_chat: false,
 
   smart_sources: {
     min_chars: 200,
@@ -40,13 +39,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     expanded_view: false,
     render_markdown: true,
     show_full_path: false,
-  },
-
-  smart_chat_threads: {
-    chat_model: {
-      adapter: 'ollama',
-      ollama: {},
-    },
   },
 
   smart_notices: {
@@ -78,24 +70,6 @@ export const EMBED_MODEL_ADAPTERS = {
   lm_studio: 'LmStudioEmbedModelAdapter',
   upstage: 'SmartEmbedUpstageAdapter',
   open_router: 'SmartEmbedOpenRouterAdapter',
-};
-
-/**
- * Chat model adapter registry
- */
-export const CHAT_MODEL_ADAPTERS = {
-  anthropic: 'SmartChatModelAnthropicAdapter',
-  azure: 'SmartChatModelAzureAdapter',
-  custom: 'SmartChatModelCustomAdapter',
-  google: 'SmartChatModelGoogleAdapter',
-  gemini: 'SmartChatModelGeminiAdapter',
-  groq: 'SmartChatModelGroqAdapter',
-  lm_studio: 'SmartChatModelLmStudioAdapter',
-  ollama: 'SmartChatModelOllamaAdapter',
-  open_router: 'SmartChatModelOpenRouterAdapter',
-  openai: 'SmartChatModelOpenaiAdapter',
-  xai: 'SmartChatModelXaiAdapter',
-  deepseek: 'SmartChatModelDeepseekAdapter',
 };
 
 /**
