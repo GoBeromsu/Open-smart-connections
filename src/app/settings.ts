@@ -12,7 +12,7 @@ import {
   ButtonComponent,
   ProgressBarComponent,
 } from 'obsidian';
-import type { PluginSettings } from '../core/types/settings';
+import type { PluginSettings } from '../shared/types/settings';
 import {
   renderModelDropdown,
   renderApiKeyField as renderApiKeyFieldExternal,

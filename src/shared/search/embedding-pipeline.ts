@@ -14,7 +14,7 @@ import type { EmbeddingEntity } from '../types/entities';
 import type { EmbedModelAdapter, EmbedResult } from '../types/models';
 // FatalError is checked by name to support both direct import and test stubs.
 // Import for type reference only (not used for instanceof).
-import type { FatalError as _FatalError } from '../../src/embedding/errors';
+import type { FatalError as _FatalError } from '../errors';
 
 /**
  * Embedding queue statistics
