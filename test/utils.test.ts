@@ -4,11 +4,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { cos_sim } from '../core/utils/cos_sim';
-import { results_acc, furthest_acc } from '../core/utils/results_acc';
-import { create_hash } from '../core/utils/create_hash';
-import { deep_merge } from '../core/utils/deep_merge';
-import type { ScoredResult, ResultsAccumulator, FurthestAccumulator } from '../core/utils/results_acc';
+import { cos_sim } from '../src/shared/utils/cos_sim';
+import { results_acc, furthest_acc } from '../src/shared/utils/results_acc';
+import { create_hash } from '../src/shared/utils/create_hash';
+import { deep_merge } from '../src/shared/utils/deep_merge';
+import type { ScoredResult, ResultsAccumulator, FurthestAccumulator } from '../src/shared/utils/results_acc';
 
 describe('cos_sim', () => {
   it('should calculate cosine similarity between two vectors', () => {

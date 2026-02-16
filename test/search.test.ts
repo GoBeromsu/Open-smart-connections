@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { findNearest, findFurthest, findNearestToEntity } from '../core/search/vector-search';
-import type { EmbeddingEntity } from '../core/entities/EmbeddingEntity';
-import type { SearchFilter } from '../core/types/entities';
+import { findNearest, findFurthest, findNearestToEntity } from '../src/shared/search/vector-search';
+import type { EmbeddingEntity } from '../src/shared/entities/EmbeddingEntity';
+import type { SearchFilter } from '../src/shared/types/entities';
 
 // Create mock entities for testing
 function createMockEntity(key: string, vec: number[]): EmbeddingEntity {

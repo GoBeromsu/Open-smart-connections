@@ -17,13 +17,13 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { App } from 'obsidian';
-import SmartConnectionsPlugin from '../src/main';
+import SmartConnectionsPlugin from '../src/app/main';
 import {
   createInitialKernelState,
   reduceEmbeddingKernelState,
-} from '../src/embedding/kernel/reducer';
-import { toLegacyStatusState } from '../src/embedding/kernel/selectors';
-import { EmbedJobQueue } from '../src/embedding/queue/embed-job-queue';
+} from '../src/features/embedding/kernel/reducer';
+import { toLegacyStatusState } from '../src/features/embedding/kernel/selectors';
+import { EmbedJobQueue } from '../src/features/embedding/queue/embed-job-queue';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Helper Functions

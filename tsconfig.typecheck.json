@@ -1,16 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "src/**/*.ts",
-    "core/entities/**/*.ts",
-    "core/search/**/*.ts",
-    "core/models/embed/**/*.ts",
-    "core/types/**/*.ts"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "core/models/chat/**",
     "worker/**",
     "**/*.test.ts",
     "**/*.test.js"

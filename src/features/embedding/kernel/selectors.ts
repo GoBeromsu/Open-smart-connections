@@ -3,7 +3,7 @@
  * @description Derived selectors for kernel state and legacy compatibility
  */
 
-import type { EmbedStatusState } from '../../main';
+import type { EmbedStatusState } from '../../../app/main';
 import type { EmbeddingKernelState } from './types';
 
 export function toLegacyStatusState(state: EmbeddingKernelState): EmbedStatusState {
