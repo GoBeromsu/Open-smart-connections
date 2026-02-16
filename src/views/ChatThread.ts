@@ -1,5 +1,5 @@
 import { Component, setIcon } from 'obsidian';
-import type SmartConnectionsPlugin from '../main';
+import type SmartConnectionsPlugin from '../app/main';
 import { ChatMessage } from './ChatMessage';
 
 /**

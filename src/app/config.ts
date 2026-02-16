@@ -4,7 +4,7 @@
  * No auto-scanner - explicit configuration only
  */
 
-import type { PluginSettings } from '../core/types/settings';
+import type { PluginSettings } from '../shared/types/settings';
 
 /**
  * Default plugin settings

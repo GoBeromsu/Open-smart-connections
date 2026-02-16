@@ -1,5 +1,5 @@
 import { Modal, App, setIcon, ButtonComponent } from 'obsidian';
-import type SmartConnectionsPlugin from '../main';
+import type SmartConnectionsPlugin from '../app/main';
 
 /**
  * ChatHistoryModal - Shows all chat threads

@@ -5,8 +5,8 @@ import {
   ButtonComponent,
   setIcon,
 } from 'obsidian';
-import type SmartConnectionsPlugin from '../main';
-import { showResultContextMenu } from './result-context-menu';
+import type SmartConnectionsPlugin from '../../app/main';
+import { showResultContextMenu } from '../../views/result-context-menu';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 

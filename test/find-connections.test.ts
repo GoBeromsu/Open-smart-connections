@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { find_connections, get_source_path } from '../core/search/find-connections';
-import type { EmbeddingEntity } from '../core/entities/EmbeddingEntity';
+import { find_connections, get_source_path } from '../src/shared/search/find-connections';
+import type { EmbeddingEntity } from '../src/shared/entities/EmbeddingEntity';
 
 function createMockEntity(key: string, vec: number[] | null): EmbeddingEntity {
   const entity: any = {

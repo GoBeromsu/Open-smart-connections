@@ -1,6 +1,6 @@
 # Embedding Models
 
-This directory contains embedding model adapters for Smart Connections. All adapters implement the `EmbedModelAdapter` interface defined in `core/types/models.ts`.
+This directory contains embedding model adapters for Smart Connections. All adapters implement the `EmbedModelAdapter` interface defined in `src/shared/types/models.ts`.
 
 ## Architecture
 
@@ -71,8 +71,8 @@ The `worker/embed-worker.ts` file contains a unified Web Worker implementation t
 ## Usage Example
 
 ```typescript
-import { EmbedModel } from 'core/models/embed';
-import { OpenAIEmbedAdapter, OPENAI_EMBED_MODELS } from 'core/models/embed';
+import { EmbedModel } from 'src/shared/models/embed';
+import { OpenAIEmbedAdapter, OPENAI_EMBED_MODELS } from 'src/shared/models/embed';
 
 // Create adapter
 const adapter = new OpenAIEmbedAdapter({

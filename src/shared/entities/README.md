@@ -31,7 +31,7 @@ The entity framework provides a TypeScript-based, MetadataCache-driven system fo
    - Base collection with CRUD operations
    - AJSON persistence integration
    - Vector search delegation
-   - Simplified from `lib/core/collections/collection.js`
+   - Simplified from `legacy collection implementation`
 
 5. **SourceCollection** (`SourceCollection.ts`)
    - Collection of sources
@@ -128,7 +128,7 @@ The framework integrates with Obsidian's MetadataCache:
 ## Usage Example
 
 ```typescript
-import { SourceCollection, BlockCollection } from './core/entities';
+import { SourceCollection, BlockCollection } from './src/shared/entities';
 
 // Create collections
 const sources = new SourceCollection(
@@ -187,7 +187,7 @@ metadataCache.on('changed', (file) => sources.on_metadata_change(file));
 
 To test the entity framework:
 
-1. Ensure types are correct: `npx tsc --noEmit --skipLibCheck core/entities/*.ts core/entities/**/*.ts`
+1. Ensure types are correct: `npx tsc --noEmit --skipLibCheck src/shared/entities/*.ts src/shared/entities/**/*.ts`
 2. Create test vault with markdown files
 3. Initialize collections with vault references
 4. Verify AJSON files are created/updated

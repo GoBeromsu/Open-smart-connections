@@ -10,7 +10,7 @@ import type { EmbeddingPipeline } from '../search';
 
 /**
  * Base collection class for entities
- * Simplified from lib/core/collections/collection.js
+ * Simplified from the legacy collection implementation
  */
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   /** Collection items keyed by entity key */

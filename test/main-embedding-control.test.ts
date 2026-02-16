@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { App } from 'obsidian';
-import SmartConnectionsPlugin from '../src/main';
+import SmartConnectionsPlugin from '../src/app/main';
 
 function createPlugin() {
   const app = new App();
