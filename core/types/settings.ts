@@ -267,16 +267,4 @@ export interface PluginSettings {
 
   /** Smart notices settings */
   smart_notices: SmartNoticesSettings;
-
-  /** Storage engine for embeddings */
-  storage_engine: 'pglite';
-
-  /** Reset persisted storage on plugin upgrade */
-  storage_reset_on_upgrade: boolean;
-
-  /** Embedding vector search mode */
-  vector_search_mode: 'exact';
-
-  /** Last plugin version that completed storage reset */
-  storage_reset_applied_version?: string;
 }
