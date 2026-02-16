@@ -3,8 +3,8 @@
  * @description Collection initialization, loading, and embedding context sync
  */
 
-import type SmartConnectionsPlugin from '../main';
-import { SourceCollection, BlockCollection } from '../../core/entities';
+import type SmartConnectionsPlugin from '../../app/main';
+import { SourceCollection, BlockCollection } from '../../shared/entities';
 import type { EmbeddingKernelQueueSnapshot } from './kernel/types';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {

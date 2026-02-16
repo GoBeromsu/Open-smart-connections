@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EmbeddingEntity } from '../core/entities/EmbeddingEntity';
-import { EntityCollection } from '../core/entities/EntityCollection';
-import type { EntityData } from '../core/types/entities';
+import { EmbeddingEntity } from '../src/shared/entities/EmbeddingEntity';
+import { EntityCollection } from '../src/shared/entities/EntityCollection';
+import type { EntityData } from '../src/shared/types/entities';
 
 describe('EmbeddingEntity', () => {
   let mockCollection: EntityCollection<any>;

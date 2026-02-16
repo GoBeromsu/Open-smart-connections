@@ -25,7 +25,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createInitialKernelState,
   reduceEmbeddingKernelState,
-} from '../src/embedding/kernel/reducer';
+} from '../src/features/embedding/kernel/reducer';
 
 function step(state: ReturnType<typeof createInitialKernelState>, event: any) {
   return reduceEmbeddingKernelState(state, event);

@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { TransformersEmbedAdapter, TRANSFORMERS_EMBED_MODELS } from '../core/models/embed/adapters/transformers';
+import { TransformersEmbedAdapter, TRANSFORMERS_EMBED_MODELS } from '../src/shared/models/embed/adapters/transformers';
 
 function createAdapter(timeoutMs: number): TransformersEmbedAdapter {
   return new TransformersEmbedAdapter({
