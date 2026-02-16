@@ -9,13 +9,13 @@ import {
   TFile,
 } from 'obsidian';
 
-import type { PluginSettings } from '../core/types/settings';
+import type { PluginSettings } from '../shared/types/settings';
 import { DEFAULT_SETTINGS } from './config';
 import SmartConnectionsNotices from './notices';
 import { SmartConnectionsSettingsTab } from './settings';
 import { registerCommands } from './commands';
-import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './views/ConnectionsView';
-import { LookupView, LOOKUP_VIEW_TYPE } from './views/LookupView';
+import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from '../features/connections/ConnectionsView';
+import { LookupView, LOOKUP_VIEW_TYPE } from '../features/lookup/LookupView';
 import { setupStatusBar as _setupStatusBar, refreshStatus as _refreshStatus, handleStatusBarClick as _handleStatusBarClick } from './status-bar';
 import {
   loadUserState as _loadUserState,
@@ -38,7 +38,7 @@ import {
   getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
   getEmbedAdapterSettings as _getEmbedAdapterSettings,
-} from './embedding/collection-manager';
+} from '../features/embedding/collection-manager';
 import {
   registerFileWatchers as _registerFileWatchers,
   isSourceFile as _isSourceFile,
@@ -58,28 +58,28 @@ import {
   getActiveEmbeddingContext as _getActiveEmbeddingContext,
   logEmbed as _logEmbed,
   clearEmbedNotice as _clearEmbedNotice,
-} from './embedding/embedding-manager';
-import { EmbeddingKernelStore } from './embedding/kernel/store';
-import { EmbeddingKernelJobQueue } from './embedding/kernel/queue';
+} from '../features/embedding/embedding-manager';
+import { EmbeddingKernelStore } from '../features/embedding/kernel/store';
+import { EmbeddingKernelJobQueue } from '../features/embedding/kernel/queue';
 import {
   logKernelTransition,
-} from './embedding/kernel/effects';
+} from '../features/embedding/kernel/effects';
 import {
   isEmbedReady,
   toLegacyStatusState,
-} from './embedding/kernel/selectors';
+} from '../features/embedding/kernel/selectors';
 import type {
   EmbeddingKernelEvent,
   EmbeddingKernelJob,
   EmbeddingKernelQueueSnapshot,
   EmbeddingKernelState,
-} from './embedding/kernel/types';
-import { EmbedJobQueue } from './embedding/queue/embed-job-queue';
+} from '../features/embedding/kernel/types';
+import { EmbedJobQueue } from '../features/embedding/queue/embed-job-queue';
 
 // Core type imports needed for plugin fields
-import type { EmbedModel } from '../core/models/embed';
-import type { SourceCollection, BlockCollection } from '../core/entities';
-import type { EmbeddingPipeline, EmbedQueueStats } from '../core/search/embedding-pipeline';
+import type { EmbedModel } from '../shared/models/embed';
+import type { SourceCollection, BlockCollection } from '../shared/entities';
+import type { EmbeddingPipeline, EmbedQueueStats } from '../shared/search/embedding-pipeline';
 
 export type EmbedStatusState =
   | 'idle'

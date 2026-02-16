@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { EmbedJobQueue, type EmbedJob } from '../src/embedding/queue/embed-job-queue';
+import { EmbedJobQueue, type EmbedJob } from '../src/features/embedding/queue/embed-job-queue';
 
 function makeJob(entityKey: string, contentHash: string = 'hash-' + entityKey): EmbedJob {
   return {

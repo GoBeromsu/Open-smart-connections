@@ -3,7 +3,6 @@
     "baseUrl": ".",
     "outDir": "dist",
     "paths": {
-      "core/*": ["./core/*"],
       "src/*": ["./src/*"]
     },
     "inlineSourceMap": true,
@@ -21,6 +20,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "core/**/*", "worker/**/*"],
+  "include": ["src/**/*", "worker/**/*"],
   "exclude": ["node_modules", "lib", "dist", "**/*.test.ts", "**/*.test.js"]
 }

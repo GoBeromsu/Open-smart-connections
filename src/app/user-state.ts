@@ -5,7 +5,7 @@
 
 import { requestUrl } from 'obsidian';
 import type SmartConnectionsPlugin from './main';
-import { ConnectionsView } from './views/ConnectionsView';
+import { ConnectionsView } from '../features/connections/ConnectionsView';
 import { determine_installed_at } from './utils/determine_installed_at';
 
 /** 3 hours in milliseconds — interval between automatic update checks */

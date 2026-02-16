@@ -3,23 +3,23 @@
  * @description Embedding model initialization, pipeline management, run orchestration, notices, and progress events
  */
 
-import type SmartConnectionsPlugin from '../main';
-import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../main';
-import { CONNECTIONS_VIEW_TYPE } from '../views/ConnectionsView';
+import type SmartConnectionsPlugin from '../../app/main';
+import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../../app/main';
+import { CONNECTIONS_VIEW_TYPE } from '../connections/ConnectionsView';
 
-import { EmbedModel } from '../../core/models/embed';
-import { TransformersEmbedAdapter, TRANSFORMERS_EMBED_MODELS } from '../../core/models/embed/adapters/transformers';
-import { OpenAIEmbedAdapter, OPENAI_EMBED_MODELS } from '../../core/models/embed/adapters/openai';
-import { OllamaEmbedAdapter } from '../../core/models/embed/adapters/ollama';
-import { GeminiEmbedAdapter, GEMINI_EMBED_MODELS } from '../../core/models/embed/adapters/gemini';
-import { LmStudioEmbedAdapter } from '../../core/models/embed/adapters/lm_studio';
-import { UpstageEmbedAdapter, UPSTAGE_EMBED_MODELS } from '../../core/models/embed/adapters/upstage';
-import { OpenRouterEmbedAdapter } from '../../core/models/embed/adapters/open_router';
+import { EmbedModel } from '../../shared/models/embed';
+import { TransformersEmbedAdapter, TRANSFORMERS_EMBED_MODELS } from '../../shared/models/embed/adapters/transformers';
+import { OpenAIEmbedAdapter, OPENAI_EMBED_MODELS } from '../../shared/models/embed/adapters/openai';
+import { OllamaEmbedAdapter } from '../../shared/models/embed/adapters/ollama';
+import { GeminiEmbedAdapter, GEMINI_EMBED_MODELS } from '../../shared/models/embed/adapters/gemini';
+import { LmStudioEmbedAdapter } from '../../shared/models/embed/adapters/lm_studio';
+import { UpstageEmbedAdapter, UPSTAGE_EMBED_MODELS } from '../../shared/models/embed/adapters/upstage';
+import { OpenRouterEmbedAdapter } from '../../shared/models/embed/adapters/open_router';
 
 import {
   EmbeddingPipeline,
   type EmbedQueueStats,
-} from '../../core/search/embedding-pipeline';
+} from '../../shared/search/embedding-pipeline';
 import {
   getEmbeddingQueueSnapshot,
 } from './collection-manager';
