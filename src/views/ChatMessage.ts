@@ -1,5 +1,5 @@
 import { Component, MarkdownRenderer, setIcon } from 'obsidian';
-import type SmartConnectionsPlugin from '../main';
+import type SmartConnectionsPlugin from '../app/main';
 
 export interface MessageData {
   role: 'user' | 'assistant' | 'system';

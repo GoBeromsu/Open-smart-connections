@@ -1,7 +1,7 @@
 /**
  * @file index.ts
- * @description Barrel exports for all core types
- * Import from 'core/types' to get all type definitions
+ * @description Barrel exports for shared types
+ * Import from 'src/shared/types' to get all type definitions
  */
 
 // Settings types

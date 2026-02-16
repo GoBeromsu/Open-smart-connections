@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, ButtonComponent, debounce, setIcon, Platform } from 'obsidian';
-import type SmartConnectionsPlugin from '../main';
-import type { SearchFilter, ConnectionResult } from '../../core/types/entities';
-import { showResultContextMenu } from './result-context-menu';
+import type SmartConnectionsPlugin from '../../app/main';
+import type { SearchFilter, ConnectionResult } from '../../shared/types/entities';
+import { showResultContextMenu } from '../../views/result-context-menu';
 
 export const LOOKUP_VIEW_TYPE = 'smart-connections-lookup';
 

@@ -5,8 +5,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { App, Setting } from 'obsidian';
-import { SmartConnectionsSettingsTab } from '../src/settings';
-import { getTransformersKnownModels, renderModelDropdown } from '../src/settings-model-picker';
+import { SmartConnectionsSettingsTab } from '../src/app/settings';
+import { getTransformersKnownModels, renderModelDropdown } from '../src/app/settings-model-picker';
 
 describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
   let app: App;

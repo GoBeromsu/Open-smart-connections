@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { lookup, batch_lookup } from '../core/search/lookup';
-import type { EmbeddingEntity } from '../core/entities/EmbeddingEntity';
-import type { EmbedModelAdapter, EmbedResult } from '../core/types/models';
+import { lookup, batch_lookup } from '../src/shared/search/lookup';
+import type { EmbeddingEntity } from '../src/shared/entities/EmbeddingEntity';
+import type { EmbedModelAdapter, EmbedResult } from '../src/shared/types/models';
 
 function createMockEntity(key: string, vec: number[] | null): EmbeddingEntity {
   const entity: any = {
