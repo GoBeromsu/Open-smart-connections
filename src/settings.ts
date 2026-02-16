@@ -122,10 +122,6 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     // Embedding Status
     new Setting(containerEl).setName('Embedding Status').setHeading();
     this.renderEmbeddingStatus(containerEl);
-
-    // Beta Features
-    new Setting(containerEl).setName('Beta Features').setHeading();
-    this.renderBetaFeatures(containerEl);
   }
 
   private renderEmbeddingModelSection(containerEl: HTMLElement): void {
@@ -541,18 +537,5 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       plugin.notices?.show?.('failed_reinitialize_model');
       console.error('Re-embed failed:', e);
     }
-  }
-
-  private renderBetaFeatures(containerEl: HTMLElement): void {
-    new Setting(containerEl)
-      .setName('Enable Chat')
-      .setDesc('Enable the Smart Chat feature (experimental). Requires plugin reload.')
-      .addToggle((toggle) => {
-        toggle.setValue(this.getConfig('enable_chat', false));
-        toggle.onChange(async (value) => {
-          this.setConfig('enable_chat', value);
-          this.plugin.notices?.show?.('restart_plugin_chat');
-        });
-      });
   }
 }
