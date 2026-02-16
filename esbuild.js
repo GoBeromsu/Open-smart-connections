@@ -162,7 +162,9 @@ const build_options = {
   logLevel: "info",
   treeShaking: true,
   platform: 'node',
-  preserveSymlinks: true,
+  // Keep default symlink resolution so pnpm-linked transitive deps
+  // (e.g. js-tiktoken -> base64-js) resolve consistently in CI.
+  preserveSymlinks: false,
   external: [
     'electron',
     'obsidian',
