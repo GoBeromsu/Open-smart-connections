@@ -4,15 +4,13 @@
  */
 
 import type SmartConnectionsPlugin from '../main';
-import { SourceCollection, BlockCollection, PgliteDataAdapter } from '../../core/entities';
+import { SourceCollection, BlockCollection } from '../../core/entities';
 import type { EmbeddingKernelQueueSnapshot } from './kernel/types';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     const dataDir = `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/.smart-env`;
     const storageNamespace = resolveStorageNamespace(plugin, dataDir);
-
-    await maybeResetLegacyStorage(plugin, dataDir, storageNamespace);
 
     const adapterSettings = getEmbedAdapterSettings(
       plugin.settings.smart_sources.embed_model as unknown as Record<string, any>,
@@ -165,40 +163,4 @@ function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string
     : '';
   const vaultName = plugin.app.vault.getName();
   return `${plugin.manifest.id}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
-}
-
-async function maybeResetLegacyStorage(
-  plugin: SmartConnectionsPlugin,
-  dataDir: string,
-  storageNamespace: string,
-): Promise<void> {
-  if (plugin.settings.storage_engine !== 'pglite') return;
-  if (!plugin.settings.storage_reset_on_upgrade) return;
-  if (plugin.settings.storage_reset_applied_version === plugin.manifest.version) return;
-
-  const adapter = plugin.app.vault.adapter;
-  const targets = [`${dataDir}/sources`, `${dataDir}/blocks`];
-
-  for (const dir of targets) {
-    try {
-      if (!await adapter.exists(dir)) continue;
-      const listed = await adapter.list(dir);
-      for (const filePath of listed.files) {
-        if (filePath.endsWith('.ajson')) {
-          await adapter.remove(filePath);
-        }
-      }
-    } catch (error) {
-      console.warn(`[SC][Storage] Failed to clean legacy AJSON files in ${dir}:`, error);
-    }
-  }
-
-  try {
-    await PgliteDataAdapter.reset_storage(storageNamespace);
-  } catch (error) {
-    console.warn('[SC][Storage] Failed to reset PGlite storage:', error);
-  }
-
-  plugin.settings.storage_reset_applied_version = plugin.manifest.version;
-  await plugin.saveSettings();
 }
