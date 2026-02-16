@@ -1,6 +1,6 @@
 {
   "name": "open-smart-connections",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "type": "module",
   "packageManager": "pnpm@10.28.2",
   "description": "Link and chat with your notes using ChatGPT and embedding artificial intelligence from OpenAI.",
