@@ -25,9 +25,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
     source_collection?: SourceCollection,
     storage_namespace?: string,
   ) {
-    // Get fs_adapter from source_collection's vault
-    const fs_adapter = source_collection?.vault?.adapter;
-    super(data_dir, settings, embed_model_key, fs_adapter, 'smart_blocks', storage_namespace);
+    super(data_dir, settings, embed_model_key, 'smart_blocks', storage_namespace);
     this.source_collection = source_collection;
   }
 
