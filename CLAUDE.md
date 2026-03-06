@@ -155,11 +155,13 @@ The project is planning a TypeScript conversion to improve type safety and devel
 
 - Obsidian Plugin API Docs: https://docs.obsidian.md/Home
 
-## CDP Debugging
+## Runtime Debugging
 
-For runtime debugging, use the root `obsidian-cdp` skill instead of the former cdp-debugger agent.
-Available scripts: `verify-plugin.mjs`, `screenshot.mjs`
-Access via: `window.app.plugins` API for runtime state queries
+For runtime debugging, use the root `obsidian-cli` skill:
+- `obsidian plugin:reload id=smart-connections`: Reload after build
+- `obsidian eval code="app.plugins.plugins['smart-connections']"`: Check plugin state
+- `obsidian dev:errors`: Check for runtime errors
+- `obsidian dev:screenshot path=output.png`: Capture screenshots
 
 ## Current Known Issues
 

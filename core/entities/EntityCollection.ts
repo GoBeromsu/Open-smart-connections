@@ -50,7 +50,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     data_dir: string,
     settings: any = {},
     embed_model_key: string = 'None',
-    _fs_adapter?: unknown,
     collection_key?: string,
     storage_namespace?: string,
   ) {
