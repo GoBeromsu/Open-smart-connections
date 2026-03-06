@@ -15,8 +15,9 @@
     "test:watch": "vitest",
     "lint": "eslint src worker --ext .ts",
     "lint:fix": "eslint src worker --ext .ts --fix",
-    "release": "node release.js",
-    "ci": "pnpm run build && pnpm run lint && pnpm run test"
+    "ci": "pnpm run build && pnpm run lint && pnpm run test",
+    "version": "node scripts/version.mjs",
+    "postversion": "git push && git push --tags"
   },
   "repository": {
     "type": "git",
