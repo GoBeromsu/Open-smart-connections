@@ -9,6 +9,9 @@ export default {
   ci: {
     pushBranches: ['main'],
   },
+  version: {
+    stageFiles: ['manifest.json', 'versions.json'],
+  },
   release: {
     pluginName: 'open-smart-connections',
     copyFiles: ['dist/main.js', 'dist/manifest.json', 'dist/styles.css'],
