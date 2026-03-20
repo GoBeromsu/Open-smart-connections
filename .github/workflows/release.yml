@@ -82,6 +82,7 @@ jobs:
           publish_asset "dist/main.js" "true"
           publish_asset "dist/manifest.json" "true"
           publish_asset "dist/styles.css" "true"
+          publish_asset "versions.json" "true"
           {
             echo "files<<EOF"
             cat .release-files.txt

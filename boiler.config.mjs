@@ -21,6 +21,7 @@ export default {
       'dist/main.js',
       'dist/manifest.json',
       'dist/styles.css',
+      'versions.json',
     ],
   },
 };
