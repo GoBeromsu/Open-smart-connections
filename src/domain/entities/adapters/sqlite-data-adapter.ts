@@ -169,7 +169,7 @@ async function createDb(
   pluginId: string,
 ): Promise<SqlJsDatabase> {
   const dbKey = toDbKey(storageNamespace);
-  const dbPath = `${configDir}/plugins/${pluginId}/embeddings.db`;
+  const dbPath = `${configDir}/plugins/${pluginId}/${pluginId}.db`;
 
   // Try to load WASM from local plugin directory, fallback to CDN
   let wasmBinary: ArrayBuffer | undefined;
