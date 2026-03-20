@@ -22,7 +22,7 @@ pnpm run typecheck:watch  # tsc --noEmit --watch
 ```
 
 The build process (`esbuild.js`):
-1. Bundles `src/app/main.ts` to `dist/main.js` using esbuild (CJS format, ES2018 target)
+1. Bundles `src/main.ts` to `dist/main.js` using esbuild (CJS format, ES2018 target)
 2. Syncs `manifest.json` version from `package.json`
 3. Copies `manifest.json`, `src/styles.css`, and `embed-worker.js` to `dist/`
 4. In watch mode, copies output to vaults listed in `DESTINATION_VAULTS` env var and touches `.hotreload`
@@ -51,60 +51,93 @@ Use `VAULT_PATH`, `VAULT_NAME`, or `--vault <name>` to skip interactive selectio
 
 ## Architecture
 
+The codebase follows a strict 4-layer architecture enforced by ESLint `no-restricted-imports`:
+
+| Layer | Path | Rule |
+|-------|------|------|
+| Composition root | `src/main.ts` | Wires all layers together |
+| Domain | `src/domain/` | NO `obsidian` imports — pure business logic |
+| UI | `src/ui/` | Obsidian-dependent views, modals, settings |
+| Types | `src/types/` | NO `obsidian` imports — pure type definitions |
+| Utils | `src/utils/` | NO `obsidian` imports — pure functions, zero state |
+| Shared | `src/shared/` | Boiler-template synced files only — DO NOT EDIT |
+
 ```
 src/
-├── app/                    # Plugin entry point and core orchestration
-│   ├── main.ts             # SmartConnectionsPlugin (extends Plugin)
-│   ├── commands.ts         # Command palette registrations
-│   ├── config.ts           # DEFAULT_SETTINGS
-│   ├── notices.ts          # SmartConnectionsNotices (catalog + mute support)
-│   ├── settings.ts         # Settings tab UI
-│   ├── settings-model-picker.ts  # Embedding model picker component
-│   ├── status-bar.ts       # Status bar widget
-│   ├── file-watcher.ts     # Vault file change handlers
-│   └── user-state.ts       # Install date, version tracking, update checks
-├── features/
-│   ├── connections/
-│   │   └── ConnectionsView.ts   # ItemView: related notes for active file
-│   ├── embedding/
-│   │   ├── collection-manager.ts # Source/Block collection init and loading
-│   │   ├── embedding-manager.ts  # Model lifecycle, embed jobs, pipeline
-│   │   ├── kernel/               # Embedding state machine (Redux-style)
-│   │   │   ├── store.ts          # EmbeddingKernelStore
-│   │   │   ├── reducer.ts        # State transitions
-│   │   │   ├── effects.ts        # Side-effect logging
-│   │   │   ├── selectors.ts      # Derived state queries
-│   │   │   ├── queue.ts          # EmbeddingKernelJobQueue
-│   │   │   └── types.ts          # State/Event type definitions
-│   │   └── queue/
-│   │       └── embed-job-queue.ts  # EmbedJobQueue (async job scheduling)
-│   └── lookup/
-│       └── LookupView.ts        # ItemView: semantic search across vault
-├── shared/
-│   ├── entities/                 # Data model (Source, Block, Collection)
-│   │   ├── EmbeddingSource.ts    # Source entity (one per vault file)
-│   │   ├── EmbeddingBlock.ts     # Block entity (heading sections)
-│   │   ├── EmbeddingEntity.ts    # Shared base class
-│   │   ├── SourceCollection.ts   # Source collection
-│   │   ├── BlockCollection.ts    # Block collection
-│   │   ├── EntityCollection.ts   # Abstract collection base
-│   │   ├── adapters/             # PGlite data adapter
-│   │   └── parsers/              # Markdown splitter
-│   ├── models/embed/             # EmbedModel + adapters
-│   │   ├── EmbedModel.ts         # Abstract embed model
-│   │   └── adapters/             # transformers, openai, ollama, gemini, etc.
-│   ├── search/                   # Search logic
+├── main.ts                   # Composition root — SmartConnectionsPlugin (extends Plugin)
+├── domain/                   # Business logic — NO obsidian imports
+│   ├── config.ts             # DEFAULT_SETTINGS
+│   ├── notices.ts            # NOTICE_CATALOG + SmartConnectionsNotices alias
+│   ├── errors.ts             # TransientError, FatalError
+│   ├── entities/             # Data model (Source, Block, Collection, adapters, parsers)
+│   │   ├── EmbeddingEntity.ts
+│   │   ├── EmbeddingSource.ts
+│   │   ├── EmbeddingBlock.ts
+│   │   ├── SourceCollection.ts
+│   │   ├── BlockCollection.ts
+│   │   ├── EntityCollection.ts
+│   │   ├── adapters/         # PGlite SQLite data adapter
+│   │   └── parsers/          # Markdown heading splitter
+│   ├── search/               # Search and embedding logic
 │   │   ├── find-connections.ts   # Cosine-sim connections for a source
 │   │   ├── lookup.ts             # Semantic lookup by query string
 │   │   ├── vector-search.ts      # Low-level vector search
 │   │   └── embedding-pipeline.ts # Batch embedding pipeline
-│   ├── types/                    # Shared TypeScript types
-│   ├── errors.ts                 # Custom error classes
-│   └── utils/                    # Utility functions (cos_sim, hashing, etc.)
-├── views/
-│   └── result-context-menu.ts    # Right-click context menu for results
-├── utils/                        # UI utilities (icons, banner, drag)
-└── styles.css                    # Plugin CSS
+│   ├── models/embed/         # Abstract EmbedModel + registry (no adapters here)
+│   │   ├── EmbedModel.ts
+│   │   ├── registry.ts
+│   │   └── index.ts
+│   └── embedding/
+│       ├── kernel/           # Redux-style embedding state machine
+│       │   ├── store.ts      # EmbeddingKernelStore
+│       │   ├── reducer.ts    # State transitions
+│       │   ├── effects.ts    # Side-effect logging
+│       │   ├── selectors.ts  # Derived state queries
+│       │   ├── queue.ts      # EmbeddingKernelJobQueue
+│       │   └── types.ts      # State/Event type definitions
+│       └── queue/
+│           └── embed-job-queue.ts  # EmbedJobQueue (async job scheduling)
+├── ui/                       # Obsidian-dependent code
+│   ├── settings.ts           # Settings tab UI
+│   ├── settings-model-picker.ts  # Embedding model picker component
+│   ├── commands.ts           # Command palette registrations
+│   ├── status-bar.ts         # Status bar widget
+│   ├── file-watcher.ts       # Vault file change handlers
+│   ├── user-state.ts         # Install date, version tracking, update checks
+│   ├── connections/
+│   │   └── ConnectionsView.ts   # ItemView: related notes for active file
+│   ├── lookup/
+│   │   └── LookupView.ts        # ItemView: semantic search across vault
+│   ├── embedding/
+│   │   ├── collection-manager.ts # Source/Block collection init and loading
+│   │   ├── embedding-manager.ts  # Model lifecycle, embed jobs, pipeline
+│   │   └── embedding-controller.ts  # Simplified embedding lifecycle (QMD-style)
+│   ├── models/embed/adapters/   # API adapters (use requestUrl — Obsidian-dependent)
+│   │   ├── _api.ts           # Shared fetch helper
+│   │   ├── transformers.ts   # Local WebWorker adapter
+│   │   ├── openai.ts, gemini.ts, ollama.ts, lm_studio.ts, open_router.ts, upstage.ts
+│   ├── utils/                # UI-specific utilities (icons, banner, drag)
+│   └── views/
+│       └── result-context-menu.ts  # Right-click context menu for results
+├── types/                    # Pure type definitions — NO obsidian imports
+│   ├── entities.ts
+│   ├── models.ts
+│   ├── settings.ts
+│   ├── obsidian-shims.ts     # Structural shims: TFileShim, VaultShim, etc.
+│   ├── legacy-modules.d.ts
+│   └── index.ts
+├── utils/                    # Pure utility functions — NO obsidian imports
+│   ├── cos_sim.ts, create_hash.ts, deep_merge.ts, geom.ts
+│   ├── insert_text_in_chunks.ts, parse_xml_fragments.ts
+│   ├── results_acc.ts, sequential_async_processor.ts
+│   ├── sim_hash.ts, sort_by_score.ts, determine_installed_at.ts
+│   └── index.ts
+└── shared/                   # Boiler-template synced — DO NOT EDIT
+    ├── plugin-logger.ts
+    ├── plugin-notices.ts
+    ├── settings-migration.ts
+    ├── debounce-controller.ts
+    └── styles.base.css
 
 worker/
 └── embed-worker.ts           # Web Worker for Transformers.js embedding
@@ -117,6 +150,12 @@ test/                         # Vitest tests (co-located in test/ directory)
 └── setup.ts                  # Vitest setup
 ```
 
+### Layer Boundary Rules
+
+- `domain/`, `types/`, `utils/` must never import from `obsidian` — enforced by ESLint `no-restricted-imports`
+- Entity classes in `domain/entities/` use shim interfaces from `types/obsidian-shims.ts` instead of real Obsidian types (structural typing — no runtime difference)
+- Adapter self-registration (side effects) is triggered in `ui/embedding/embedding-manager.ts` via `import './models/embed/adapters/transformers'` etc.
+
 ### Initialization Flow
 
 `SmartConnectionsPlugin.onload()` registers views, commands, settings tab, and ribbon icon, then delegates to `initialize()`:
@@ -126,7 +165,7 @@ test/                         # Vitest tests (co-located in test/ directory)
 
 ### Embedding Kernel
 
-The embedding subsystem uses a Redux-style state machine (`features/embedding/kernel/`):
+The embedding subsystem uses a Redux-style state machine (`domain/embedding/kernel/`):
 - `EmbeddingKernelStore` holds the current state and dispatches typed events.
 - `reducer.ts` handles state transitions (INIT_CORE_READY, MODEL_LOADED, EMBED_STARTED, EMBED_PROGRESS, etc.).
 - `selectors.ts` exposes derived queries like `isEmbedReady()` and `toLegacyStatusState()`.
@@ -134,7 +173,7 @@ The embedding subsystem uses a Redux-style state machine (`features/embedding/ke
 
 ## Notices
 
-`plugin.notices` is a `PluginNotices` instance (from `src/shared/plugin-notices.ts`, synced from boiler template). The catalog of all notice types is defined in `src/app/notices.ts` as `NOTICE_CATALOG`. `SmartConnectionsNotices` is just a type alias for `PluginNotices`.
+`plugin.notices` is a `PluginNotices` instance (from `src/shared/plugin-notices.ts`, synced from boiler template). The catalog of all notice types is defined in `src/domain/notices.ts` as `NOTICE_CATALOG`. `SmartConnectionsNotices` is just a type alias for `PluginNotices`.
 
 - Muted notice IDs are persisted under `settings.plugin_notices.muted`.
 - Existing `smart_notices.muted` entries are migrated on first load.
@@ -176,17 +215,19 @@ pnpm vitest run test/notices.test.ts
 
 | File | Purpose |
 |------|---------|
-| `src/app/main.ts` | Plugin class: lifecycle, commands, views, embedding orchestration |
-| `src/app/notices.ts` | NOTICE_CATALOG + SmartConnectionsNotices alias (wraps shared PluginNotices) |
+| `src/main.ts` | Plugin class: lifecycle, commands, views, embedding orchestration |
+| `src/domain/notices.ts` | NOTICE_CATALOG + SmartConnectionsNotices alias (wraps shared PluginNotices) |
 | `src/shared/plugin-notices.ts` | Shared PluginNotices (synced from boiler template — do not edit) |
 | `src/shared/plugin-logger.ts` | Shared PluginLogger (synced from boiler template — do not edit) |
-| `src/app/config.ts` | DEFAULT_SETTINGS |
-| `src/features/connections/ConnectionsView.ts` | Connections panel (related notes) |
-| `src/features/lookup/LookupView.ts` | Semantic search panel |
-| `src/features/embedding/kernel/store.ts` | Embedding state machine |
-| `src/shared/entities/` | Source/Block entity model + PGlite adapter |
-| `src/shared/models/embed/` | EmbedModel + provider adapters |
-| `src/shared/search/` | find-connections, lookup, vector-search |
+| `src/domain/config.ts` | DEFAULT_SETTINGS |
+| `src/types/obsidian-shims.ts` | Structural shims for TFile, Vault, MetadataCache — used by domain layer |
+| `src/ui/connections/ConnectionsView.ts` | Connections panel (related notes) |
+| `src/ui/lookup/LookupView.ts` | Semantic search panel |
+| `src/domain/embedding/kernel/store.ts` | Embedding state machine |
+| `src/domain/entities/` | Source/Block entity model + PGlite adapter |
+| `src/domain/models/embed/` | Abstract EmbedModel + registry |
+| `src/ui/models/embed/adapters/` | Provider adapters (transformers, openai, ollama, gemini, etc.) |
+| `src/domain/search/` | find-connections, lookup, vector-search |
 | `worker/embed-worker.ts` | Transformers.js Web Worker |
 | `esbuild.js` | Build config (CSS/markdown plugins, vault copy) |
 | `scripts/dev.mjs` | Dev orchestrator (vault discovery + delegate) |
