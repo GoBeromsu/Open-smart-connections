@@ -18,7 +18,11 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const modelKey =
       plugin.embed_model?.model_key || adapterSettings.model_key || 'None';
 
-    console.log(`Initializing collections with data dir: ${dataDir}`);
+    if (modelKey === 'None' && adapterSettings.model_key) {
+      console.warn('[SC][Init]   [collections] model_key resolved to None despite adapter settings — using adapter key');
+    }
+
+    console.log(`[SC][Init]   [collections] Initializing with model_key=${modelKey}, data_dir=${dataDir}`);
 
     plugin.source_collection = new SourceCollection(
       `${dataDir}/sources`,

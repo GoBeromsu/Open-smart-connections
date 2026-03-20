@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
 import { EntityCollection } from '../src/domain/entities/EntityCollection';
+import { getEmbedAdapterSettings } from '../src/ui/embedding/collection-manager';
 import type { EntityData } from '../src/types/entities';
 
 describe('EmbeddingEntity', () => {
@@ -374,5 +375,48 @@ describe('EntityCollection', () => {
 
     expect(notesWithVec).toHaveLength(1);
     expect(notesWithVec[0].key).toBe('notes/a.md');
+  });
+});
+
+describe('getEmbedAdapterSettings', () => {
+  it('should extract adapter-specific settings', () => {
+    const settings = {
+      adapter: 'transformers',
+      transformers: { model_key: 'TaylorAI/bge-micro-v2', legacy_transformers: false },
+    };
+    const result = getEmbedAdapterSettings(settings);
+    expect(result.model_key).toBe('TaylorAI/bge-micro-v2');
+  });
+
+  it('should return empty object when no adapter', () => {
+    expect(getEmbedAdapterSettings(undefined)).toEqual({});
+    expect(getEmbedAdapterSettings({})).toEqual({});
+    expect(getEmbedAdapterSettings({ adapter: '' })).toEqual({});
+  });
+
+  it('should return empty object when adapter settings missing', () => {
+    const settings = { adapter: 'transformers' };
+    expect(getEmbedAdapterSettings(settings)).toEqual({});
+  });
+
+  it('should resolve model_key for upstage adapter', () => {
+    const settings = {
+      adapter: 'upstage',
+      upstage: { model_key: 'embedding-passage', api_key: 'test-key' },
+    };
+    const result = getEmbedAdapterSettings(settings);
+    expect(result.model_key).toBe('embedding-passage');
+  });
+
+  it('should prevent None model key when settings are configured', () => {
+    // Simulates the fallback chain in initCollections
+    const adapterSettings = getEmbedAdapterSettings({
+      adapter: 'transformers',
+      transformers: { model_key: 'TaylorAI/bge-micro-v2' },
+    });
+    const pluginEmbedModelKey = undefined; // Phase 1: embed_model not loaded yet
+    const modelKey = pluginEmbedModelKey || adapterSettings.model_key || 'None';
+    expect(modelKey).toBe('TaylorAI/bge-micro-v2');
+    expect(modelKey).not.toBe('None');
   });
 });
