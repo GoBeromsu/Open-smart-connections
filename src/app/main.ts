@@ -216,6 +216,53 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.addRibbonIcon('network', 'Open Connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
+
+    // Register smart-connections codeblock
+    this.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
+      if (!this.source_collection) {
+        el.createEl('p', { text: 'Smart Connections is loading...', cls: 'osc-state-text' });
+        return;
+      }
+
+      const lines = source.trim().split('\n');
+      const config: Record<string, string> = {};
+      for (const line of lines) {
+        const [key, ...rest] = line.split(':');
+        if (key) config[key.trim()] = rest.join(':').trim();
+      }
+
+      const limit = parseInt(config.limit || '5', 10);
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile) return;
+
+      const entity = this.source_collection.get(activeFile.path);
+      if (!entity?.vec) {
+        el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
+        return;
+      }
+
+      try {
+        const results = await this.source_collection.nearest_to(entity, { limit });
+        const list = el.createEl('ul', { cls: 'osc-codeblock-results' });
+        for (const r of results) {
+          const score = Math.round((r.score ?? 0) * 100);
+          const path = (r.item?.path ?? '').replace(/\.md$/, '');
+          const li = list.createEl('li');
+          const link = li.createEl('a', {
+            text: path.split('/').pop() ?? path,
+            cls: 'internal-link',
+            attr: { 'data-href': path },
+          });
+          li.createSpan({ text: ` (${score}%)`, cls: 'osc-score--medium' });
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.open_note(r.item?.path ?? '');
+          });
+        }
+      } catch (e) {
+        el.createEl('p', { text: 'Failed to load connections.', cls: 'osc-state-text' });
+      }
+    });
   }
 
   async initialize(): Promise<void> {
