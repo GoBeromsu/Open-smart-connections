@@ -121,10 +121,10 @@ describe('EmbedAdapterRegistry', () => {
       expect(adapter.dims).toBe(1536);
     });
 
-    it('should create an Upstage adapter with legacy model key', () => {
+    it('should create an Upstage adapter', () => {
       const { adapter } = embedAdapterRegistry.createAdapter(
         'upstage',
-        'solar-embedding-1-large-passage',
+        'embedding-passage',
         { api_key: 'test-key' },
       );
       expect(adapter).toBeDefined();

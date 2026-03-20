@@ -410,6 +410,17 @@ export default class SmartConnectionsPlugin extends Plugin {
       settings.smart_notices = { muted: {} };
       removedLegacyKeys = true;
     }
+    // Migrate legacy Upstage model keys to canonical `embedding-passage`
+    const upstageAdapter = settings.smart_sources?.embed_model as Record<string, any> | undefined;
+    if (upstageAdapter?.adapter === 'upstage') {
+      const upstageSettings = (settings as any)[`embed_model.upstage`] ?? upstageAdapter;
+      const mk = upstageSettings?.model_key;
+      if (mk && mk !== 'embedding-passage') {
+        upstageSettings.model_key = 'embedding-passage';
+        removedLegacyKeys = true;
+      }
+    }
+
     this.settings = settings;
     // Invalidate cached notices host so it picks up the new settings object.
     this._notices = undefined;
