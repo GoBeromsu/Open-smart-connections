@@ -10,6 +10,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const OLLAMA_SIGNUP_URL = 'https://ollama.com/download';
 
 interface OllamaModel {
   name: string;
@@ -220,3 +223,17 @@ export function filter_embedding_models(models: OllamaModel[]): OllamaModel[] {
     ['embed', 'embedding', 'bge'].some((keyword) => mod.name.toLowerCase().includes(keyword)),
   );
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'ollama',
+  displayName: 'Ollama (Local)',
+  AdapterClass: OllamaEmbedAdapter,
+  models: {},
+  defaultDims: 384,
+  requiresApiKey: false,
+  requiresHost: true,
+  defaultHost: 'http://localhost:11434',
+  signupUrl: OLLAMA_SIGNUP_URL,
+  dynamicModels: true,
+});

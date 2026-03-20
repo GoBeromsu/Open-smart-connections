@@ -7,14 +7,15 @@ import type SmartConnectionsPlugin from '../../app/main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../../app/main';
 import { CONNECTIONS_VIEW_TYPE } from '../connections/ConnectionsView';
 
-import { EmbedModel } from '../../shared/models/embed';
-import { TransformersEmbedAdapter, TRANSFORMERS_EMBED_MODELS } from '../../shared/models/embed/adapters/transformers';
-import { OpenAIEmbedAdapter, OPENAI_EMBED_MODELS } from '../../shared/models/embed/adapters/openai';
-import { OllamaEmbedAdapter } from '../../shared/models/embed/adapters/ollama';
-import { GeminiEmbedAdapter, GEMINI_EMBED_MODELS } from '../../shared/models/embed/adapters/gemini';
-import { LmStudioEmbedAdapter } from '../../shared/models/embed/adapters/lm_studio';
-import { UpstageEmbedAdapter, UPSTAGE_EMBED_MODELS } from '../../shared/models/embed/adapters/upstage';
-import { OpenRouterEmbedAdapter } from '../../shared/models/embed/adapters/open_router';
+import { EmbedModel, embedAdapterRegistry } from '../../shared/models/embed';
+// Import adapters to trigger self-registration
+import '../../shared/models/embed/adapters/transformers';
+import '../../shared/models/embed/adapters/openai';
+import '../../shared/models/embed/adapters/ollama';
+import '../../shared/models/embed/adapters/gemini';
+import '../../shared/models/embed/adapters/lm_studio';
+import '../../shared/models/embed/adapters/upstage';
+import '../../shared/models/embed/adapters/open_router';
 
 import {
   EmbeddingPipeline,
@@ -208,104 +209,21 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
   try {
     const embedSettings = plugin.settings.smart_sources.embed_model;
     const adapterType = embedSettings.adapter;
-
     const adapterSettings = plugin.getEmbedAdapterSettings(embedSettings);
     const modelKey = adapterSettings.model_key || '';
 
-    let adapter: any;
+    // Use registry to create adapter (replaces giant switch statement)
+    const { adapter, requiresLoad } = embedAdapterRegistry.createAdapter(
+      adapterType,
+      modelKey,
+      adapterSettings,
+    );
 
-    switch (adapterType) {
-      case 'transformers': {
-        const modelInfo = TRANSFORMERS_EMBED_MODELS[modelKey];
-        if (!modelInfo) throw new Error(`Unknown transformers model: ${modelKey}`);
-        console.log(`[SC][Init]   [model] Creating transformers adapter for ${modelKey} (dims=${modelInfo.dims ?? 384})`);
-        adapter = new TransformersEmbedAdapter({
-          adapter: 'transformers',
-          model_key: modelKey,
-          dims: modelInfo.dims ?? 384,
-          models: TRANSFORMERS_EMBED_MODELS,
-          settings: adapterSettings,
-        });
-        const tLoad = performance.now();
-        console.log('[SC][Init]   [model] Loading adapter (this may download model files)...');
-        await adapter.load();
-        console.log(`[SC][Init]   [model] Adapter loaded ✓ (${(performance.now() - tLoad).toFixed(0)}ms)`);
-        break;
-      }
-      case 'openai': {
-        const modelInfo = OPENAI_EMBED_MODELS[modelKey];
-        if (!modelInfo) throw new Error(`Unknown OpenAI model: ${modelKey}`);
-        console.log(`[SC][Init]   [model] Creating openai adapter for ${modelKey} (dims=${modelInfo.dims ?? 1536})`);
-        adapter = new OpenAIEmbedAdapter({
-          adapter: 'openai',
-          model_key: modelKey,
-          dims: modelInfo.dims ?? 1536,
-          models: OPENAI_EMBED_MODELS,
-          settings: adapterSettings,
-        });
-        break;
-      }
-      case 'ollama': {
-        console.log(`[SC][Init]   [model] Creating ollama adapter for ${modelKey} (dims=${adapterSettings.dims || 384})`);
-        adapter = new OllamaEmbedAdapter({
-          adapter: 'ollama',
-          model_key: modelKey,
-          dims: adapterSettings.dims || 384,
-          models: {},
-          settings: adapterSettings,
-        });
-        break;
-      }
-      case 'gemini': {
-        const modelInfo = GEMINI_EMBED_MODELS[modelKey];
-        if (!modelInfo) throw new Error(`Unknown Gemini model: ${modelKey}`);
-        console.log(`[SC][Init]   [model] Creating gemini adapter for ${modelKey} (dims=${modelInfo.dims ?? 768})`);
-        adapter = new GeminiEmbedAdapter({
-          adapter: 'gemini',
-          model_key: modelKey,
-          dims: modelInfo.dims ?? 768,
-          models: GEMINI_EMBED_MODELS,
-          settings: adapterSettings,
-        });
-        break;
-      }
-      case 'lm_studio': {
-        console.log(`[SC][Init]   [model] Creating lm_studio adapter for ${modelKey} (dims=${adapterSettings.dims || 384})`);
-        adapter = new LmStudioEmbedAdapter({
-          adapter: 'lm_studio',
-          model_key: modelKey,
-          dims: adapterSettings.dims || 384,
-          models: {},
-          settings: adapterSettings,
-        });
-        break;
-      }
-      case 'upstage': {
-        const modelInfo = UPSTAGE_EMBED_MODELS[modelKey];
-        if (!modelInfo) throw new Error(`Unknown Upstage model: ${modelKey}`);
-        console.log(`[SC][Init]   [model] Creating upstage adapter for ${modelKey} (dims=${modelInfo.dims ?? 4096})`);
-        adapter = new UpstageEmbedAdapter({
-          adapter: 'upstage',
-          model_key: modelKey,
-          dims: modelInfo.dims ?? 4096,
-          models: UPSTAGE_EMBED_MODELS,
-          settings: adapterSettings,
-        });
-        break;
-      }
-      case 'open_router': {
-        console.log(`[SC][Init]   [model] Creating open_router adapter for ${modelKey} (dims=${adapterSettings.dims || 1536})`);
-        adapter = new OpenRouterEmbedAdapter({
-          adapter: 'open_router',
-          model_key: modelKey,
-          dims: adapterSettings.dims || 1536,
-          models: {},
-          settings: adapterSettings,
-        });
-        break;
-      }
-      default:
-        throw new Error(`Unknown embed adapter: ${adapterType}`);
+    if (requiresLoad && typeof (adapter as any).load === 'function') {
+      const tLoad = performance.now();
+      console.log('[SC][Init]   [model] Loading adapter (this may download model files)...');
+      await (adapter as any).load();
+      console.log(`[SC][Init]   [model] Adapter loaded ✓ (${(performance.now() - tLoad).toFixed(0)}ms)`);
     }
 
     plugin.embed_model = new EmbedModel({

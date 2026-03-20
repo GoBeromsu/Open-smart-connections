@@ -28,6 +28,9 @@ export interface ModelInfo {
   /** Recommended batch size */
   batch_size?: number;
 
+  /** URL to sign up for API key */
+  signup_url?: string;
+
   /** Whether model supports streaming (for chat models) */
   streaming?: boolean;
 

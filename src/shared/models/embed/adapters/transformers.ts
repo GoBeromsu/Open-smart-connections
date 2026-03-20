@@ -8,6 +8,7 @@
  */
 
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
 
 /**
  * Transformers.js embedding models configuration
@@ -599,3 +600,15 @@ ${'</'}script></body></html>`;
     this.loaded = false;
   }
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'transformers',
+  displayName: 'Local (Transformers.js)',
+  AdapterClass: TransformersEmbedAdapter,
+  models: TRANSFORMERS_EMBED_MODELS,
+  defaultDims: 384,
+  requiresApiKey: false,
+  requiresHost: false,
+  requiresLoad: true,
+});

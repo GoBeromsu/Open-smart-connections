@@ -9,6 +9,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const GEMINI_SIGNUP_URL = 'https://aistudio.google.com/apikey';
 
 /**
  * Gemini embedding models configuration
@@ -23,6 +26,7 @@ export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 2,048 tokens, 768 dim',
     endpoint:
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents',
+    signup_url: GEMINI_SIGNUP_URL,
   },
 };
 
@@ -179,3 +183,15 @@ class GeminiEmbedResponseAdapter extends EmbedModelResponseAdapter {
     });
   }
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'gemini',
+  displayName: 'Google Gemini',
+  AdapterClass: GeminiEmbedAdapter,
+  models: GEMINI_EMBED_MODELS,
+  defaultDims: 768,
+  requiresApiKey: true,
+  requiresHost: false,
+  signupUrl: GEMINI_SIGNUP_URL,
+});

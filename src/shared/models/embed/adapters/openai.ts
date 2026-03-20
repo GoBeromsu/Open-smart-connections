@@ -9,6 +9,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const OPENAI_SIGNUP_URL = 'https://platform.openai.com/api-keys';
 
 /**
  * OpenAI embedding models configuration
@@ -22,6 +25,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8191,
     description: 'API, 8,191 tokens, 1,536 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
+    signup_url: OPENAI_SIGNUP_URL,
   },
   'text-embedding-3-large': {
     model_key: 'text-embedding-3-large',
@@ -31,6 +35,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8191,
     description: 'API, 8,191 tokens, 3,072 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
+    signup_url: OPENAI_SIGNUP_URL,
   },
   'text-embedding-3-small-512': {
     model_key: 'text-embedding-3-small',
@@ -40,6 +45,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8191,
     description: 'API, 8,191 tokens, 512 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
+    signup_url: OPENAI_SIGNUP_URL,
   },
   'text-embedding-3-large-256': {
     model_key: 'text-embedding-3-large',
@@ -49,6 +55,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8191,
     description: 'API, 8,191 tokens, 256 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
+    signup_url: OPENAI_SIGNUP_URL,
   },
   'text-embedding-ada-002': {
     model_key: 'text-embedding-ada-002',
@@ -58,6 +65,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 8191,
     description: 'API, 8,191 tokens, 1,536 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
+    signup_url: OPENAI_SIGNUP_URL,
   },
 };
 
@@ -158,3 +166,15 @@ class OpenAIEmbedResponseAdapter extends EmbedModelResponseAdapter {
     }));
   }
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'openai',
+  displayName: 'OpenAI',
+  AdapterClass: OpenAIEmbedAdapter,
+  models: OPENAI_EMBED_MODELS,
+  defaultDims: 1536,
+  requiresApiKey: true,
+  requiresHost: false,
+  signupUrl: OPENAI_SIGNUP_URL,
+});

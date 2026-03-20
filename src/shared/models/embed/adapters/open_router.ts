@@ -10,6 +10,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const OPEN_ROUTER_SIGNUP_URL = 'https://openrouter.ai/keys';
 
 /**
  * Adapter for OpenRouter's embedding API
@@ -213,3 +216,16 @@ function is_embedding_model(id: string): boolean {
   if (lower.includes('text-embedding')) return true;
   return false;
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'open_router',
+  displayName: 'OpenRouter',
+  AdapterClass: OpenRouterEmbedAdapter,
+  models: {},
+  defaultDims: 1536,
+  requiresApiKey: true,
+  requiresHost: false,
+  signupUrl: OPEN_ROUTER_SIGNUP_URL,
+  dynamicModels: true,
+});

@@ -10,6 +10,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const LM_STUDIO_SIGNUP_URL = 'https://lmstudio.ai/';
 
 /**
  * Parse LM Studio models from API response
@@ -166,3 +169,17 @@ class LmStudioEmbedResponseAdapter extends EmbedModelResponseAdapter {
     }));
   }
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'lm_studio',
+  displayName: 'LM Studio (Local)',
+  AdapterClass: LmStudioEmbedAdapter,
+  models: {},
+  defaultDims: 384,
+  requiresApiKey: false,
+  requiresHost: true,
+  defaultHost: 'http://localhost:1234',
+  signupUrl: LM_STUDIO_SIGNUP_URL,
+  dynamicModels: true,
+});

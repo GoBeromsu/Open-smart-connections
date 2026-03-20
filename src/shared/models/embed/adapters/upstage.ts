@@ -9,6 +9,9 @@ import {
   EmbedModelResponseAdapter,
 } from './_api';
 import type { EmbedResult, ModelInfo } from '../../../types/models';
+import { embedAdapterRegistry } from '../registry';
+
+export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
 
 /**
  * Upstage embedding models configuration
@@ -178,3 +181,15 @@ class UpstageEmbedResponseAdapter extends EmbedModelResponseAdapter {
     }));
   }
 }
+
+// Self-register
+embedAdapterRegistry.register({
+  name: 'upstage',
+  displayName: 'Upstage Solar',
+  AdapterClass: UpstageEmbedAdapter,
+  models: UPSTAGE_EMBED_MODELS,
+  defaultDims: 4096,
+  requiresApiKey: true,
+  requiresHost: false,
+  signupUrl: UPSTAGE_SIGNUP_URL,
+});

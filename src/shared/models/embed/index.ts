@@ -5,6 +5,8 @@
 
 export { EmbedModel } from './EmbedModel';
 export type { EmbedModelOptions } from './EmbedModel';
+export { embedAdapterRegistry } from './registry';
+export type { AdapterRegistration } from './registry';
 
 export {
   EmbedModelApiAdapter,
