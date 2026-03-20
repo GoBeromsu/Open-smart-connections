@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectionsView } from '../src/features/connections/ConnectionsView';
+import { ConnectionsView } from '../src/ui/connections/ConnectionsView';
 
 function createPluginStub() {
   return {
