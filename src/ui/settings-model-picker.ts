@@ -308,6 +308,10 @@ async function validateApiKey(
 
   try {
     const { adapter } = embedAdapterRegistry.createAdapter(adapterName, modelKey, adapterSettings);
+    if (typeof adapter.test_api_key !== 'function') {
+      setValidationStatus(statusEl, 'Adapter does not support validation', 'osc-api-validation-error');
+      return;
+    }
     await adapter.test_api_key();
     setValidationStatus(statusEl, 'API key valid', 'osc-api-validation-ok');
   } catch (e: unknown) {
@@ -355,14 +359,29 @@ export function renderApiKeyField(
     .addButton((button) => {
       button.setButtonText('Validate');
       button.onClick(async () => {
+        // Flush debounced API key write so validation uses the latest value
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+          const inputEl = setting.controlEl.querySelector('input[type="password"]') as HTMLInputElement | null;
+          if (inputEl) {
+            const trimmed = inputEl.value.trim();
+            if (trimmed !== currentApiKey) {
+              config.setConfig(`smart_sources.embed_model.${adapterName}.api_key`, trimmed);
+            }
+          }
+        }
         button.setButtonText('Validating...').setDisabled(true);
         try {
-          await validateApiKey(adapterName, config, setting.descEl);
+          await validateApiKey(adapterName, config, validationStatus);
         } finally {
           button.setButtonText('Validate').setDisabled(false);
         }
       });
     });
+
+  // Dedicated status element for validation feedback (preserves descEl children)
+  const validationStatus = setting.descEl.createEl('span', { cls: 'osc-api-validation-status' });
 
   // Add "Get API key" link below the description text
   if (signupUrl) {
