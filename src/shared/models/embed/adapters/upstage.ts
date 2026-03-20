@@ -39,6 +39,25 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for document indexing',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
   },
+  // Legacy aliases for backward compatibility with upstream SC settings
+  'solar-embedding-1-large-query': {
+    model_key: 'embedding-query',
+    model_name: 'Upstage Solar Query',
+    batch_size: 50,
+    dims: 4096,
+    max_tokens: 4000,
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for search queries',
+    endpoint: 'https://api.upstage.ai/v1/embeddings',
+  },
+  'solar-embedding-1-large-passage': {
+    model_key: 'embedding-passage',
+    model_name: 'Upstage Solar Passage',
+    batch_size: 50,
+    dims: 4096,
+    max_tokens: 4000,
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for document indexing',
+    endpoint: 'https://api.upstage.ai/v1/embeddings',
+  },
 };
 
 /**
@@ -97,8 +116,8 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
    */
   async embed_query(query: string): Promise<EmbedResult[]> {
     const originalKey = this.model_key;
-    // Switch to query model if currently using passage model
-    if (this.model_key === 'embedding-passage') {
+    // Switch to query model if currently using passage model (including legacy aliases)
+    if (this.model_key === 'embedding-passage' || this.model_key === 'solar-embedding-1-large-passage') {
       this.model_key = 'embedding-query';
     }
     try {
