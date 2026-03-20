@@ -45,21 +45,32 @@
   align-items: center;
 }
 
-.osc-icon-btn {
-  background: none;
-  border: none;
-  padding: 4px;
-  border-radius: var(--radius-s, 4px);
-  color: var(--icon-color, var(--text-muted));
-  cursor: pointer;
+/* Shared icon button styles (inlined from src/shared/styles.base.css) */
+.plugin-icon-btn {
   display: flex;
   align-items: center;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
 }
 
-.osc-icon-btn:hover {
-  background-color: var(--background-modifier-hover);
-  color: var(--icon-color-hover, var(--text-normal));
+.plugin-icon-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.plugin-icon-btn--active {
+  color: var(--interactive-accent);
+}
+
+.plugin-icon-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ─── Results List ─── */
@@ -149,9 +160,6 @@
   color: var(--text-faint);
 }
 
-.osc-icon-btn--active {
-  color: var(--interactive-accent, #7f6df2);
-}
 
 /* ─── Notices ─── */
 .plugin-notice {

@@ -224,11 +224,11 @@ export class ConnectionsView extends ItemView {
 
     // Pause/Play toggle
     const pauseBtn = actions.createEl('button', {
-      cls: 'osc-icon-btn',
+      cls: 'plugin-icon-btn',
       attr: { 'aria-label': this.session.paused ? 'Resume' : 'Pause' },
     });
     setIcon(pauseBtn, this.session.paused ? 'play' : 'pause');
-    if (this.session.paused) pauseBtn.addClass('osc-icon-btn--active');
+    if (this.session.paused) pauseBtn.addClass('plugin-icon-btn--active');
 
     this.registerDomEvent(pauseBtn, 'click', () => {
       this.session.paused = !this.session.paused;
@@ -241,13 +241,13 @@ export class ConnectionsView extends ItemView {
       }
       void this.saveSession();
       setIcon(pauseBtn, this.session.paused ? 'play' : 'pause');
-      pauseBtn.toggleClass('osc-icon-btn--active', this.session.paused);
+      pauseBtn.toggleClass('plugin-icon-btn--active', this.session.paused);
       pauseBtn.setAttribute('aria-label', this.session.paused ? 'Resume' : 'Pause');
     });
 
     // Folder filter
     const filterBtn = actions.createEl('button', {
-      cls: `osc-icon-btn${this.folderFilter ? ' osc-icon-btn--active' : ''}`,
+      cls: `plugin-icon-btn${this.folderFilter ? ' plugin-icon-btn--active' : ''}`,
       attr: { 'aria-label': this.folderFilter ? `Filter: ${this.folderFilter}` : 'Filter by folder' },
     });
     setIcon(filterBtn, 'filter');
@@ -284,7 +284,7 @@ export class ConnectionsView extends ItemView {
 
     // Refresh button
     const refreshBtn = actions.createEl('button', {
-      cls: 'osc-icon-btn',
+      cls: 'plugin-icon-btn',
       attr: { 'aria-label': 'Refresh' },
     });
     setIcon(refreshBtn, 'refresh-cw');

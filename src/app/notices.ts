@@ -1,6 +1,6 @@
 /**
  * @file notices.ts
- * @description Notice catalog and re-export of shared PluginNotices for Smart Connections
+ * @description Notice catalog and re-export of shared PluginNotices for Open Connections
  */
 
 import { PluginNotices, type NoticeCatalog } from '../shared/plugin-notices';

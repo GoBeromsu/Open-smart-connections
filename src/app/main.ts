@@ -1,6 +1,6 @@
 /**
  * @file main.ts
- * @description Main plugin entry point for Smart Connections
+ * @description Main plugin entry point for Open Connections
  * Replaces SmartEnv orchestration with proper Obsidian Plugin architecture
  */
 
@@ -141,7 +141,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   re_import_halted = false;
   _unloading = false;
   _installed_at: number | null = null;
-  readonly logger = new PluginLogger('Smart Connections');
+  readonly logger = new PluginLogger('Open Connections');
 
   // Core components
   embed_model?: EmbedModel;
@@ -172,7 +172,7 @@ export default class SmartConnectionsPlugin extends Plugin {
         settings: this.settings as unknown as Record<string, unknown>,
         saveSettings: () => this.saveSettings(),
       };
-      this._notices = new SmartConnectionsNotices(host, NOTICE_CATALOG, 'Smart Connections');
+      this._notices = new SmartConnectionsNotices(host, NOTICE_CATALOG, 'Open Connections');
     }
     return this._notices;
   }
@@ -186,7 +186,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
-    console.log('Loading Smart Connections plugin');
+    console.log('Loading Open Connections plugin');
 
     // Load settings first
     await this.loadSettings();
@@ -229,7 +229,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Register smart-connections codeblock
     this.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
       if (!this.source_collection) {
-        el.createEl('p', { text: 'Smart Connections is loading...', cls: 'osc-state-text' });
+        el.createEl('p', { text: 'Open Connections is loading...', cls: 'osc-state-text' });
         return;
       }
 
@@ -495,7 +495,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Wait for Obsidian Sync if active
     while (this.obsidianIsSyncing()) {
-      console.log('Smart Connections: Waiting for Obsidian Sync to finish');
+      console.log('Open Connections: Waiting for Obsidian Sync to finish');
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
@@ -606,7 +606,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   onunload(): void {
-    console.log('Unloading Smart Connections plugin');
+    console.log('Unloading Open Connections plugin');
     this._unloading = true;
 
     // Halt active embedding pipeline before clearing the queue

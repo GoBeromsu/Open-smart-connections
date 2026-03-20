@@ -1,8 +1,6 @@
-# Open Smart Connections
+# Open Connections
 
 An Obsidian plugin that uses AI embeddings to surface semantically related notes. Works offline with local models, or connect to any major embedding provider.
-
-> Community-maintained fork of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro, rebuilt for stability and extensibility.
 
 ## Features
 
@@ -143,10 +141,12 @@ Per GPL-3.0 Section 5, this modified version is clearly marked as different from
 ## Links
 
 - [Releases](https://github.com/GoBeromsu/Open-smart-connections/releases)
-- [Original Repository](https://github.com/brianpetro/obsidian-smart-connections)
-- [Original Documentation](https://smartconnections.app/)
 - [Obsidian](https://obsidian.md/)
 
 ---
 
-*This fork is not affiliated with or endorsed by the original Smart Connections project.*
+## Attribution
+
+This project is a fork of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro ([smartconnections.app](https://smartconnections.app/)). Rebuilt for stability, extensibility, and integration with the shared Obsidian plugin ecosystem.
+
+Per GPL-3.0 Section 5, this modified version is clearly marked as different from the original. This project is not affiliated with or endorsed by the original Smart Connections project.
