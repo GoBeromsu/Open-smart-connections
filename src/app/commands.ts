@@ -66,6 +66,65 @@ export function registerCommands(plugin: Plugin): void {
     },
   });
 
+  // Copy connections as Smart Context
+  plugin.addCommand({
+    id: 'copy-smart-context',
+    name: 'Copy connections as Smart Context',
+    callback: async () => {
+      const p = plugin as any;
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !p.source_collection) return;
+
+      const source = p.source_collection.get(activeFile.path);
+      if (!source?.vec) {
+        p.notices?.show('no_embedding_for_context');
+        return;
+      }
+
+      try {
+        const results = await p.source_collection.nearest_to(source, { limit: 20 });
+        if (!results || results.length === 0) return;
+
+        const lines = results.map((r: any) => {
+          const score = Math.round((r.score ?? 0) * 100);
+          const path = (r.item?.path ?? '').replace(/\.md$/, '');
+          return `- [[${path}]] (${score}%)`;
+        });
+
+        const contextText = `## Smart Context: ${activeFile.basename}\n\n${lines.join('\n')}`;
+        await navigator.clipboard.writeText(contextText);
+        p.notices?.show('context_copied');
+      } catch (e) {
+        console.error('Failed to copy smart context:', e);
+      }
+    },
+  });
+
+  // Random connection
+  plugin.addCommand({
+    id: 'random-connection',
+    name: 'Open random connection',
+    callback: async () => {
+      const p = plugin as any;
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !p.source_collection) return;
+
+      const source = p.source_collection.get(activeFile.path);
+      if (!source?.vec) return;
+
+      try {
+        const results = await p.source_collection.nearest_to(source, { limit: 20 });
+        if (!results || results.length === 0) return;
+
+        const randomIdx = Math.floor(Math.random() * results.length);
+        const randomPath = results[randomIdx].item?.path;
+        if (randomPath) p.open_note(randomPath);
+      } catch (e) {
+        console.error('Failed to find random connection:', e);
+      }
+    },
+  });
+
   // Clear cache
   plugin.addCommand({
     id: 'clear-cache',

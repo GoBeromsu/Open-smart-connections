@@ -107,6 +107,12 @@ export interface EmbedModelAdapter {
   embed_batch(inputs: Array<EmbedInput | { _embed_input: string }>): Promise<EmbedResult[]>;
 
   /**
+   * Embed a search query. Uses query-specific model when available
+   * (e.g., Upstage embedding-query vs embedding-passage).
+   */
+  embed_query?(query: string): Promise<EmbedResult[]>;
+
+  /**
    * Get model information
    */
   get_model_info(model_key?: string): ModelInfo | undefined;

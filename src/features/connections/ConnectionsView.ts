@@ -3,12 +3,21 @@ import {
   WorkspaceLeaf,
   TFile,
   ButtonComponent,
+  Menu,
   setIcon,
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../../app/main';
 import { showResultContextMenu } from '../../views/result-context-menu';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
+
+/** Persistent pin/hide state stored in plugin data */
+interface ConnectionsSessionState {
+  pinnedKeys: string[];
+  hiddenKeys: string[];
+  paused: boolean;
+  pausedPath?: string;
+}
 
 /**
  * ConnectionsView - Shows connections for the active note
@@ -17,11 +26,31 @@ export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 export class ConnectionsView extends ItemView {
   plugin: SmartConnectionsPlugin;
   container: HTMLElement;
+  private session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
+  private folderFilter: string = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
+    this.loadSession();
+  }
+
+  private loadSession(): void {
+    const saved = (this.plugin.settings as any)._connections_session;
+    if (saved && typeof saved === 'object') {
+      this.session = {
+        pinnedKeys: saved.pinnedKeys ?? [],
+        hiddenKeys: saved.hiddenKeys ?? [],
+        paused: saved.paused ?? false,
+        pausedPath: saved.pausedPath,
+      };
+    }
+  }
+
+  private async saveSession(): Promise<void> {
+    (this.plugin.settings as any)._connections_session = this.session;
+    await this.plugin.saveSettings();
   }
 
   getViewType(): string {
@@ -43,7 +72,7 @@ export class ConnectionsView extends ItemView {
 
     this.registerEvent(
       this.app.workspace.on('file-open', (file: TFile | null) => {
-        if (file) void this.renderView(file.path);
+        if (file && !this.session.paused) void this.renderView(file.path);
       }),
     );
 
@@ -192,6 +221,68 @@ export class ConnectionsView extends ItemView {
     header.createSpan({ text: fileName, cls: 'osc-header-title' });
 
     const actions = header.createDiv({ cls: 'osc-header-actions' });
+
+    // Pause/Play toggle
+    const pauseBtn = actions.createEl('button', {
+      cls: 'osc-icon-btn',
+      attr: { 'aria-label': this.session.paused ? 'Resume' : 'Pause' },
+    });
+    setIcon(pauseBtn, this.session.paused ? 'play' : 'pause');
+    if (this.session.paused) pauseBtn.addClass('osc-icon-btn--active');
+
+    this.registerDomEvent(pauseBtn, 'click', () => {
+      this.session.paused = !this.session.paused;
+      if (this.session.paused) {
+        this.session.pausedPath = targetPath;
+      } else {
+        delete this.session.pausedPath;
+        const active = this.app.workspace.getActiveFile();
+        if (active) void this.renderView(active.path);
+      }
+      void this.saveSession();
+      setIcon(pauseBtn, this.session.paused ? 'play' : 'pause');
+      pauseBtn.toggleClass('osc-icon-btn--active', this.session.paused);
+      pauseBtn.setAttribute('aria-label', this.session.paused ? 'Resume' : 'Pause');
+    });
+
+    // Folder filter
+    const filterBtn = actions.createEl('button', {
+      cls: `osc-icon-btn${this.folderFilter ? ' osc-icon-btn--active' : ''}`,
+      attr: { 'aria-label': this.folderFilter ? `Filter: ${this.folderFilter}` : 'Filter by folder' },
+    });
+    setIcon(filterBtn, 'filter');
+
+    this.registerDomEvent(filterBtn, 'click', () => {
+      const menu = new Menu();
+      menu.addItem((i) =>
+        i.setTitle('All folders').setIcon('folder').onClick(() => {
+          this.folderFilter = '';
+          void this.renderView(targetPath);
+        }),
+      );
+
+      // Get unique top-level folders from results
+      const folders = new Set<string>();
+      for (const r of results || []) {
+        const path = r.item?.path ?? '';
+        const parts = path.split('/');
+        if (parts.length > 1) folders.add(parts[0]);
+      }
+      for (const folder of Array.from(folders).sort()) {
+        menu.addItem((i) =>
+          i
+            .setTitle(folder)
+            .setIcon(this.folderFilter === folder ? 'check' : 'folder')
+            .onClick(() => {
+              this.folderFilter = this.folderFilter === folder ? '' : folder;
+              void this.renderView(targetPath);
+            }),
+        );
+      }
+      menu.showAtMouseEvent(new MouseEvent('click', { clientX: filterBtn.getBoundingClientRect().left, clientY: filterBtn.getBoundingClientRect().bottom }));
+    });
+
+    // Refresh button
     const refreshBtn = actions.createEl('button', {
       cls: 'osc-icon-btn',
       attr: { 'aria-label': 'Refresh' },
@@ -217,36 +308,67 @@ export class ConnectionsView extends ItemView {
       void this.renderView(targetPath);
     });
 
-    if (!results || results.length === 0) {
+    // Filter hidden and by folder
+    const filtered = (results || []).filter(r => {
+      const key = r.item?.path ?? '';
+      if (this.session.hiddenKeys.includes(key)) return false;
+      if (this.folderFilter && !key.startsWith(this.folderFilter + '/')) return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
       this.showEmpty('No similar notes found', false);
       return;
     }
 
+    // Sort: pinned first, then by score
+    const pinnedSet = new Set(this.session.pinnedKeys);
+    filtered.sort((a, b) => {
+      const aPinned = pinnedSet.has(a.item?.path ?? '') ? 1 : 0;
+      const bPinned = pinnedSet.has(b.item?.path ?? '') ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return (b.score ?? 0) - (a.score ?? 0);
+    });
+
     const list = this.container.createDiv({ cls: 'osc-results', attr: { role: 'list' } });
 
-    for (const result of results) {
+    for (const result of filtered) {
       const score = result.score ?? result.sim ?? 0;
-      const name =
-        result.item?.path?.split('/').pop()?.replace(/\.md$/, '') ?? 'Unknown';
       const fullPath = result.item?.path ?? '';
+      const parts = fullPath.replace(/\.md$/, '').split('/');
+      const name = parts.pop() ?? 'Unknown';
+      const breadcrumb = parts.length > 0 ? parts.join(' / ') : '';
+      const isPinned = pinnedSet.has(fullPath);
+      const scorePercent = Math.round(score * 100);
 
       const item = list.createDiv({
-        cls: 'osc-result-item',
+        cls: `osc-result-item${isPinned ? ' osc-result-item--pinned' : ''}`,
         attr: {
           role: 'listitem',
           tabindex: '0',
-          'aria-label': `${name} — similarity ${(Math.round(score * 100) / 100).toFixed(2)}`,
+          'aria-label': `${name} — ${scorePercent}% similarity`,
         },
       });
 
+      // Score badge as percentage
       const scoreBadge = item.createSpan({ cls: 'osc-score' });
-      const scoreVal = Math.round(score * 100) / 100;
-      scoreBadge.setText(scoreVal.toFixed(2));
+      scoreBadge.setText(`${scorePercent}%`);
       if (score >= 0.85) scoreBadge.addClass('osc-score--high');
       else if (score >= 0.7) scoreBadge.addClass('osc-score--medium');
       else scoreBadge.addClass('osc-score--low');
 
-      item.createSpan({ text: name, cls: 'osc-result-title' });
+      // Content: title + breadcrumb
+      const content = item.createDiv({ cls: 'osc-result-content' });
+      content.createSpan({ text: name, cls: 'osc-result-title' });
+      if (breadcrumb) {
+        content.createSpan({ text: breadcrumb, cls: 'osc-result-breadcrumb' });
+      }
+
+      // Pin indicator
+      if (isPinned) {
+        const pinIcon = item.createSpan({ cls: 'osc-pin-icon' });
+        setIcon(pinIcon, 'pin');
+      }
 
       this.registerDomEvent(item, 'click', (e) => {
         this.plugin.open_note(fullPath, e);
@@ -265,7 +387,23 @@ export class ConnectionsView extends ItemView {
       });
 
       this.registerDomEvent(item, 'contextmenu', (e) => {
-        showResultContextMenu(this.app, fullPath, e);
+        showResultContextMenu(this.app, fullPath, e, {
+          isPinned,
+          onPin: () => {
+            if (isPinned) {
+              this.session.pinnedKeys = this.session.pinnedKeys.filter(k => k !== fullPath);
+            } else {
+              this.session.pinnedKeys.push(fullPath);
+            }
+            void this.saveSession();
+            void this.renderView(targetPath);
+          },
+          onHide: () => {
+            this.session.hiddenKeys.push(fullPath);
+            void this.saveSession();
+            void this.renderView(targetPath);
+          },
+        });
       });
 
       this.registerDomEvent(item, 'mouseover', (e) => {

@@ -69,8 +69,10 @@ export async function lookup(
     blocks_only = false,
   } = opts;
 
-  // Embed the query
-  const embed_results = await embed_model.embed_batch([{ _embed_input: query }]);
+  // Embed the query (uses query-specific model if available, e.g. Upstage embedding-query)
+  const embed_results = typeof embed_model.embed_query === 'function'
+    ? await embed_model.embed_query(query)
+    : await embed_model.embed_batch([{ _embed_input: query }]);
   if (!embed_results || embed_results.length === 0 || !embed_results[0].vec) {
     throw new Error('Failed to embed query');
   }

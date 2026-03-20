@@ -1,11 +1,11 @@
 /**
  * @file EntityCollection.ts
- * @description Base collection class with CRUD and PGlite persistence
+ * @description Base collection class with CRUD and SQLite persistence
  */
 
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../types/entities';
-import { PgliteDataAdapter } from './adapters/pglite-data-adapter';
+import { SqliteDataAdapter } from './adapters/sqlite-data-adapter';
 import type { EmbeddingPipeline } from '../search';
 
 /**
@@ -16,8 +16,8 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   /** Collection items keyed by entity key */
   items: Record<string, T> = {};
 
-  /** Data adapter for PGlite persistence */
-  data_adapter: PgliteDataAdapter<T>;
+  /** Data adapter for SQLite persistence */
+  data_adapter: SqliteDataAdapter<T>;
 
   /** Embedding pipeline for batch processing */
   embedding_pipeline?: EmbeddingPipeline;
@@ -58,7 +58,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     this.embed_model_key = embed_model_key;
     this.collection_key = collection_key || 'smart_sources';
     this.storage_namespace = storage_namespace || data_dir;
-    this.data_adapter = new PgliteDataAdapter(this, this.collection_key, this.storage_namespace);
+    this.data_adapter = new SqliteDataAdapter(this, this.collection_key, this.storage_namespace);
   }
 
   /**

@@ -6,11 +6,22 @@
 import { Menu, TFile } from 'obsidian';
 import type { App } from 'obsidian';
 
+export interface ConnectionActions {
+  isPinned?: boolean;
+  onPin?: () => void;
+  onHide?: () => void;
+}
+
 /**
  * Show a context menu for a result item with standard actions:
- * open in new tab, open to the right, and copy link.
+ * open in new tab, open to the right, copy link, pin/hide.
  */
-export function showResultContextMenu(app: App, fullPath: string, event: MouseEvent): void {
+export function showResultContextMenu(
+  app: App,
+  fullPath: string,
+  event: MouseEvent,
+  actions?: ConnectionActions,
+): void {
   const menu = new Menu();
 
   menu.addItem((i) =>
@@ -45,6 +56,28 @@ export function showResultContextMenu(app: App, fullPath: string, event: MouseEv
           .catch((err) => console.error('Failed to copy link to clipboard:', err));
       }),
   );
+
+  if (actions) {
+    menu.addSeparator();
+
+    if (actions.onPin) {
+      menu.addItem((i) =>
+        i
+          .setTitle(actions.isPinned ? 'Unpin' : 'Pin to top')
+          .setIcon(actions.isPinned ? 'pin-off' : 'pin')
+          .onClick(() => actions.onPin!()),
+      );
+    }
+
+    if (actions.onHide) {
+      menu.addItem((i) =>
+        i
+          .setTitle('Hide connection')
+          .setIcon('eye-off')
+          .onClick(() => actions.onHide!()),
+      );
+    }
+  }
 
   menu.showAtMouseEvent(event);
 }
