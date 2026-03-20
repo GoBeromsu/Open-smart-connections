@@ -5,6 +5,7 @@
 
 import { Setting } from 'obsidian';
 import { TRANSFORMERS_EMBED_MODELS } from '../shared/models/embed/adapters/transformers';
+import { embedAdapterRegistry } from '../shared/models/embed/registry';
 
 interface ConfirmReembedFn {
   (message: string): Promise<boolean>;
@@ -70,22 +71,21 @@ export function getTransformersKnownModels(): Array<{ value: string; name: strin
 }
 
 function getKnownModels(): Record<string, Array<{ value: string; name: string }>> {
-  return {
+  const result: Record<string, Array<{ value: string; name: string }>> = {
     transformers: getTransformersKnownModels(),
     ollama: OLLAMA_QUICK_PICKS,
-    openai: [
-      { value: 'text-embedding-3-small', name: 'text-embedding-3-small (1536d)' },
-      { value: 'text-embedding-3-large', name: 'text-embedding-3-large (3072d)' },
-      { value: 'text-embedding-ada-002', name: 'text-embedding-ada-002 (1536d)' },
-    ],
-    gemini: [
-      { value: 'text-embedding-004', name: 'text-embedding-004 (768d)' },
-    ],
-    upstage: [
-      { value: 'solar-embedding-1-large-passage', name: 'Solar Embedding Large Passage' },
-      { value: 'solar-embedding-1-large-query', name: 'Solar Embedding Large Query' },
-    ],
   };
+
+  // Derive model lists from registry for all static-model adapters
+  for (const reg of embedAdapterRegistry.getAll()) {
+    if (reg.name === 'transformers' || reg.name === 'ollama') continue;
+    const opts = embedAdapterRegistry.getModelPickerOptions(reg.name);
+    if (opts.length > 0) {
+      result[reg.name] = opts;
+    }
+  }
+
+  return result;
 }
 
 function renderOllamaModelPicker(deps: ModelPickerDeps, currentModelKey: string): void {
@@ -279,11 +279,17 @@ export function renderApiKeyField(
     '',
   );
 
+  // Show signup link from registry
+  const reg = embedAdapterRegistry.get(adapterName);
+  const signupUrl = reg?.signupUrl;
+
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  new Setting(containerEl)
+  const setting = new Setting(containerEl)
     .setName('API Key')
-    .setDesc('API key for authentication')
+    .setDesc(signupUrl
+      ? 'API key for authentication'
+      : 'API key for authentication')
     .addText((text) => {
       text.inputEl.type = 'password';
       text.setPlaceholder('Enter API key');
@@ -297,6 +303,19 @@ export function renderApiKeyField(
         }, 500);
       });
     });
+
+  // Add "Get API key" link below the setting
+  if (signupUrl) {
+    const linkEl = setting.descEl.createEl('a', {
+      text: `Get ${reg?.displayName ?? adapterName} API key`,
+      href: signupUrl,
+      cls: 'osc-signup-link',
+    });
+    linkEl.setAttr('target', '_blank');
+    setting.descEl.createEl('br');
+    setting.descEl.appendText(' ');
+    setting.descEl.appendChild(linkEl);
+  }
 }
 
 /**
