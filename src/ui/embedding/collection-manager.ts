@@ -163,20 +163,11 @@ export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Re
   return settings && typeof settings === 'object' ? settings : {};
 }
 
-const STORAGE_NAMESPACE_ID = 'open-connections';
-
 function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
   const adapter: any = plugin.app.vault.adapter as any;
   const basePath = typeof adapter?.getBasePath === 'function'
     ? String(adapter.getBasePath())
     : '';
   const vaultName = plugin.app.vault.getName();
-  return `${STORAGE_NAMESPACE_ID}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
-}
-
-/**
- * Compute the legacy storage namespace (pre-rename) for migration checks.
- */
-export function resolveLegacyStorageNamespace(pluginId: string, basePath: string, vaultName: string, dataDir: string): string {
-  return `${pluginId}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
+  return `${plugin.manifest.id}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
 }
