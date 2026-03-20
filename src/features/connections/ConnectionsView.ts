@@ -3,6 +3,7 @@ import {
   WorkspaceLeaf,
   TFile,
   ButtonComponent,
+  Menu,
   setIcon,
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../../app/main';
@@ -26,6 +27,7 @@ export class ConnectionsView extends ItemView {
   plugin: SmartConnectionsPlugin;
   container: HTMLElement;
   private session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
+  private folderFilter: string = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -243,6 +245,43 @@ export class ConnectionsView extends ItemView {
       pauseBtn.setAttribute('aria-label', this.session.paused ? 'Resume' : 'Pause');
     });
 
+    // Folder filter
+    const filterBtn = actions.createEl('button', {
+      cls: `osc-icon-btn${this.folderFilter ? ' osc-icon-btn--active' : ''}`,
+      attr: { 'aria-label': this.folderFilter ? `Filter: ${this.folderFilter}` : 'Filter by folder' },
+    });
+    setIcon(filterBtn, 'filter');
+
+    this.registerDomEvent(filterBtn, 'click', () => {
+      const menu = new Menu();
+      menu.addItem((i) =>
+        i.setTitle('All folders').setIcon('folder').onClick(() => {
+          this.folderFilter = '';
+          void this.renderView(targetPath);
+        }),
+      );
+
+      // Get unique top-level folders from results
+      const folders = new Set<string>();
+      for (const r of results || []) {
+        const path = r.item?.path ?? '';
+        const parts = path.split('/');
+        if (parts.length > 1) folders.add(parts[0]);
+      }
+      for (const folder of Array.from(folders).sort()) {
+        menu.addItem((i) =>
+          i
+            .setTitle(folder)
+            .setIcon(this.folderFilter === folder ? 'check' : 'folder')
+            .onClick(() => {
+              this.folderFilter = this.folderFilter === folder ? '' : folder;
+              void this.renderView(targetPath);
+            }),
+        );
+      }
+      menu.showAtMouseEvent(new MouseEvent('click', { clientX: filterBtn.getBoundingClientRect().left, clientY: filterBtn.getBoundingClientRect().bottom }));
+    });
+
     // Refresh button
     const refreshBtn = actions.createEl('button', {
       cls: 'osc-icon-btn',
@@ -269,10 +308,12 @@ export class ConnectionsView extends ItemView {
       void this.renderView(targetPath);
     });
 
-    // Filter hidden, sort pinned to top
+    // Filter hidden and by folder
     const filtered = (results || []).filter(r => {
       const key = r.item?.path ?? '';
-      return !this.session.hiddenKeys.includes(key);
+      if (this.session.hiddenKeys.includes(key)) return false;
+      if (this.folderFilter && !key.startsWith(this.folderFilter + '/')) return false;
+      return true;
     });
 
     if (filtered.length === 0) {
