@@ -13,23 +13,30 @@ import type { EmbedResult, ModelInfo } from '../../../types/models';
 /**
  * Upstage embedding models configuration
  */
+/**
+ * Upstage Solar embedding models.
+ * Both models share the same 4096-dim vector space.
+ * - Use `embedding-passage` for indexing documents
+ * - Use `embedding-query` for search queries
+ * The adapter handles this split automatically.
+ */
 export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
   'embedding-query': {
     model_key: 'embedding-query',
-    model_name: 'Upstage Embedding Query',
-    batch_size: 25,
+    model_name: 'Upstage Solar Query',
+    batch_size: 50,
     dims: 4096,
     max_tokens: 4000,
-    description: 'API, 4,000 tokens, 4,096 dim - optimized for queries',
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for search queries',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
   },
   'embedding-passage': {
     model_key: 'embedding-passage',
-    model_name: 'Upstage Embedding Passage',
-    batch_size: 25,
+    model_name: 'Upstage Solar Passage',
+    batch_size: 50,
     dims: 4096,
     max_tokens: 4000,
-    description: 'API, 4,000 tokens, 4,096 dim - optimized for passages',
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for document indexing',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
   },
 };
@@ -81,6 +88,24 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     return await this.trim_input_to_max_tokens(embed_input, tokens);
+  }
+
+  /**
+   * Override embed_query to use embedding-query model for search queries.
+   * Both query and passage models share the same 4096-dim vector space,
+   * so query vectors can be compared directly against passage vectors.
+   */
+  async embed_query(query: string): Promise<EmbedResult[]> {
+    const originalKey = this.model_key;
+    // Switch to query model if currently using passage model
+    if (this.model_key === 'embedding-passage') {
+      this.model_key = 'embedding-query';
+    }
+    try {
+      return await this.embed_batch([{ embed_input: query }]);
+    } finally {
+      this.model_key = originalKey;
+    }
   }
 
   /**

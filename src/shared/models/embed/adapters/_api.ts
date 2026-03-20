@@ -215,6 +215,15 @@ export class EmbedModelApiAdapter {
   }
 
   /**
+   * Embed a search query. Subclasses can override to use a query-specific model
+   * (e.g., Upstage uses embedding-query vs embedding-passage).
+   * Defaults to embed_batch.
+   */
+  async embed_query(query: string): Promise<EmbedResult[]> {
+    return this.embed_batch([{ embed_input: query }]);
+  }
+
+  /**
    * Validate API key by making test request
    * @returns True if API key is valid
    */
