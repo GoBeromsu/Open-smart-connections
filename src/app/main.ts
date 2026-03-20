@@ -186,6 +186,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    this._unloading = false;
     console.log('Loading Open Connections plugin');
 
     // Load settings first

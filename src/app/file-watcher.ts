@@ -216,7 +216,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
     plugin.dispatchKernelEvent({ type: 'REIMPORT_COMPLETED' });
 
     // If the queue still has source-level items, schedule another re-import
-    if (getReImportPaths(plugin).length > 0) {
+    if (!plugin._unloading && getReImportPaths(plugin).length > 0) {
       deferReImport(plugin, 'Re-import queue still has pending updates');
     }
   } catch (error) {
