@@ -543,6 +543,7 @@ function handleRunCompleted(
   stats: EmbedQueueStats,
 ): number {
   ctx.phase = 'completed';
+  plugin.current_embed_context = null;
   plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
   plugin.notices.show('embedding_complete', { success: stats.success });
   // Clear the orchestration queue before re-scanning; queueUnembeddedEntities
@@ -718,6 +719,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     });
 
     if (plugin.active_embed_run_id !== runId) {
+      plugin.current_embed_context = null;
       plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
       return stats;
     }
@@ -743,15 +745,21 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     return stats;
   } catch (error) {
     if (plugin.active_embed_run_id !== runId) {
+      plugin.current_embed_context = null;
       plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
       throw error;
     }
+    plugin.current_embed_context = null;
     handleRunFailed(plugin, ctx, error);
     throw error;
   } finally {
     if (plugin.active_embed_run_id === runId) {
       emitEmbedProgress(plugin, ctx, { done: true });
-      plugin.current_embed_context = { ...ctx };
+      if (ctx.phase === 'failed') {
+        plugin.current_embed_context = null;
+      } else {
+        plugin.current_embed_context = { ...ctx };
+      }
       plugin.active_embed_run_id = null;
       clearEmbedNotice(plugin);
       dispatchQueueSnapshot(plugin);

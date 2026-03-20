@@ -31,6 +31,8 @@ export class ConnectionsView extends ItemView {
   private session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
   private folderFilter: string = '';
   private progressEl: HTMLElement | null = null;
+  private lastRenderedPath: string | null = null;
+  private autoEmbedRequestedForPath: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -86,8 +88,13 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
-      this.app.workspace.on('smart-connections:embed-state-changed' as any, () => {
+      this.app.workspace.on('smart-connections:embed-state-changed' as any, (payload: any) => {
         this.updateProgressBanner();
+        // Auto-refresh when embedding finishes and we have a stale view
+        if (payload?.event?.type === 'RUN_FINISHED' && this.lastRenderedPath) {
+          this.autoEmbedRequestedForPath = null;
+          void this.renderView(this.lastRenderedPath);
+        }
       }),
     );
 
@@ -119,95 +126,86 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
+    this.lastRenderedPath = targetPath;
+
     if (!this.plugin.ready || !this.plugin.source_collection) {
       this.showLoading('Smart Connections is initializing...');
       return;
     }
 
+    if (this.plugin.status_state === 'error') {
+      this.showError(EMBED_ERROR_MSG);
+      return;
+    }
+
     const source = this.plugin.source_collection.get(targetPath);
-    const is_source_stale = !!source?.is_unembedded;
-    const kernelState = this.plugin.getEmbeddingKernelState?.();
-    const kernelPhase = kernelState?.phase;
-    const queuedTotal = kernelState?.queue?.queuedTotal ?? 0;
-    const isEmbedActive = kernelPhase === 'running';
-    const isWaitingForReembed = isEmbedActive || queuedTotal > 0;
 
     if (!source) {
       if (!this.plugin.embed_ready) {
-        if (this.plugin.status_state === 'error') {
-          this.showError(EMBED_ERROR_MSG);
-          return;
-        }
         this.showLoading(
           'Smart Connections is loading... Connections will appear when embedding is complete.',
         );
-        return;
+      } else {
+        this.showEmpty('Source not found. Check exclusion settings.');
       }
-      this.showEmpty('Source not found. Check exclusion settings.');
       return;
     }
 
-    if (!source.vec || is_source_stale) {
-      if (!this.plugin.embed_ready) {
-        if (this.plugin.status_state === 'error') {
-          this.showError(EMBED_ERROR_MSG);
-          return;
-        }
-        if (is_source_stale) {
-          if (isWaitingForReembed) {
-            this.showLoading(
-              'Embedding model switched. Re-embedding this note for the active model...',
-            );
-          } else {
-            this.showEmpty('No embedding available. The note may be too short or excluded.');
-          }
-          return;
-        }
-        const cached = await this.findCachedConnections(source);
-        if (cached.length > 0) {
-          this.renderResults(targetPath, cached);
-          this.addBanner('Embedding model loading... Results may be incomplete.');
-          return;
-        }
-        this.showLoading(
-          'Smart Connections is loading... Connections will appear when embedding is complete.',
-        );
+    const is_source_stale = !!source.is_unembedded;
+    const has_vec = !!source.vec;
+
+    // Try to show results (even if stale — old vectors still produce useful connections)
+    if (has_vec) {
+      try {
+        const results = this.plugin.source_collection.nearest_to
+          ? await this.plugin.source_collection.nearest_to(source, {})
+          : [];
+        this.renderResults(targetPath, results);
+      } catch (e) {
+        this.showError('Failed to find connections: ' + (e as Error).message);
         return;
       }
+
+      // If stale, show banner and auto-queue re-embedding
       if (is_source_stale) {
-        if (this.plugin.status_state === 'error') {
-          this.showError(EMBED_ERROR_MSG);
-          return;
-        }
-        if (isWaitingForReembed) {
-          this.showLoading(
-            'Re-embedding this note for the active model. Results will appear when ready.',
-          );
-        } else {
-          this.showEmpty('No embedding available. The note may be too short or excluded.');
-        }
-        return;
+        this.addBanner('Re-embedding in progress. Results may be from a previous model.');
+        this.autoQueueEmbedding(source);
       }
-      this.showEmpty('No embedding available. The note may be too short or excluded.');
       return;
     }
 
-    try {
-      const results = this.plugin.source_collection.nearest_to
-        ? await this.plugin.source_collection.nearest_to(source, {})
-        : [];
-      this.renderResults(targetPath, results);
-    } catch (e) {
-      this.showError('Failed to find connections: ' + (e as Error).message);
+    // No vector at all — auto-queue and show appropriate state
+    if (is_source_stale) {
+      this.autoQueueEmbedding(source);
+      this.showLoading('Embedding this note... Results will appear when ready.');
+    } else if (!this.plugin.embed_ready) {
+      this.showLoading(
+        'Smart Connections is loading... Connections will appear when embedding is complete.',
+      );
+    } else {
+      this.showEmpty('No embedding available. The note may be too short or excluded.');
     }
   }
 
-  private async findCachedConnections(source: any): Promise<any[]> {
-    if (!this.plugin.source_collection) return [];
+  /**
+   * Auto-queue the given source for re-embedding without waiting.
+   * Fire-and-forget — the view will auto-refresh on RUN_FINISHED.
+   */
+  private autoQueueEmbedding(source: any): void {
+    if (!this.plugin.embed_ready) return;
+    if (this.autoEmbedRequestedForPath === source.key) return;
+    this.autoEmbedRequestedForPath = source.key;
     try {
-      return await this.plugin.source_collection.nearest_to(source, {});
+      source.queue_embed();
+      this.plugin.embed_job_queue?.enqueue({
+        entityKey: source.key,
+        contentHash: source.read_hash || '',
+        sourcePath: source.key.split('#')[0],
+        enqueuedAt: Date.now(),
+      });
+      void this.plugin.runEmbeddingJob('Auto re-embed for connections view');
     } catch {
-      return [];
+      // Non-critical — embedding will happen via normal pipeline eventually
     }
   }
 
@@ -368,7 +366,7 @@ export class ConnectionsView extends ItemView {
 
     const list = this.container.createDiv({ cls: 'osc-results', attr: { role: 'list' } });
 
-    for (const result of filtered) {
+    for (const [idx, result] of filtered.entries()) {
       const score = result.score ?? result.sim ?? 0;
       const fullPath = result.item?.path ?? '';
       const parts = fullPath.replace(/\.md$/, '').split('/');
@@ -385,6 +383,7 @@ export class ConnectionsView extends ItemView {
           'aria-label': `${name} — ${scorePercent}% similarity`,
         },
       });
+      item.style.setProperty('--osc-result-delay', `${Math.min(idx * 25, 500)}ms`);
 
       // Score badge as percentage
       const scoreBadge = item.createSpan({ cls: 'osc-score' });

@@ -29,6 +29,18 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
+/* Info banner (stale results, model switching) */
+.osc-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--osc-color-warning-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--osc-color-warning) 25%, transparent);
+  font-size: var(--font-smallest, 11px);
+  color: var(--text-muted);
+}
+
 /* Embedding progress banner */
 .osc-embed-progress {
   display: flex;
@@ -113,6 +125,19 @@
   padding: 6px 12px;
   cursor: pointer;
   transition: background-color 0.1s ease;
+  animation: osc-result-fade-in 0.2s ease both;
+  animation-delay: var(--osc-result-delay, 0ms);
+}
+
+@keyframes osc-result-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .osc-result-item:hover {
