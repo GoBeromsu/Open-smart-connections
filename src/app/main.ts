@@ -189,45 +189,32 @@ export default class SmartConnectionsPlugin extends Plugin {
     this._unloading = false;
     console.log('Loading Open Connections plugin');
 
-    // Load settings first
     await this.loadSettings();
     this.ensureEmbeddingKernel();
 
-    // Wait for workspace to be ready before full initialization
     if (this.app.workspace.layoutReady) {
-      // Layout already ready, initialize immediately
       await this.initialize();
     } else {
-      // Layout not ready yet, wait for it
       this.app.workspace.onLayoutReady(async () => {
         await this.initialize();
       });
     }
 
-    // Register views
     this.registerView(
       CONNECTIONS_VIEW_TYPE,
       (leaf) => new ConnectionsView(leaf, this),
     );
-
-    // Register Lookup view
     this.registerView(
       LOOKUP_VIEW_TYPE,
       (leaf) => new LookupView(leaf, this),
     );
 
-    // Add settings tab
     this.addSettingTab(new SmartConnectionsSettingsTab(this.app, this));
-
-    // Register commands
     registerCommands(this);
 
-    // Add ribbon icon
     this.addRibbonIcon('network', 'Open Connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
-
-    // Register smart-connections codeblock
     this.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
       if (!this.source_collection) {
         el.createEl('p', { text: 'Open Connections is loading...', cls: 'osc-state-text' });
@@ -299,102 +286,55 @@ export default class SmartConnectionsPlugin extends Plugin {
     const phase1Start = performance.now();
     console.log('[SC][Init] ▶ Phase 1: Core initialization starting');
 
-    const logStep = (step: string, num: number, total: number = 6) =>
-      console.log(`[SC][Init]   [${num}/${total}] ${step}...`);
-    const logStepDone = (step: string, num: number, total: number = 6, elapsed: number, extra?: string) =>
-      console.log(`[SC][Init]   [${num}/${total}] ${step} ✓ (${elapsed.toFixed(0)}ms)${extra ? ` — ${extra}` : ''}`);
+    const TOTAL = 6;
+    let step = 0;
 
-    // Each step has own try-catch, pushes errors, continues
-
-    // 1. Load user state
-    {
+    /**
+     * Run an init step with timing and error capture.
+     * Returns true on success, false on failure.
+     * If `critical` is true, failure should abort the phase (caller checks return value).
+     */
+    const runStep = async (
+      name: string,
+      fn: () => void | Promise<void>,
+      opts?: { critical?: boolean; onSuccess?: () => string | undefined },
+    ): Promise<boolean> => {
+      step++;
+      const tag = `[${step}/${TOTAL}]`;
+      console.log(`[SC][Init]   ${tag} ${name}...`);
       const t = performance.now();
-      logStep('Loading user state', 1);
       try {
-        await this.loadUserState();
-        logStepDone('Loading user state', 1, 6, performance.now() - t);
+        await fn();
+        const extra = opts?.onSuccess?.();
+        console.log(`[SC][Init]   ${tag} ${name} ✓ (${(performance.now() - t).toFixed(0)}ms)${extra ? ` — ${extra}` : ''}`);
+        return true;
       } catch (e) {
-        this.init_errors.push({ phase: 'loadUserState', error: e as Error });
-        console.error(`[SC][Init]   [1/6] Loading user state ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+        this.init_errors.push({ phase: name, error: e as Error });
+        console.error(`[SC][Init]   ${tag} ${name} ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
+        if (opts?.critical) {
+          this.ready = false;
+          this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: `Failed: ${name}` });
+          console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): ${name} failed`);
+        }
+        return false;
       }
-    }
+    };
 
-    // 2. Wait for sync
-    {
-      const t = performance.now();
-      logStep('Waiting for sync', 2);
-      try {
-        await this.waitForSync();
-        logStepDone('Waiting for sync', 2, 6, performance.now() - t);
-      } catch (e) {
-        this.init_errors.push({ phase: 'waitForSync', error: e as Error });
-        console.error(`[SC][Init]   [2/6] Waiting for sync ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-      }
-    }
+    await runStep('Loading user state', () => this.loadUserState());
+    await runStep('Waiting for sync', () => this.waitForSync());
 
-    // 3. Initialize collections (NO embed model needed!)
-    {
-      const t = performance.now();
-      logStep('Initializing collections', 3);
-      try {
-        await this.initCollections();
-        logStepDone('Initializing collections', 3, 6, performance.now() - t);
-      } catch (e) {
-        this.init_errors.push({ phase: 'initCollections', error: e as Error });
-        console.error(`[SC][Init]   [3/6] Initializing collections ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-        // Collections are critical — abort initialization
-        this.ready = false;
-        this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to initialize collections' });
-        console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): collections init failed`);
-        return;
-      }
-    }
-
-    // 4. Load collections from storage adapter
-    {
-      const t = performance.now();
-      logStep('Loading collections', 4);
-      try {
-        await this.loadCollections();
+    if (!await runStep('Initializing collections', () => this.initCollections(), { critical: true })) return;
+    if (!await runStep('Loading collections', () => this.loadCollections(), {
+      critical: true,
+      onSuccess: () => {
         const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
         const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;
-        logStepDone('Loading collections', 4, 6, performance.now() - t, `${sourceCount} sources, ${blockCount} blocks`);
-      } catch (e) {
-        this.init_errors.push({ phase: 'loadCollections', error: e as Error });
-        console.error(`[SC][Init]   [4/6] Loading collections ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-        // Collection data is critical — abort initialization
-        this.ready = false;
-        this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: 'Failed to load collections' });
-        console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): collections load failed`);
-        return;
-      }
-    }
+        return `${sourceCount} sources, ${blockCount} blocks`;
+      },
+    })) return;
 
-    // 5. Setup status bar
-    {
-      const t = performance.now();
-      logStep('Setting up status bar', 5);
-      try {
-        this.setupStatusBar();
-        logStepDone('Setting up status bar', 5, 6, performance.now() - t);
-      } catch (e) {
-        this.init_errors.push({ phase: 'setupStatusBar', error: e as Error });
-        console.error(`[SC][Init]   [5/6] Setting up status bar ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-      }
-    }
-
-    // 6. Register file watchers
-    {
-      const t = performance.now();
-      logStep('Registering file watchers', 6);
-      try {
-        this.registerFileWatchers();
-        logStepDone('Registering file watchers', 6, 6, performance.now() - t);
-      } catch (e) {
-        this.init_errors.push({ phase: 'registerFileWatchers', error: e as Error });
-        console.error(`[SC][Init]   [6/6] Registering file watchers ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-      }
-    }
+    await runStep('Setting up status bar', () => this.setupStatusBar());
+    await runStep('Registering file watchers', () => this.registerFileWatchers());
 
     this.ready = true;
     this.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
@@ -407,13 +347,12 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initializeEmbedding(): Promise<void> {
     const t0 = performance.now();
-    const modelId = (() => {
-      try {
-        const es = this.settings.smart_sources.embed_model;
-        const as_ = this.getEmbedAdapterSettings(es);
-        return `${es.adapter}/${as_.model_key || '?'}`;
-      } catch { return 'unknown'; }
-    })();
+    let modelId = 'unknown';
+    try {
+      const es = this.settings.smart_sources.embed_model;
+      const as_ = this.getEmbedAdapterSettings(es);
+      modelId = `${es.adapter}/${as_.model_key || '?'}`;
+    } catch { /* use default 'unknown' */ }
     console.log(`[SC][Init] ▶ Phase 2: Embedding initialization starting (model: ${modelId})`);
     try {
       await this.switchEmbeddingModel('Initial embedding setup');
@@ -572,21 +511,14 @@ export default class SmartConnectionsPlugin extends Plugin {
   enqueueEmbeddingJob<T = unknown>(job: EmbeddingKernelJob<T>): Promise<T> {
     this.ensureEmbeddingKernel();
     const promise = this.embedding_job_queue!.enqueue(job);
-    this.dispatchKernelEvent({
-      type: 'QUEUE_SNAPSHOT_UPDATED',
-      queue: this.getEmbeddingQueueSnapshot(),
-    });
-    void promise.then(() => {
+    const updateSnapshot = (): void => {
       this.dispatchKernelEvent({
         type: 'QUEUE_SNAPSHOT_UPDATED',
         queue: this.getEmbeddingQueueSnapshot(),
       });
-    }, () => {
-      this.dispatchKernelEvent({
-        type: 'QUEUE_SNAPSHOT_UPDATED',
-        queue: this.getEmbeddingQueueSnapshot(),
-      });
-    });
+    };
+    updateSnapshot();
+    void promise.then(updateSnapshot, updateSnapshot);
     return promise;
   }
 

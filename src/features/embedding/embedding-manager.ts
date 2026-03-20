@@ -253,20 +253,13 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
 
 // ── Pipeline initialization ─────────────────────────────────────────
 
-export async function initPipeline(plugin: SmartConnectionsPlugin): Promise<void> {
-  try {
-    if (!plugin.embed_model) {
-      throw new Error('Embed model must be initialized before pipeline');
-    }
-
-    console.log('Initializing embedding pipeline...');
-    plugin.embedding_pipeline = new EmbeddingPipeline(plugin.embed_model.adapter);
-    console.log('Embedding pipeline initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize pipeline:', error);
+export function initPipeline(plugin: SmartConnectionsPlugin): void {
+  if (!plugin.embed_model) {
     plugin.notices.show('failed_init_embed_pipeline');
-    throw error;
+    throw new Error('Embed model must be initialized before pipeline');
   }
+  plugin.embedding_pipeline = new EmbeddingPipeline(plugin.embed_model.adapter);
+  console.log('[SC][Init]   [pipeline] Embedding pipeline initialized');
 }
 
 // ── Re-embed stale entities ─────────────────────────────────────────
@@ -301,17 +294,15 @@ export async function switchEmbeddingModel(plugin: SmartConnectionsPlugin, reaso
     'MODEL_SWITCH',
     'MODEL_SWITCH',
     5,
-    async () => {
-      await switchEmbeddingModelNow(plugin, reason);
-    },
+    () => switchEmbeddingModelNow(plugin, reason),
   );
 }
 
-async function haltActivePipelineForSwitch(
+function haltActivePipelineForSwitch(
   plugin: SmartConnectionsPlugin,
   reason: string,
   previous: { adapter: string; modelKey: string; dims: number | null },
-): Promise<void> {
+): void {
   if (!plugin.embedding_pipeline?.is_active()) return;
 
   plugin.embedding_pipeline.halt();
@@ -362,16 +353,12 @@ function notifyModelSwitchSuccess(
   });
   plugin.app.workspace.trigger('smart-connections:embed-ready');
   plugin.app.workspace.trigger('smart-connections:model-switched' as any, {
-    adapter: active.adapter,
-    modelKey: active.modelKey,
-    dims: active.dims,
+    ...active,
     switchedAt: Date.now(),
   });
   plugin.logEmbed('switch-ready', {
     reason,
-    adapter: active.adapter,
-    modelKey: active.modelKey,
-    dims: active.dims,
+    ...active,
     current: queuedAfterSync,
     total: queuedAfterSync,
   });
@@ -398,7 +385,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
   try {
     let t = performance.now();
     console.log('[SC][Init]   [switch] Halting active pipeline...');
-    await haltActivePipelineForSwitch(plugin, reason, previous);
+    haltActivePipelineForSwitch(plugin, reason, previous);
     console.log(`[SC][Init]   [switch] Pipeline halted ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     // Clear orchestration queue; entities will be re-scanned after the new model loads

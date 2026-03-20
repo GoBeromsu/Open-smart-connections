@@ -8,30 +8,28 @@ import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from './main';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
+  function handleSourceChange(file: TFile): void {
+    if (isSourceFile(file)) {
+      queueSourceReImport(plugin, file.path);
+    }
+  }
+
   plugin.registerEvent(
     plugin.app.vault.on('create', (file) => {
-      if (file instanceof TFile && isSourceFile(file)) {
-        queueSourceReImport(plugin, file.path);
-      }
+      if (file instanceof TFile) handleSourceChange(file);
     }),
   );
 
   plugin.registerEvent(
     plugin.app.vault.on('rename', (file, oldPath) => {
-      if (file instanceof TFile && isSourceFile(file)) {
-        queueSourceReImport(plugin, file.path);
-      }
-      if (oldPath) {
-        removeSource(plugin, oldPath);
-      }
+      if (file instanceof TFile) handleSourceChange(file);
+      if (oldPath) removeSource(plugin, oldPath);
     }),
   );
 
   plugin.registerEvent(
     plugin.app.vault.on('modify', (file) => {
-      if (file instanceof TFile && isSourceFile(file)) {
-        queueSourceReImport(plugin, file.path);
-      }
+      if (file instanceof TFile) handleSourceChange(file);
     }),
   );
 
@@ -56,9 +54,10 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   );
 }
 
+const SUPPORTED_EXTENSIONS = new Set(['md', 'txt']);
+
 export function isSourceFile(file: TFile): boolean {
-  const supportedExtensions = ['md', 'txt'];
-  return supportedExtensions.some((ext) => file.path.endsWith(`.${ext}`));
+  return SUPPORTED_EXTENSIONS.has(file.extension);
 }
 
 export function queueSourceReImport(plugin: SmartConnectionsPlugin, path: string): void {
@@ -137,9 +136,7 @@ function enqueueReImportJob(plugin: SmartConnectionsPlugin, _reason: string): Pr
     type: 'REIMPORT_SOURCES',
     key: 'REIMPORT_SOURCES',
     priority: 20,
-    run: async () => {
-      await runReImport(plugin);
-    },
+    run: () => runReImport(plugin),
   });
 }
 
