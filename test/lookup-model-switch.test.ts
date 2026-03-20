@@ -8,13 +8,13 @@ import { LookupView } from '../src/ui/lookup/LookupView';
 
 function createPluginStub() {
   const nearest = vi.fn().mockResolvedValue([]);
+  const adapter = {
+    embed_batch: vi.fn().mockResolvedValue([{ vec: [1, 0] }]),
+  };
   return {
     embed_ready: true,
-    embed_model: {
-      adapter: {
-        embed_batch: vi.fn().mockResolvedValue([{ vec: [1, 0] }]),
-      },
-    },
+    embed_model: { adapter },
+    search_embed_model: adapter,
     source_collection: {
       all: [],
       nearest,

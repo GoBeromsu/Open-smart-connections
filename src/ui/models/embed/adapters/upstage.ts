@@ -31,11 +31,20 @@ export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
 export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
   'embedding-passage': {
     model_key: 'embedding-passage',
-    model_name: 'Upstage Solar',
+    model_name: 'Upstage Solar (passage)',
     batch_size: 50,
     dims: 4096,
     max_tokens: 4000,
-    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized (auto query/passage split)',
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for indexing documents',
+    endpoint: 'https://api.upstage.ai/v1/embeddings',
+  },
+  'embedding-query': {
+    model_key: 'embedding-query',
+    model_name: 'Upstage Solar (query)',
+    batch_size: 50,
+    dims: 4096,
+    max_tokens: 4000,
+    description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for search queries',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
   },
 };

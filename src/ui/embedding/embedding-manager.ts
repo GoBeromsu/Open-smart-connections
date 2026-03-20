@@ -256,6 +256,55 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
   }
 }
 
+// ── Search model initialization ─────────────────────────────────────
+
+/**
+ * Initialize a separate search embed model if configured.
+ * When `search_model` is set in settings, creates a dedicated adapter for queries.
+ * Otherwise, clears any existing search model (queries use the indexing adapter).
+ */
+export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Promise<void> {
+  const searchModelSettings = plugin.settings.smart_sources.search_model;
+  if (!searchModelSettings?.adapter || !searchModelSettings?.model_key) {
+    plugin._search_embed_model = undefined;
+    return;
+  }
+
+  // If search model matches indexing model, no separate adapter needed
+  const embedSettings = plugin.settings.smart_sources.embed_model;
+  const indexingAdapterSettings = plugin.getEmbedAdapterSettings(embedSettings);
+  if (
+    searchModelSettings.adapter === embedSettings.adapter &&
+    searchModelSettings.model_key === (indexingAdapterSettings.model_key || '')
+  ) {
+    plugin._search_embed_model = undefined;
+    return;
+  }
+
+  try {
+    // Inherit API credentials from the search adapter's config in embed_model
+    const searchAdapterSettings = searchModelSettings.adapter === embedSettings.adapter
+      ? { ...indexingAdapterSettings }
+      : { ...(embedSettings[searchModelSettings.adapter as keyof typeof embedSettings] as Record<string, any> || {}) };
+
+    const { adapter, requiresLoad } = embedAdapterRegistry.createAdapter(
+      searchModelSettings.adapter,
+      searchModelSettings.model_key,
+      searchAdapterSettings,
+    );
+
+    if (requiresLoad && typeof (adapter as any).load === 'function') {
+      await (adapter as any).load();
+    }
+
+    plugin._search_embed_model = adapter as any;
+    console.log(`[SC][Init]   [search-model] Search model initialized ✓ (${searchModelSettings.adapter}/${searchModelSettings.model_key})`);
+  } catch (error) {
+    console.warn('[SC][Init]   [search-model] Failed to initialize search model, will use indexing model:', error);
+    plugin._search_embed_model = undefined;
+  }
+}
+
 // ── Pipeline initialization ─────────────────────────────────────────
 
 export function initPipeline(plugin: SmartConnectionsPlugin): void {
@@ -320,6 +369,16 @@ function haltActivePipelineForSwitch(
 }
 
 async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void> {
+  // Unload search model first (if separate adapter)
+  if (plugin._search_embed_model?.unload) {
+    try {
+      await plugin._search_embed_model.unload();
+    } catch (error) {
+      console.warn('Failed to unload previous search embed model during switch:', error);
+    }
+    plugin._search_embed_model = undefined;
+  }
+
   if (!plugin.embed_model) return;
   try {
     await plugin.embed_model.unload();
@@ -410,6 +469,11 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
       `Timed out while loading embedding model (${targetAdapter}/${targetModelKey}).`,
     );
     console.log(`[SC][Init]   [switch] Model loaded ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+
+    // Initialize search model if configured
+    t = performance.now();
+    await initSearchEmbedModel(plugin);
+    console.log(`[SC][Init]   [switch] Search model init ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     t = performance.now();
     console.log('[SC][Init]   [switch] Syncing collection embedding context...');

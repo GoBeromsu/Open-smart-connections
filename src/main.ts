@@ -79,6 +79,7 @@ import { EmbedJobQueue } from './domain/embedding/queue/embed-job-queue';
 
 // Core type imports needed for plugin fields
 import type { EmbedModel } from './domain/models/embed';
+import type { EmbedModelAdapter } from './types/models';
 import type { SourceCollection, BlockCollection } from './domain/entities';
 import type { EmbeddingPipeline, EmbedQueueStats } from './domain/search/embedding-pipeline';
 
@@ -145,6 +146,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   // Core components
   embed_model?: EmbedModel;
+  _search_embed_model?: EmbedModelAdapter;
   source_collection?: SourceCollection;
   block_collection?: BlockCollection;
   embedding_pipeline?: EmbeddingPipeline;
@@ -179,6 +181,15 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   get embed_ready(): boolean {
     return isEmbedReady(this.getEmbeddingKernelState());
+  }
+
+  /**
+   * Returns the adapter to use for search queries.
+   * Priority: explicit _search_embed_model > indexing adapter's embed_query > indexing adapter.
+   */
+  get search_embed_model(): EmbedModelAdapter | undefined {
+    if (this._search_embed_model) return this._search_embed_model;
+    return this.embed_model?.adapter;
   }
 
   get status_state(): EmbedStatusState {
@@ -569,6 +580,14 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
     if (this.re_import_retry_timeout) {
       window.clearTimeout(this.re_import_retry_timeout);
+    }
+
+    // Unload search model adapter if separate from indexing
+    if (this._search_embed_model?.unload) {
+      this._search_embed_model.unload().catch((err: unknown) => {
+        console.warn('Failed to unload search embed model:', err);
+      });
+      this._search_embed_model = undefined;
     }
 
     // Fire-and-forget async cleanup with error handling
