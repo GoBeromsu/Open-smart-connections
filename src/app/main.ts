@@ -11,7 +11,8 @@ import {
 
 import type { PluginSettings } from '../shared/types/settings';
 import { DEFAULT_SETTINGS } from './config';
-import SmartConnectionsNotices from './notices';
+import { SmartConnectionsNotices, NOTICE_CATALOG } from './notices';
+import { PluginLogger } from '../shared/plugin-logger';
 import { SmartConnectionsSettingsTab } from './settings';
 import { registerCommands } from './commands';
 import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from '../features/connections/ConnectionsView';
@@ -140,6 +141,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   re_import_halted = false;
   _unloading = false;
   _installed_at: number | null = null;
+  readonly logger = new PluginLogger('Smart Connections');
 
   // Core components
   embed_model?: EmbedModel;
@@ -163,7 +165,14 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   get notices(): SmartConnectionsNotices {
     if (!this._notices) {
-      this._notices = new SmartConnectionsNotices(this);
+      // PluginNoticesHost expects settings as Record<string, unknown>.
+      // Cast is safe: PluginSettings is a plain object. _notices is invalidated
+      // in loadSettings() whenever this.settings is reassigned.
+      const host = {
+        settings: this.settings as unknown as Record<string, unknown>,
+        saveSettings: () => this.saveSettings(),
+      };
+      this._notices = new SmartConnectionsNotices(host, NOTICE_CATALOG, 'Smart Connections');
     }
     return this._notices;
   }
@@ -442,13 +451,27 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
 
     const settings = Object.assign({}, DEFAULT_SETTINGS, loadedSettings) as PluginSettings;
-    if (!settings.smart_notices || typeof settings.smart_notices !== 'object') {
+    // Migrate legacy smart_notices.muted → plugin_notices.muted
+    const legacyMuted = (settings.smart_notices as Record<string, unknown> | undefined)?.muted;
+    if (legacyMuted && typeof legacyMuted === 'object' && Object.keys(legacyMuted).length > 0) {
+      const settingsAsRecord = settings as unknown as Record<string, unknown>;
+      if (!settingsAsRecord['plugin_notices'] || typeof settingsAsRecord['plugin_notices'] !== 'object') {
+        settingsAsRecord['plugin_notices'] = { muted: {} };
+      }
+      const pn = settingsAsRecord['plugin_notices'] as Record<string, unknown>;
+      if (!pn['muted'] || typeof pn['muted'] !== 'object') {
+        pn['muted'] = {};
+      }
+      const destMuted = pn['muted'] as Record<string, boolean>;
+      for (const [k, v] of Object.entries(legacyMuted as Record<string, unknown>)) {
+        if (v === true) destMuted[k] = true;
+      }
       settings.smart_notices = { muted: {} };
-    }
-    if (!settings.smart_notices.muted || typeof settings.smart_notices.muted !== 'object') {
-      settings.smart_notices.muted = {};
+      removedLegacyKeys = true;
     }
     this.settings = settings;
+    // Invalidate cached notices host so it picks up the new settings object.
+    this._notices = undefined;
     if (removedLegacyKeys) {
       await this.saveSettings();
     }

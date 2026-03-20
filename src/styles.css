@@ -154,32 +154,15 @@
 }
 
 /* ─── Notices ─── */
-.notice.osc-notice-host {
-  background: var(--background-primary);
-  color: var(--text-normal);
-  border: 1px solid var(--background-modifier-border);
-}
-
-.notice.osc-notice-host[data-osc-theme="light"] {
-  color-scheme: light;
-}
-
-.notice.osc-notice-host[data-osc-theme="dark"] {
-  color-scheme: dark;
-}
-
-.osc-notice {
+.plugin-notice {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 260px;
-}
-
-.notice.osc-notice-host .osc-notice {
   color: var(--text-normal);
 }
 
-.osc-notice-head {
+.plugin-notice-head {
   margin: 0;
   font-size: var(--font-smallest, 11px);
   font-weight: 600;
@@ -188,20 +171,20 @@
   letter-spacing: 0.04em;
 }
 
-.osc-notice-content {
+.plugin-notice-content {
   margin: 0;
   font-size: var(--font-ui-small, 13px);
   color: var(--text-normal);
   white-space: pre-wrap;
 }
 
-.osc-notice-actions {
+.plugin-notice-actions {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.osc-notice-btn {
+.plugin-notice-btn {
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 6px);
   background: var(--background-secondary);
@@ -210,11 +193,11 @@
   padding: 2px 8px;
 }
 
-.osc-notice-btn:hover {
+.plugin-notice-btn:hover {
   background: var(--background-modifier-hover);
 }
 
-.osc-notice-btn--mute {
+.plugin-notice-btn--mute {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -223,7 +206,7 @@
   padding: 0;
 }
 
-.osc-notice-btn--mute svg {
+.plugin-notice-btn--mute svg {
   width: 14px;
   height: 14px;
 }

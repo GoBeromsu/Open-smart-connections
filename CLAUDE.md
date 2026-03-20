@@ -132,11 +132,14 @@ The embedding subsystem uses a Redux-style state machine (`features/embedding/ke
 - `selectors.ts` exposes derived queries like `isEmbedReady()` and `toLegacyStatusState()`.
 - UI components subscribe via `smart-connections:embed-state-changed` workspace event.
 
-## Notices (SmartConnectionsNotices)
+## Notices
 
-Centralized notice management with mute/unmute support, defined in `src/app/notices.ts`.
+`plugin.notices` is a `PluginNotices` instance (from `src/shared/plugin-notices.ts`, synced from boiler template). The catalog of all notice types is defined in `src/app/notices.ts` as `NOTICE_CATALOG`. `SmartConnectionsNotices` is just a type alias for `PluginNotices`.
 
-Notices are catalog-driven: each notice type is defined in `NOTICE_CATALOG` with a template string, default timeout, and immutable flag. Templates use `{{param}}` interpolation.
+- Muted notice IDs are persisted under `settings.plugin_notices.muted`.
+- Existing `smart_notices.muted` entries are migrated on first load.
+- CSS uses `plugin-notice*` class names (not `osc-notice*`).
+- A `PluginLogger` instance is available as `plugin.logger`.
 
 Usage:
 ```typescript
@@ -174,7 +177,9 @@ pnpm vitest run test/notices.test.ts
 | File | Purpose |
 |------|---------|
 | `src/app/main.ts` | Plugin class: lifecycle, commands, views, embedding orchestration |
-| `src/app/notices.ts` | SmartConnectionsNotices with catalog and mute support |
+| `src/app/notices.ts` | NOTICE_CATALOG + SmartConnectionsNotices alias (wraps shared PluginNotices) |
+| `src/shared/plugin-notices.ts` | Shared PluginNotices (synced from boiler template — do not edit) |
+| `src/shared/plugin-logger.ts` | Shared PluginLogger (synced from boiler template — do not edit) |
 | `src/app/config.ts` | DEFAULT_SETTINGS |
 | `src/features/connections/ConnectionsView.ts` | Connections panel (related notes) |
 | `src/features/lookup/LookupView.ts` | Semantic search panel |
