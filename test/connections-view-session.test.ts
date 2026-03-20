@@ -35,7 +35,11 @@ function createPluginStub() {
     block_collection: {
       data_dir: '/tmp/blocks',
     },
+    open_note: vi.fn(),
+    embed_job_queue: null,
+    runEmbeddingJob: vi.fn(async () => ({})),
     getActiveEmbeddingContext: vi.fn(() => null),
+    current_embed_context: null,
     getEmbeddingKernelState: vi.fn(() => ({
       phase: 'idle',
       queue: {
@@ -49,7 +53,16 @@ function createPluginStub() {
 function createObsidianLikeContainer(): any {
   const addHelpers = (el: HTMLElement & Record<string, any>) => {
     el.empty = function empty() {
-      this.innerHTML = '';
+      while (this.firstChild) this.removeChild(this.firstChild);
+    };
+    el.addClass = function addClass(cls: string) {
+      this.classList.add(cls);
+    };
+    el.toggleClass = function toggleClass(cls: string, force: boolean) {
+      this.classList.toggle(cls, force);
+    };
+    el.setText = function setText(text: string) {
+      this.textContent = text;
     };
     el.createDiv = function createDiv(opts: Record<string, any> = {}) {
       const div = document.createElement('div') as HTMLElement & Record<string, any>;
@@ -59,10 +72,16 @@ function createObsidianLikeContainer(): any {
       addHelpers(div);
       return div;
     };
+    el.createSpan = function createSpan(opts: Record<string, any> = {}) {
+      return this.createEl('span', opts);
+    };
     el.createEl = function createEl(tag: string, opts: Record<string, any> = {}) {
       const child = document.createElement(tag) as HTMLElement & Record<string, any>;
       if (opts.cls) child.className = opts.cls;
       if (opts.text) child.textContent = opts.text;
+      if (opts.attr) {
+        for (const [k, v] of Object.entries(opts.attr)) child.setAttribute(k, v as string);
+      }
       this.appendChild(child);
       addHelpers(child);
       return child;
@@ -75,7 +94,7 @@ function createObsidianLikeContainer(): any {
 }
 
 describe('ConnectionsView rendering states', () => {
-  it('shows empty state when source is stale but no run/queue is active', async () => {
+  it('shows cached results with banner when source is stale but has vec', async () => {
     const plugin = createPluginStub();
     plugin.status_state = 'idle';
     const staleSource = {
@@ -84,21 +103,20 @@ describe('ConnectionsView rendering states', () => {
       is_unembedded: true,
     };
     plugin.source_collection.get = vi.fn(() => staleSource);
-    plugin.source_collection.nearest_to = vi.fn(async () => [{ score: 0.9 }]);
+    plugin.source_collection.nearest_to = vi.fn(async () => [{ item: { path: 'other.md' }, score: 0.9 }]);
+    plugin.embed_job_queue = { enqueue: vi.fn() };
+    plugin.runEmbeddingJob = vi.fn(async () => ({}));
 
     const view = new ConnectionsView({} as any, plugin);
-    (view as any).container = document.createElement('div');
-    const loadingSpy = vi.spyOn(view as any, 'showLoading').mockImplementation(() => {});
-    const emptySpy = vi.spyOn(view as any, 'showEmpty').mockImplementation(() => {});
+    (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
 
-    expect(loadingSpy).not.toHaveBeenCalled();
-    expect(emptySpy).toHaveBeenCalled();
-    expect(plugin.source_collection.nearest_to).not.toHaveBeenCalled();
+    // Should show results (nearest_to was called) instead of empty/loading
+    expect(plugin.source_collection.nearest_to).toHaveBeenCalled();
   });
 
-  it('shows loading state when source is stale and queue is active', async () => {
+  it('shows cached results with banner when source is stale and queue is active', async () => {
     const plugin = createPluginStub();
     const staleSource = {
       key: 'note.md',
@@ -106,18 +124,21 @@ describe('ConnectionsView rendering states', () => {
       is_unembedded: true,
     };
     plugin.source_collection.get = vi.fn(() => staleSource);
+    plugin.source_collection.nearest_to = vi.fn(async () => [{ item: { path: 'other.md' }, score: 0.9 }]);
+    plugin.embed_job_queue = { enqueue: vi.fn() };
+    plugin.runEmbeddingJob = vi.fn(async () => ({}));
     plugin.getEmbeddingKernelState = vi.fn(() => ({
       phase: 'idle',
       queue: { queuedTotal: 1 },
     }));
 
     const view = new ConnectionsView({} as any, plugin);
-    (view as any).container = document.createElement('div');
-    const loadingSpy = vi.spyOn(view as any, 'showLoading').mockImplementation(() => {});
+    (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
 
-    expect(loadingSpy).toHaveBeenCalled();
+    // Should show results instead of loading spinner
+    expect(plugin.source_collection.nearest_to).toHaveBeenCalled();
   });
 
   it('refresh button triggers re-embed from loading state', async () => {

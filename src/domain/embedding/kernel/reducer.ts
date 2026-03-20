@@ -46,6 +46,7 @@ export function reduceEmbeddingKernelState(
     case 'MODEL_SWITCH_REQUESTED':
       return {
         ...prev,
+        phase: prev.phase === 'error' ? 'idle' : prev.phase,
         lastError: null,
       };
 
