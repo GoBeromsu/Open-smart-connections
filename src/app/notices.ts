@@ -36,9 +36,6 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   reimport_failed: {
     template: 'Re-import failed. See console for details.',
   },
-  update_available: {
-    template: 'Update available ({{tag_name}})',
-  },
   no_stale_entities: {
     template: 'No stale entities to re-embed.',
   },

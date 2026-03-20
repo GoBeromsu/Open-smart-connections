@@ -285,7 +285,8 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.initializeEmbedding().then(() => {
       // Handle new user after everything is loaded
       this.handleNewUser();
-      this.checkForUpdates();
+      // Update check removed — interrupting user focus is a bad pattern.
+      // Users get updates via BRAT or manual check.
     }).catch(e => {
       console.error('Background embedding init failed:', e);
     });
