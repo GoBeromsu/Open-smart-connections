@@ -39,6 +39,13 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
 
     plugin.source_collection.block_collection = plugin.block_collection;
 
+    // Provide vault context to SQLite adapters for file I/O
+    const vaultAdapter = plugin.app.vault.adapter;
+    const configDir = plugin.app.vault.configDir;
+    const pluginId = plugin.manifest.id;
+    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+
     await plugin.source_collection.init();
     await plugin.block_collection.init();
 

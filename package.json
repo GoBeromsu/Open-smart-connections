@@ -18,9 +18,9 @@
     "ci": "pnpm run build && pnpm run lint && pnpm run test",
     "version": "node scripts/version.mjs",
     "postversion": "git push && git push --tags",
-    "release:patch": "pnpm lint:fix && pnpm version patch",
-    "release:minor": "pnpm lint:fix && pnpm version minor",
-    "release:major": "pnpm lint:fix && pnpm version major",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
     "prepare": "husky"
   },
   "repository": {
@@ -56,7 +56,6 @@
     "husky": "^9.1.7",
     "jsdom": "^24.1.0",
     "lint-staged": "^16.3.2",
-    "sql.js": "^1.12.0",
     "swagger-jsdoc": "^6.2.8",
     "typescript": "^5.9.3",
     "vitest": "^1.0.0"
@@ -72,11 +71,11 @@
     }
   },
   "dependencies": {
-    "@electric-sql/pglite": "0.2.12",
     "base64-js": "^1.5.1",
     "js-tiktoken": "^1.0.19",
     "lucide-static": "^0.414.0",
     "node-fetch": "^2.7.0",
-    "obsidian": "latest"
+    "obsidian": "latest",
+    "sql.js": "^1.12.0"
   }
 }

@@ -566,5 +566,12 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Unload environment
     this.env?.unload?.();
+
+    // Persist and close SQLite databases
+    import('../shared/entities').then(({ closeSqliteDatabases }) => {
+      closeSqliteDatabases().catch((err: unknown) => {
+        console.warn('Failed to close SQLite databases:', err);
+      });
+    });
   }
 }
