@@ -33,16 +33,11 @@ export class EmbedJobQueue {
 
   enqueue(job: EmbedJob): void {
     const wasEmpty = this.items.size === 0;
-    if (this.items.has(job.entityKey)) {
-      // Latest-Write-Wins: update data, keep original FIFO position
-      this.items.set(job.entityKey, job);
-    } else {
-      this.items.set(job.entityKey, job);
-      this.insertionOrder.push(job.entityKey);
-    }
-    if (wasEmpty && this.items.size > 0) {
-      this.onQueueHasItems?.();
-    }
+    const isNew = !this.items.has(job.entityKey);
+    // Latest-Write-Wins: always update data, only append FIFO position for new keys
+    this.items.set(job.entityKey, job);
+    if (isNew) this.insertionOrder.push(job.entityKey);
+    if (wasEmpty) this.onQueueHasItems?.();
   }
 
   dequeue(): EmbedJob | undefined {

@@ -4,10 +4,7 @@
  */
 
 export { cos_sim } from './cos_sim';
-export {
-  create_hash,
-  murmur_hash_32,
-} from './create_hash';
+export { create_hash } from './create_hash';
 export {
   results_acc,
   furthest_acc,

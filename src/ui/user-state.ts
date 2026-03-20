@@ -8,9 +8,6 @@ import type SmartConnectionsPlugin from '../main';
 import { ConnectionsView } from './connections/ConnectionsView';
 import { determine_installed_at } from '../utils/determine_installed_at';
 
-/** 3 hours in milliseconds — interval between automatic update checks */
-const UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000;
-
 export async function loadUserState(plugin: SmartConnectionsPlugin): Promise<void> {
   plugin._installed_at = null;
   const data = await plugin.loadData();
@@ -79,15 +76,6 @@ export async function handleNewUser(plugin: SmartConnectionsPlugin): Promise<voi
   }
 
   await addToGitignore(plugin, '\n\n# Ignore Smart Environment folder\n.smart-env');
-}
-
-export async function checkForUpdates(plugin: SmartConnectionsPlugin): Promise<void> {
-  if (await shouldShowReleaseNotes(plugin, plugin.manifest.version)) {
-    await setLastKnownVersion(plugin, plugin.manifest.version);
-  }
-
-  setTimeout(() => checkForUpdate(plugin), 3000);
-  setInterval(() => checkForUpdate(plugin), UPDATE_CHECK_INTERVAL_MS);
 }
 
 export async function checkForUpdate(plugin: SmartConnectionsPlugin): Promise<void> {

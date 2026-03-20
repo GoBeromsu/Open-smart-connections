@@ -204,7 +204,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
 
     // Remove processed source-level entries from the queue
     for (const path of processed_paths) {
-      plugin.embed_job_queue?.remove(path);
+      plugin.embed_job_queue?.removeBySourcePath(path);
     }
 
     plugin.refreshStatus();

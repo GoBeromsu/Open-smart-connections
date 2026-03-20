@@ -76,12 +76,10 @@ src/
 │   │   ├── SourceCollection.ts
 │   │   ├── BlockCollection.ts
 │   │   ├── EntityCollection.ts
-│   │   ├── adapters/         # PGlite SQLite data adapter
+│   │   ├── adapters/         # SQLite (sql.js WASM) data adapter
 │   │   └── parsers/          # Markdown heading splitter
 │   ├── search/               # Search and embedding logic
-│   │   ├── find-connections.ts   # Cosine-sim connections for a source
-│   │   ├── lookup.ts             # Semantic lookup by query string
-│   │   ├── vector-search.ts      # Low-level vector search
+│   │   ├── vector-search.ts      # Low-level vector search (cosine similarity)
 │   │   └── embedding-pipeline.ts # Batch embedding pipeline
 │   ├── models/embed/         # Abstract EmbedModel + registry (no adapters here)
 │   │   ├── EmbedModel.ts
@@ -110,13 +108,11 @@ src/
 │   │   └── LookupView.ts        # ItemView: semantic search across vault
 │   ├── embedding/
 │   │   ├── collection-manager.ts # Source/Block collection init and loading
-│   │   ├── embedding-manager.ts  # Model lifecycle, embed jobs, pipeline
-│   │   └── embedding-controller.ts  # Simplified embedding lifecycle (QMD-style)
+│   │   └── embedding-manager.ts  # Model lifecycle, embed jobs, pipeline
 │   ├── models/embed/adapters/   # API adapters (use requestUrl — Obsidian-dependent)
 │   │   ├── _api.ts           # Shared fetch helper
 │   │   ├── transformers.ts   # Local WebWorker adapter
 │   │   ├── openai.ts, gemini.ts, ollama.ts, lm_studio.ts, open_router.ts, upstage.ts
-│   ├── utils/                # UI-specific utilities (icons, banner, drag)
 │   └── views/
 │       └── result-context-menu.ts  # Right-click context menu for results
 ├── types/                    # Pure type definitions — NO obsidian imports
@@ -124,13 +120,10 @@ src/
 │   ├── models.ts
 │   ├── settings.ts
 │   ├── obsidian-shims.ts     # Structural shims: TFileShim, VaultShim, etc.
-│   ├── legacy-modules.d.ts
 │   └── index.ts
 ├── utils/                    # Pure utility functions — NO obsidian imports
-│   ├── cos_sim.ts, create_hash.ts, deep_merge.ts, geom.ts
-│   ├── insert_text_in_chunks.ts, parse_xml_fragments.ts
-│   ├── results_acc.ts, sequential_async_processor.ts
-│   ├── sim_hash.ts, sort_by_score.ts, determine_installed_at.ts
+│   ├── cos_sim.ts, create_hash.ts
+│   ├── results_acc.ts, sort_by_score.ts, determine_installed_at.ts
 │   └── index.ts
 └── shared/                   # Boiler-template synced — DO NOT EDIT
     ├── plugin-logger.ts
@@ -160,7 +153,7 @@ test/                         # Vitest tests (co-located in test/ directory)
 
 `SmartConnectionsPlugin.onload()` registers views, commands, settings tab, and ribbon icon, then delegates to `initialize()`:
 
-- **Phase 1 (Core, blocking):** load user state, wait for Obsidian Sync, init collections from PGlite storage, setup status bar, register file watchers.
+- **Phase 1 (Core, blocking):** load user state, wait for Obsidian Sync, init collections from SQLite storage, setup status bar, register file watchers.
 - **Phase 2 (Embedding, background):** initialize embedding model, download Transformers.js assets if needed, queue unembedded entities. Phase 1 is usable before Phase 2 completes.
 
 ### Embedding Kernel
@@ -224,10 +217,10 @@ pnpm vitest run test/notices.test.ts
 | `src/ui/connections/ConnectionsView.ts` | Connections panel (related notes) |
 | `src/ui/lookup/LookupView.ts` | Semantic search panel |
 | `src/domain/embedding/kernel/store.ts` | Embedding state machine |
-| `src/domain/entities/` | Source/Block entity model + PGlite adapter |
+| `src/domain/entities/` | Source/Block entity model + SQLite adapter |
 | `src/domain/models/embed/` | Abstract EmbedModel + registry |
 | `src/ui/models/embed/adapters/` | Provider adapters (transformers, openai, ollama, gemini, etc.) |
-| `src/domain/search/` | find-connections, lookup, vector-search |
+| `src/domain/search/` | vector-search, embedding-pipeline |
 | `worker/embed-worker.ts` | Transformers.js Web Worker |
 | `esbuild.js` | Build config (CSS/markdown plugins, vault copy) |
 | `scripts/dev.mjs` | Dev orchestrator (vault discovery + delegate) |
