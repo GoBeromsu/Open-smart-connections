@@ -164,6 +164,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           }
           this.setConfig('smart_sources.embed_model.adapter', value);
           this.ensureModelKeyForAdapter(value);
+          this.clearUpstageSearchModelIfStale(value);
           this.display();
           await this.triggerReEmbed();
         });
@@ -234,6 +235,18 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       adapter: 'upstage',
       model_key: 'embedding-query',
     });
+  }
+
+  /** Clear Upstage-specific search model when switching away from Upstage. */
+  private clearUpstageSearchModelIfStale(newAdapter: string): void {
+    if (newAdapter === 'upstage') return;
+    const searchModel = this.getConfig('smart_sources.search_model', null);
+    if (
+      searchModel?.adapter === 'upstage' &&
+      searchModel?.model_key === 'embedding-query'
+    ) {
+      this.setConfig('smart_sources.search_model', undefined as any);
+    }
   }
 
   private renderSourceSettings(containerEl: HTMLElement): void {

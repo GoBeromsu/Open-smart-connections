@@ -345,6 +345,58 @@
 }
 
 
+/* ─── Advanced (Collapsible) Section ─── */
+.osc-advanced-section {
+  margin: 8px 0 4px;
+}
+
+.osc-advanced-section summary {
+  padding: 6px 16px;
+  font-size: var(--font-ui-small, 13px);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.osc-advanced-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.osc-advanced-section summary::before {
+  content: '›';
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 150ms ease;
+  color: var(--text-faint);
+}
+
+.osc-advanced-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.osc-advanced-section summary:hover {
+  color: var(--text-normal);
+}
+
+/* ─── API Key Validation Status ─── */
+.osc-api-validation-ok,
+.osc-api-validation-error {
+  font-size: var(--font-smallest, 11px);
+}
+
+.osc-api-validation-ok {
+  color: var(--osc-color-success);
+}
+
+.osc-api-validation-error {
+  color: var(--osc-color-error);
+}
+
 /* ─── Dims Compatibility Signal ─── */
 .osc-dims-ok { color: var(--text-muted); }
 .osc-dims-warn { color: var(--osc-color-warning); }

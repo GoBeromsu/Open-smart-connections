@@ -3,7 +3,7 @@
  * @description Model dropdown rendering logic extracted from settings.ts
  */
 
-import { Setting } from 'obsidian';
+import { Setting, Notice } from 'obsidian';
 import { TRANSFORMERS_EMBED_MODELS } from './models/embed/adapters/transformers';
 import { embedAdapterRegistry } from '../domain/models/embed/registry';
 
@@ -267,7 +267,58 @@ export function renderModelDropdown(deps: ModelPickerDeps): void {
 }
 
 /**
- * Render the API key field with debounce and trim validation.
+ * Validate the API key for a given adapter by running a test embed_batch call.
+ * Updates statusEl with success/error feedback.
+ */
+/** Apply validation result to the status element without stripping Obsidian's base classes. */
+function setValidationStatus(
+  statusEl: HTMLElement,
+  text: string,
+  cls: 'osc-api-validation-ok' | 'osc-api-validation-error',
+): void {
+  statusEl.textContent = text;
+  statusEl.classList.remove('osc-api-validation-ok', 'osc-api-validation-error');
+  statusEl.classList.add(cls);
+}
+
+/**
+ * Validate the API key for a given adapter by running a test embed_batch call.
+ * Updates statusEl with success/error feedback.
+ */
+async function validateApiKey(
+  adapterName: string,
+  config: ConfigAccessor,
+  statusEl: HTMLElement,
+): Promise<void> {
+  const apiKey = config.getConfig(`smart_sources.embed_model.${adapterName}.api_key`, '');
+  const modelKey = config.getConfig(`smart_sources.embed_model.${adapterName}.model_key`, '');
+
+  if (!apiKey) {
+    setValidationStatus(statusEl, 'No API key set', 'osc-api-validation-error');
+    return;
+  }
+
+  const adapterSettings: Record<string, any> = {
+    [`${adapterName}.api_key`]: apiKey,
+    api_key: apiKey,
+  };
+
+  const host = config.getConfig(`smart_sources.embed_model.${adapterName}.host`, '');
+  if (host) adapterSettings.host = host;
+
+  try {
+    const { adapter } = embedAdapterRegistry.createAdapter(adapterName, modelKey, adapterSettings);
+    await adapter.test_api_key();
+    setValidationStatus(statusEl, 'API key valid', 'osc-api-validation-ok');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    setValidationStatus(statusEl, `Error: ${msg}`, 'osc-api-validation-error');
+    new Notice(`API key validation failed: ${msg}`);
+  }
+}
+
+/**
+ * Render the API key field with debounce, trim validation, and a Validate button.
  */
 export function renderApiKeyField(
   containerEl: HTMLElement,
@@ -287,9 +338,7 @@ export function renderApiKeyField(
 
   const setting = new Setting(containerEl)
     .setName('API Key')
-    .setDesc(signupUrl
-      ? 'API key for authentication'
-      : 'API key for authentication')
+    .setDesc('API key for authentication')
     .addText((text) => {
       text.inputEl.type = 'password';
       text.setPlaceholder('Enter API key');
@@ -302,19 +351,28 @@ export function renderApiKeyField(
           config.setConfig(`smart_sources.embed_model.${adapterName}.api_key`, trimmed);
         }, 500);
       });
+    })
+    .addButton((button) => {
+      button.setButtonText('Validate');
+      button.onClick(async () => {
+        button.setButtonText('Validating...').setDisabled(true);
+        try {
+          await validateApiKey(adapterName, config, setting.descEl);
+        } finally {
+          button.setButtonText('Validate').setDisabled(false);
+        }
+      });
     });
 
-  // Add "Get API key" link below the setting
+  // Add "Get API key" link below the description text
   if (signupUrl) {
+    setting.descEl.createEl('br');
     const linkEl = setting.descEl.createEl('a', {
       text: `Get ${reg?.displayName ?? adapterName} API key`,
       href: signupUrl,
       cls: 'osc-signup-link',
     });
     linkEl.setAttr('target', '_blank');
-    setting.descEl.createEl('br');
-    setting.descEl.appendText(' ');
-    setting.descEl.appendChild(linkEl);
   }
 }
 
@@ -383,6 +441,7 @@ const DIMS_SIGNAL_TOOLTIPS: Record<DimsSignal, string> = {
 
 /**
  * Render the search model picker section with dims compatibility signal.
+ * Wrapped in a collapsible <details> element to keep the settings page clean.
  */
 export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
   const { containerEl, config, onChanged, display } = deps;
@@ -398,11 +457,14 @@ export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
   const searchModelKey = config.getConfig('smart_sources.search_model.model_key', '');
   const isSearchModelSet = searchAdapter !== '' && searchModelKey !== '';
 
-  // Heading
-  new Setting(containerEl).setName('Search Model (optional)').setHeading();
+  // Collapsible wrapper — collapsed by default
+  const details = containerEl.createEl('details', { cls: 'osc-advanced-section' });
+  // Keep open if a search model is already configured so the user can see it
+  if (isSearchModelSet) details.open = true;
+  details.createEl('summary', { text: 'Advanced: Search Model' });
 
   // Provider dropdown
-  new Setting(containerEl)
+  new Setting(details)
     .setName('Search provider')
     .setDesc('Provider used for search queries. "Same as indexing" uses the indexing model.')
     .addDropdown((dropdown) => {
@@ -440,7 +502,7 @@ export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
     const searchModels = allKnownModels[searchAdapter] ?? [];
 
     if (searchModels.length > 0) {
-      new Setting(containerEl)
+      new Setting(details)
         .setName('Search model')
         .setDesc('Model used for embedding search queries')
         .addDropdown((dropdown) => {
@@ -463,7 +525,7 @@ export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
     const searchDims = resolveModelDims(searchAdapter, searchModelKey);
     const signal = computeDimsSignal(indexingAdapter, indexingDims, searchAdapter, searchDims);
 
-    const dimsRow = containerEl.createDiv({ cls: 'osc-dims-row' });
+    const dimsRow = details.createDiv({ cls: 'osc-dims-row' });
 
     const indexLabel = dimsRow.createSpan({
       text: `Indexing: ${indexingDims != null ? `${indexingDims}d` : '?'}`,
