@@ -33,7 +33,7 @@ describe('kernel effects', () => {
       },
     };
     logKernelTransition(plugin, prev, { type: 'QUEUE_HAS_ITEMS' }, next);
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('[SC][FSM] idle --QUEUE_HAS_ITEMS--> running'));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('idle → running'));
     spy.mockRestore();
   });
 });

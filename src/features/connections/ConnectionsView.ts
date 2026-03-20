@@ -28,6 +28,7 @@ export class ConnectionsView extends ItemView {
   container: HTMLElement;
   private session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
   private folderFilter: string = '';
+  private progressEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -79,6 +80,12 @@ export class ConnectionsView extends ItemView {
     this.registerEvent(
       this.app.workspace.on('smart-connections:embed-ready' as any, () => {
         void this.renderView();
+      }),
+    );
+
+    this.registerEvent(
+      this.app.workspace.on('smart-connections:embed-state-changed' as any, () => {
+        this.updateProgressBanner();
       }),
     );
 
@@ -213,8 +220,41 @@ export class ConnectionsView extends ItemView {
     banner.createSpan({ text: message, cls: 'osc-banner-text' });
   }
 
+  private updateProgressBanner(): void {
+    if (!this.container) return;
+    const ctx = this.plugin.current_embed_context;
+    const isRunning = this.plugin.status_state === 'embedding' && ctx;
+
+    if (!isRunning) {
+      if (this.progressEl) {
+        this.progressEl.remove();
+        this.progressEl = null;
+      }
+      return;
+    }
+
+    const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
+    const text = `Embedding ${ctx.current.toLocaleString()}/${ctx.total.toLocaleString()} (${percent}%)`;
+
+    if (!this.progressEl) {
+      this.progressEl = createDiv({ cls: 'osc-embed-progress' });
+      this.progressEl.createSpan({ cls: 'osc-embed-progress-text' });
+      this.progressEl.createDiv({ cls: 'osc-embed-progress-bar' })
+        .createDiv({ cls: 'osc-embed-progress-fill' });
+      // Insert at top of container, before header
+      this.container.prepend(this.progressEl);
+    }
+
+    const textEl = this.progressEl.querySelector('.osc-embed-progress-text') as HTMLElement;
+    if (textEl) textEl.setText(text);
+
+    const fillEl = this.progressEl.querySelector('.osc-embed-progress-fill') as HTMLElement;
+    if (fillEl) fillEl.style.width = `${percent}%`;
+  }
+
   renderResults(targetPath: string, results: any[]): void {
     this.container.empty();
+    this.progressEl = null; // reset reference since container was emptied
     const fileName = targetPath.split('/').pop()?.replace(/\.md$/, '') || 'Unknown';
 
     const header = this.container.createDiv({ cls: 'osc-header' });
@@ -422,6 +462,9 @@ export class ConnectionsView extends ItemView {
         e.dataTransfer?.setData('text/plain', `[[${linkText}]]`);
       });
     }
+
+    // Show progress banner if embedding is active
+    this.updateProgressBanner();
   }
 
   showLoading(message = 'Loading...'): void {

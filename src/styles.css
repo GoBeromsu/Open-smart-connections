@@ -29,6 +29,32 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
+/* Embedding progress banner */
+.osc-embed-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.osc-embed-progress-text {
+  font-size: var(--font-smallest, 11px);
+  color: var(--text-muted);
+}
+.osc-embed-progress-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+.osc-embed-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  transition: width 300ms ease;
+}
+
 .osc-header-title {
   font-size: var(--font-ui-small, 13px);
   font-weight: 600;

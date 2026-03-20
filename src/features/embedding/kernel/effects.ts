@@ -32,18 +32,35 @@ export function buildKernelModel(
   };
 }
 
+/** Skip noisy events that fire on every batch progress tick */
+const SILENT_EVENTS = new Set(['RUN_PROGRESS', 'QUEUE_SNAPSHOT_UPDATED']);
+
 export function logKernelTransition(
   _plugin: unknown,
   prev: EmbeddingKernelState,
   event: EmbeddingKernelEvent,
   next: EmbeddingKernelState,
 ): void {
+  // Suppress high-frequency events that add no diagnostic value
+  if (SILENT_EVENTS.has(event.type)) return;
+  // Skip no-op transitions (same phase, no new info)
+  if (prev.phase === next.phase && !('error' in event) && !('reason' in event)) return;
+
   const reason = 'reason' in event ? String((event as any).reason || '') : '';
   const error = 'error' in event ? String((event as any).error || '') : '';
-  const suffixReason = reason ? ` reason="${reason}"` : '';
-  const suffixError = error ? ` error="${error}"` : '';
-  const runId = next.run?.runId ?? prev.run?.runId ?? '-';
-  console.log(
-    `[SC][FSM] ${prev.phase} --${event.type}--> ${next.phase} run=${runId} jobs=${next.queue.pendingJobs}${suffixReason}${suffixError}`,
-  );
+  const parts: string[] = [`[Open Connections]`];
+
+  if (prev.phase !== next.phase) {
+    parts.push(`${prev.phase} → ${next.phase}`);
+  } else {
+    parts.push(event.type);
+  }
+
+  if (reason) parts.push(`(${reason})`);
+  if (error) parts.push(`error: ${error}`);
+
+  const run = next.run;
+  if (run) parts.push(`${run.current}/${run.total}`);
+
+  console.log(parts.join(' '));
 }
