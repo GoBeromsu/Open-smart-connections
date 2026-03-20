@@ -130,9 +130,14 @@ export function clearEmbedNotice(plugin: SmartConnectionsPlugin): void {
 }
 
 export function updateEmbedNotice(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext, force: boolean = false): void {
-  const hasConnectionsViewOpen =
-    plugin.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE).length > 0;
-  if (hasConnectionsViewOpen) {
+  // Only suppress notice when the Connections view is actually visible (active tab + sidebar expanded)
+  const connectionsLeaves = plugin.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
+  const isViewVisible = connectionsLeaves.some((leaf: any) =>
+    typeof leaf.view?.containerEl?.checkVisibility === 'function'
+      ? leaf.view.containerEl.checkVisibility()
+      : false,
+  );
+  if (isViewVisible) {
     clearEmbedNotice(plugin);
     return;
   }

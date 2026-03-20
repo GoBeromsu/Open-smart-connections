@@ -21,7 +21,6 @@ describe('kernel effects', () => {
 
   it('logs transition line with context', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const plugin = {} as any;
     const prev = createInitialKernelState();
     // In 3-state FSM, initial phase is 'idle', and QUEUE_HAS_ITEMS transitions to 'running'
     const next = {
@@ -32,7 +31,7 @@ describe('kernel effects', () => {
         pendingJobs: 1,
       },
     };
-    logKernelTransition(plugin, prev, { type: 'QUEUE_HAS_ITEMS' }, next);
+    logKernelTransition(prev, { type: 'QUEUE_HAS_ITEMS' }, next);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('idle → running'));
     spy.mockRestore();
   });

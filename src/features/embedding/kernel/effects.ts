@@ -36,19 +36,16 @@ export function buildKernelModel(
 const SILENT_EVENTS = new Set(['RUN_PROGRESS', 'QUEUE_SNAPSHOT_UPDATED']);
 
 export function logKernelTransition(
-  _plugin: unknown,
   prev: EmbeddingKernelState,
   event: EmbeddingKernelEvent,
   next: EmbeddingKernelState,
 ): void {
-  // Suppress high-frequency events that add no diagnostic value
   if (SILENT_EVENTS.has(event.type)) return;
-  // Skip no-op transitions (same phase, no new info)
   if (prev.phase === next.phase && !('error' in event) && !('reason' in event)) return;
 
-  const reason = 'reason' in event ? String((event as any).reason || '') : '';
-  const error = 'error' in event ? String((event as any).error || '') : '';
-  const parts: string[] = [`[Open Connections]`];
+  const reason = 'reason' in event ? String((event as Record<string, unknown>).reason ?? '') : '';
+  const error = 'error' in event ? String((event as Record<string, unknown>).error ?? '') : '';
+  const parts: string[] = ['[Open Connections]'];
 
   if (prev.phase !== next.phase) {
     parts.push(`${prev.phase} → ${next.phase}`);

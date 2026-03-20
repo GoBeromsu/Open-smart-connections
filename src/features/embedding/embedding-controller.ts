@@ -13,6 +13,7 @@
 import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../../app/main';
 import { DebounceController } from '../../shared/debounce-controller';
+import { CONNECTIONS_VIEW_TYPE } from '../connections/ConnectionsView';
 import { getCurrentModelInfo } from './embedding-manager';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -60,10 +61,7 @@ export class EmbeddingController {
   private activeRunId: number | null = null;
 
   constructor(private plugin: SmartConnectionsPlugin) {
-    this.debounce = new DebounceController({
-      delayMs: (plugin.settings.re_import_wait_time || 13) * 1000,
-      onRun: () => this.run(),
-    });
+    this.debounce = this.createDebounce();
   }
 
   // ── Derived getters for backward compatibility ───────────────────────
@@ -93,7 +91,7 @@ export class EmbeddingController {
 
   async flushNow(): Promise<void> {
     if (this.disposed) return;
-    this.debounce.dispose(); // cancel pending timer
+    this.debounce.dispose();
     await this.run();
   }
 
@@ -106,11 +104,7 @@ export class EmbeddingController {
 
   resume(): void {
     this.state.paused = false;
-    // Recreate debounce controller (old one was disposed)
-    this.debounce = new DebounceController({
-      delayMs: (this.plugin.settings.re_import_wait_time || 13) * 1000,
-      onRun: () => this.run(),
-    });
+    this.debounce = this.createDebounce();
     this.emitStateChange();
   }
 
@@ -156,6 +150,13 @@ export class EmbeddingController {
       { state: this.state },
     );
     this.plugin.refreshStatus();
+  }
+
+  private createDebounce(): DebounceController {
+    return new DebounceController({
+      delayMs: (this.plugin.settings.re_import_wait_time || 13) * 1000,
+      onRun: () => this.run(),
+    });
   }
 
   // ── Main run (called by DebounceController.onRun or flushNow) ──────
@@ -292,12 +293,12 @@ export class EmbeddingController {
       this.queueUnembeddedEntities();
     } catch (error) {
       if (this.activeRunId !== runId) return;
-      this.emitProgress(runId, 'failed', error instanceof Error ? error.message : String(error));
+      this.emitProgress(runId, 'failed', { error: error instanceof Error ? error.message : String(error) });
       this.plugin.notices.show('embedding_failed');
       throw error;
     } finally {
       if (this.activeRunId === runId) {
-        this.emitProgress(runId, 'completed', undefined, true);
+        this.emitProgress(runId, 'completed', { done: true });
         this.activeRunId = null;
         this.plugin.notices.remove('embedding_progress');
       }
@@ -347,9 +348,14 @@ export class EmbeddingController {
     const model = getCurrentModelInfo(this.plugin);
     const percent = total > 0 ? Math.round((current / total) * 100) : 0;
 
-    // Suppress notice when ConnectionsView is open
-    const hasView = this.plugin.app.workspace.getLeavesOfType('smart-connections-view').length > 0;
-    if (hasView) {
+    // Suppress notice only when ConnectionsView is actually visible (active tab + sidebar expanded)
+    const leaves = this.plugin.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
+    const isViewVisible = leaves.some((leaf: any) =>
+      typeof leaf.view?.containerEl?.checkVisibility === 'function'
+        ? leaf.view.containerEl.checkVisibility()
+        : false,
+    );
+    if (isViewVisible) {
       this.plugin.notices.remove('embedding_progress');
       return;
     }
@@ -364,9 +370,9 @@ export class EmbeddingController {
   private emitProgress(
     runId: number,
     phase: 'running' | 'completed' | 'failed',
-    error?: string,
-    done?: boolean,
+    opts: { error?: string; done?: boolean } = {},
   ): void {
+    const { error, done } = opts;
     const model = getCurrentModelInfo(this.plugin);
     const progress = this.state.progress;
     const current = progress?.current ?? 0;

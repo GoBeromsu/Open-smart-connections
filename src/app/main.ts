@@ -489,7 +489,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       },
     });
     this.embedding_kernel_unsubscribe = this.embedding_kernel_store.subscribe((state, _prev, event) => {
-      logKernelTransition(this, _prev, event, state);
+      logKernelTransition(_prev, event, state);
       this.app.workspace.trigger('smart-connections:embed-state-changed' as any, {
         state,
         event,
