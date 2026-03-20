@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbeddingController } from '../src/features/embedding/embedding-controller';
+import { EmbeddingController } from '../src/ui/embedding/embedding-controller';
 
 /** Minimal plugin stub — just enough for the controller to operate */
 function createPluginStub() {

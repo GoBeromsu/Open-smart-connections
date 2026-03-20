@@ -158,7 +158,7 @@ function copy_output_plugin() {
 // Build the project (connector code is inlined in transformers.ts, no separate worker needed)
 const build_options = {
   entryPoints: {
-    'main': 'src/app/main.ts',
+    'main': 'src/main.ts',
   },
   outdir: 'dist',
   outExtension: { '.js': '.js' },
