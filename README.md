@@ -4,6 +4,18 @@ An Obsidian plugin that uses AI embeddings to surface semantically related notes
 
 > Community-maintained fork of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) by Brian Petro, rebuilt for stability and extensibility.
 
+## Features
+
+- **Zero-setup local embeddings** -- runs TaylorAI/bge-micro-v2 in-browser via Transformers.js, no API key needed
+- **Multilingual local models** -- includes `Xenova/bge-m3` and multilingual E5 variants for non-English vaults
+- **7 embedding providers** -- Transformers (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter
+- **Dynamic model selection** -- settings UI auto-discovers models from API providers
+- **Model fingerprint re-embed safety** -- forces re-embedding when adapter, model, or host changes
+- **Privacy-first** -- your notes never leave your device with local models
+- **Mobile support** -- works on iOS and Android
+- **Connections View** -- see related notes as you navigate your vault
+- **Semantic search (Lookup)** -- find notes by meaning, not just keywords
+
 ## Quick Start
 
 ### Install from Release
@@ -24,30 +36,40 @@ pnpm run build
 
 Copy `dist/` contents to your vault's `.obsidian/plugins/open-smart-connections/` directory.
 
-### Development
+## Usage
 
-```bash
-# Option A: interactive vault selection + watch + hot reload
-pnpm dev
+1. Open **Settings > Open Smart Connections**
+2. Choose an **embedding provider** (default: Transformers local)
+3. Select a **model** from the dropdown
+4. For API providers, enter your API key
+5. Open the **Connections** view from the ribbon or command palette
+6. Navigate your vault -- related notes appear automatically
 
-# Option B: non-interactive (skip prompt)
-# VAULT_PATH=/absolute/path/to/YourVault pnpm dev
+## Embedding Providers
 
-# Option C: build watch only (no vault interaction)
-# pnpm run dev:build
-```
+| Provider | Type | Models | API Key |
+|----------|------|--------|---------|
+| Transformers | Local (in-browser) | bge-micro-v2, bge-m3, multilingual-e5-large/small, paraphrase-multilingual-MiniLM-L12-v2, bge-small, nomic-embed, jina-v2 | No |
+| OpenAI | API | text-embedding-3-small/large, ada-002, + dim variants | Yes |
+| Ollama | Local (server) | Any pulled embedding model (+ recommended quick picks) | No |
+| Gemini | API | gemini-embedding-001 | Yes |
+| LM Studio | Local (server) | Any loaded embedding model | No |
+| Upstage | API | embedding-query, embedding-passage | Yes |
+| OpenRouter | API | Auto-discovered embedding models | Yes |
 
-## Features
+### Recommended Local Models
 
-- **Zero-setup local embeddings** — runs TaylorAI/bge-micro-v2 in-browser via transformers.js, no API key needed
-- **Expanded local multilingual options** — includes `Xenova/bge-m3` and multilingual E5 variants
-- **7 embedding providers** — Transformers (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter
-- **Dynamic model selection** — settings UI auto-discovers models from API providers
-- **Model fingerprint re-embed safety** — forces re-embedding when adapter/model/host changes
-- **Privacy-first** — your notes never leave your device with local models
-- **Mobile support** — works on iOS and Android
-- **Connections View** — see related notes as you navigate your vault
-- **Semantic search** — find notes by meaning, not just keywords
+- `Xenova/bge-m3` -- high-quality multilingual local option
+- `Xenova/multilingual-e5-large` -- higher-quality multilingual retrieval
+- `Xenova/multilingual-e5-small` -- lighter multilingual option
+- `Xenova/paraphrase-multilingual-MiniLM-L12-v2` -- compact multilingual baseline
+
+### Ollama Quick Picks
+
+- `bge-m3`
+- `nomic-embed-text`
+- `snowflake-arctic-embed2`
+- `mxbai-embed-large`
 
 ## Tech Stack
 
@@ -56,110 +78,46 @@ pnpm dev
 | Platform | Obsidian Plugin API |
 | Language | TypeScript, JavaScript |
 | Bundler | esbuild |
-| Embeddings | transformers.js (local), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter |
+| Embeddings | Transformers.js (WebGPU + WASM fallback), OpenAI, Ollama, Gemini, LM Studio, Upstage, OpenRouter |
+| Storage | PGlite (SQLite-compatible) |
 | Testing | Vitest |
 
 ## Project Structure
 
 ```
 obsidian-smart-connections/
-├── src/                        # Plugin source
-│   ├── index.js                # Plugin entry point
-│   ├── settings_tab.ts         # Settings UI with provider/model selection
-│   ├── views/                  # Obsidian ItemView wrappers
-│   └── utils/                  # Helper functions
-├── lib/                        # Unified library (no separate package.json)
-│   ├── core/                   # Utilities, adapters, collections, fs, http
-│   ├── models/                 # AI model integrations
-│   │   ├── embed/              # Embedding adapters (7 providers)
-│   │   └── chat/               # Chat model adapters
-│   ├── entities/               # Content entities (sources, blocks)
-│   ├── environment/            # SmartEnv runtime
-│   └── obsidian/               # Obsidian-specific integrations
+├── src/
+│   ├── app/                    # Plugin entry, commands, settings, status bar, file watcher
+│   │   └── main.ts             # SmartConnectionsPlugin (extends Plugin)
+│   ├── features/
+│   │   ├── connections/        # Connections view (related notes for active file)
+│   │   ├── embedding/          # Embedding manager, kernel state machine, job queue
+│   │   └── lookup/             # Lookup view (semantic search across vault)
+│   ├── shared/
+│   │   ├── entities/           # Source/Block data model + PGlite adapter
+│   │   ├── models/embed/       # EmbedModel + provider adapters (7 providers)
+│   │   ├── search/             # find-connections, lookup, vector-search
+│   │   └── utils/              # Cosine similarity, hashing, etc.
+│   └── views/                  # Result context menu
+├── worker/
+│   └── embed-worker.ts         # Web Worker for Transformers.js embedding
+├── test/                       # Vitest tests
 ├── dist/                       # Build output (gitignored)
-├── esbuild.js                  # Build configuration
-├── tsconfig.json               # TypeScript config
+├── scripts/                    # dev.mjs, version.mjs, release.mjs
 └── manifest.json               # Obsidian plugin manifest
 ```
 
-## Embedding Providers
+## Development
 
-| Provider | Type | Models | API Key |
-|----------|------|--------|---------|
-| Transformers | Local (in-browser) | bge-micro-v2, bge-m3, multilingual-e5-large/small, paraphrase-multilingual-MiniLM-L12-v2, bge-small, nomic-embed, jina-v2 | No |
-| OpenAI | API | text-embedding-3-small/large, ada-002, + dim variants | Yes |
-| Ollama | Local (server) | Any pulled embedding model (+ recommended quick picks in settings) | No |
-| Gemini | API | gemini-embedding-001 | Yes |
-| LM Studio | Local (server) | Any loaded embedding model | No |
-| Upstage | API | embedding-query, embedding-passage | Yes |
-| OpenRouter | API | Auto-discovered embedding models | Yes |
-
-## Usage
-
-1. Open Settings > Open Smart Connections
-2. Choose an **embedding provider** (default: Transformers local)
-3. Select a **model** from the dropdown
-4. For API providers, enter your API key
-5. Open the **Connections** view from the ribbon or command palette
-6. Navigate your vault — related notes appear automatically
-
-## Embedding Kernel State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> booting
-    booting --> idle: INIT_CORE_READY
-
-    idle --> loading_model: MODEL_SWITCH_REQUESTED
-    paused --> loading_model: MODEL_SWITCH_REQUESTED
-    error --> loading_model: MODEL_SWITCH_REQUESTED
-    loading_model --> idle: MODEL_SWITCH_SUCCEEDED
-    loading_model --> error: MODEL_SWITCH_FAILED
-
-    idle --> running: RUN_STARTED
-    paused --> running: RESUME_REQUESTED + RUN_STARTED
-    running --> stopping: STOP_REQUESTED
-    stopping --> paused: STOP_COMPLETED
-    stopping --> error: STOP_TIMEOUT
-
-    running --> idle: RUN_FINISHED
-    running --> error: RUN_FAILED
+```bash
+pnpm install
+pnpm dev              # vault selection + esbuild watch + hot reload
+pnpm build            # production build to dist/
+pnpm test             # Vitest unit tests
+pnpm lint             # ESLint (src/ and worker/)
+pnpm run ci           # build + lint + test
+pnpm typecheck        # tsc --noEmit
 ```
-
-## Embedding Job Queue Lifecycle
-
-```mermaid
-flowchart TD
-    A["Commands / Settings / File Watchers"] --> B["Enqueue Kernel Job"]
-    B --> C{"Dedupe by Job Key"}
-    C -->|existing key| D["Reuse existing Promise"]
-    C -->|new key| E["Insert by Priority"]
-    E --> F["Single Worker Loop"]
-    F --> G["Dispatch Kernel Events"]
-    G --> H["Run Effect (switch/reimport/run/stop/resume)"]
-    H --> I["Update Queue Snapshot"]
-    I --> J["Resolve Promise + Notify Runtime Selectors"]
-```
-
-## Refactoring Stages Note
-
-- The `Level 1/2/3` labels used in this repository are internal rollout names, not official Martin Fowler stage names.
-- They follow Fowler's core refactoring principles: preserve behavior, change in small steps, and keep tests as the safety net.
-- For study: Martin Fowler's [Refactoring](https://martinfowler.com/books/refactoring.html) and the refactoring catalog at [martinfowler.com](https://refactoring.com/catalog/).
-
-## Recommended Local Models
-
-- `Xenova/bge-m3` — high-quality multilingual local transformers option
-- `Xenova/multilingual-e5-large` — higher-quality multilingual retrieval option
-- `Xenova/multilingual-e5-small` — lighter multilingual option for lower resource usage
-- `Xenova/paraphrase-multilingual-MiniLM-L12-v2` — compact multilingual baseline
-
-## Ollama Quick Picks
-
-- `bge-m3`
-- `nomic-embed-text`
-- `snowflake-arctic-embed2`
-- `mxbai-embed-large`
 
 ## Contributing
 
