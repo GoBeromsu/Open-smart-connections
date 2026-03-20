@@ -561,7 +561,7 @@ ${'</'}script></body></html>`;
     if (this.iframe) {
       try {
         await this.send_message('unload');
-      } catch (e) {
+      } catch {
         // Iframe may already be gone
       }
       this.dispose_iframe();

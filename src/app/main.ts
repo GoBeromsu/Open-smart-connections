@@ -259,7 +259,7 @@ export default class SmartConnectionsPlugin extends Plugin {
             this.open_note(r.item?.path ?? '');
           });
         }
-      } catch (e) {
+      } catch (_e) {
         el.createEl('p', { text: 'Failed to load connections.', cls: 'osc-state-text' });
       }
     });

@@ -228,7 +228,7 @@ async function getDb(
  * Call this on plugin unload.
  */
 export async function closeSqliteDatabases(): Promise<void> {
-  for (const [key, ctx] of dbContexts) {
+  for (const [_key, ctx] of dbContexts) {
     if (ctx.autosaveTimer) clearInterval(ctx.autosaveTimer);
     await persistDb(ctx);
     ctx.db.close();

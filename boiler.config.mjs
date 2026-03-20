@@ -6,6 +6,12 @@ export default {
       envVar: 'DESTINATION_VAULTS',
     },
   },
+  sync: {
+    skipDestinations: [
+      ['src', 'shared', 'plugin-notices.ts'],
+      ['src', 'shared', 'plugin-logger.ts'],
+    ],
+  },
   ci: {
     pushBranches: ['main'],
   },

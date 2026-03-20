@@ -11,7 +11,6 @@ import type {
   SearchFilter,
 } from '../types/entities';
 import type { EntityCollection } from './EntityCollection';
-import { create_hash } from '../utils';
 
 /**
  * Base entity class with embedding support

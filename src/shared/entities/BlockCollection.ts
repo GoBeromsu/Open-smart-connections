@@ -5,7 +5,6 @@
 
 import { EntityCollection } from './EntityCollection';
 import { EmbeddingBlock } from './EmbeddingBlock';
-import type { BlockData } from '../types/entities';
 import type { EmbeddingSource } from './EmbeddingSource';
 import type { SourceCollection } from './SourceCollection';
 import { parse_markdown_blocks } from './parsers/markdown-splitter';
@@ -63,7 +62,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
 
     // Create or update block entities
     for (const block_data of blocks) {
-      const block = this.create_or_update(block_data);
+      this.create_or_update(block_data);
 
       // Store block reference in source
       // (Not storing in source.data.blocks to avoid circular dependency)

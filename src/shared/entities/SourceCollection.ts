@@ -5,7 +5,7 @@
 
 import { EntityCollection } from './EntityCollection';
 import { EmbeddingSource } from './EmbeddingSource';
-import type { EntityData, SourceData } from '../types/entities';
+import type { SourceData } from '../types/entities';
 import type { Vault, MetadataCache, TFile } from 'obsidian';
 
 /**
