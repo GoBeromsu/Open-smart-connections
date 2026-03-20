@@ -23,6 +23,8 @@ interface ConnectionsSessionState {
  * ConnectionsView - Shows connections for the active note
  * Ported from connections_view.js with TypeScript and Obsidian native components
  */
+const EMBED_ERROR_MSG = 'Embedding model failed to initialize. Check Smart Connections settings.';
+
 export class ConnectionsView extends ItemView {
   plugin: SmartConnectionsPlugin;
   container: HTMLElement;
@@ -134,7 +136,7 @@ export class ConnectionsView extends ItemView {
       if (!this.plugin.embed_ready) {
         if (this.plugin.status_state === 'error') {
           this.showError(
-            'Embedding model failed to initialize. Check Smart Connections settings.',
+            EMBED_ERROR_MSG,
           );
           return;
         }
@@ -151,7 +153,7 @@ export class ConnectionsView extends ItemView {
       if (!this.plugin.embed_ready) {
         if (this.plugin.status_state === 'error') {
           this.showError(
-            'Embedding model failed to initialize. Check Smart Connections settings.',
+            EMBED_ERROR_MSG,
           );
           return;
         }
@@ -179,7 +181,7 @@ export class ConnectionsView extends ItemView {
       if (is_source_stale) {
         if (this.plugin.status_state === 'error') {
           this.showError(
-            'Embedding model failed to initialize. Check Smart Connections settings.',
+            EMBED_ERROR_MSG,
           );
           return;
         }
