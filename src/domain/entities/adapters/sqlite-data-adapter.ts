@@ -34,7 +34,7 @@ function toDbKey(storageNamespace: string): string {
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
-    .slice(0, 200) || 'open_smart_connections';
+    .slice(0, 200) || 'open_connections';
 }
 
 function vecToBlob(vec: number[]): Uint8Array {

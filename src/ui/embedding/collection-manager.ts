@@ -164,7 +164,7 @@ export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Re
 }
 
 function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
-  const adapter: any = plugin.app.vault.adapter as any;
+  const adapter = plugin.app.vault.adapter as any;
   const basePath = typeof adapter?.getBasePath === 'function'
     ? String(adapter.getBasePath())
     : '';
