@@ -17,6 +17,7 @@ import {
   renderModelDropdown,
   renderApiKeyField as renderApiKeyFieldExternal,
   renderHostField as renderHostFieldExternal,
+  renderSearchModelPicker,
 } from './settings-model-picker';
 
 interface SmartConnectionsPlugin extends Plugin {
@@ -188,6 +189,14 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       const defaultHost = currentAdapter === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234';
       renderHostFieldExternal(containerEl, currentAdapter, defaultHost, configAccessor);
     }
+
+    // Search model section
+    renderSearchModelPicker({
+      containerEl,
+      config: configAccessor,
+      onChanged: () => this.triggerSearchModelReInit(),
+      display: () => this.display(),
+    });
   }
 
   private ensureModelKeyForAdapter(adapterName: string): void {
@@ -196,6 +205,10 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       '',
     );
     if (typeof existing === 'string' && existing.trim().length > 0) {
+      // Still apply Upstage search model auto-population
+      if (adapterName === 'upstage') {
+        this.autoPopulateUpstageSearchModel();
+      }
       return;
     }
 
@@ -204,11 +217,23 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       ollama: 'bge-m3',
       openai: 'text-embedding-3-small',
       gemini: 'text-embedding-004',
-      upstage: 'solar-embedding-1-large-passage',
+      upstage: 'embedding-passage',
     };
     const fallback = defaults[adapterName];
     if (!fallback) return;
     this.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, fallback);
+
+    // Auto-populate search model for Upstage (asymmetric embedding)
+    if (adapterName === 'upstage') {
+      this.autoPopulateUpstageSearchModel();
+    }
+  }
+
+  private autoPopulateUpstageSearchModel(): void {
+    this.setConfig('smart_sources.search_model', {
+      adapter: 'upstage',
+      model_key: 'embedding-query',
+    });
   }
 
   private renderSourceSettings(containerEl: HTMLElement): void {
@@ -537,5 +562,12 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       plugin.notices?.show?.('failed_reinitialize_model');
       console.error('Re-embed failed:', e);
     }
+  }
+
+  private triggerSearchModelReInit(): void {
+    // Re-init search model without re-embedding (search model change doesn't affect stored vectors)
+    this.plugin.switchEmbeddingModel?.('Search model changed').catch((e) => {
+      console.error('Search model re-init failed:', e);
+    });
   }
 }

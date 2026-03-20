@@ -345,6 +345,19 @@
 }
 
 
+/* ─── Dims Compatibility Signal ─── */
+.osc-dims-ok { color: var(--text-muted); }
+.osc-dims-warn { color: var(--osc-color-warning); }
+.osc-dims-error { color: var(--osc-color-error); }
+
+.osc-dims-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 16px 8px;
+  font-size: var(--font-smallest, 11px);
+}
+
 /* ─── Settings ─── */
 .osc-model-status {
   display: flex;

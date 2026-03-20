@@ -56,6 +56,19 @@ export interface EmbedModelSettings {
 }
 
 /**
+ * Search model configuration (optional).
+ * When set, this model is used for search queries instead of the indexing model.
+ * The adapter's API credentials are inherited from `embed_model`'s adapter config.
+ */
+export interface SearchModelSettings {
+  /** Provider name (e.g., 'upstage', 'openai') */
+  adapter: string;
+
+  /** Model key within that provider (e.g., 'embedding-query') */
+  model_key: string;
+}
+
+/**
  * Source (file) settings
  */
 export interface SourceSettings {
@@ -64,6 +77,9 @@ export interface SourceSettings {
 
   /** Embed model configuration */
   embed_model: EmbedModelSettings;
+
+  /** Search model configuration (optional, defaults to indexing model) */
+  search_model?: SearchModelSettings;
 
   /** Excluded headings (comma-separated) */
   excluded_headings: string;

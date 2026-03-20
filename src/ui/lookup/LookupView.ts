@@ -251,7 +251,15 @@ export class LookupView extends ItemView {
         return;
       }
 
-      const embedResults = await this.plugin.embed_model.adapter.embed_batch([{ _embed_input: query }]);
+      // Use search model (supports asymmetric embedding like Upstage query/passage split)
+      const searchAdapter = this.plugin.search_embed_model;
+      if (!searchAdapter) {
+        this.showError('No embedding adapter available.');
+        return;
+      }
+      const embedResults = typeof searchAdapter.embed_query === 'function'
+        ? await searchAdapter.embed_query(query)
+        : await searchAdapter.embed_batch([{ _embed_input: query }]);
       const queryVec = embedResults?.[0]?.vec;
       if (!queryVec || queryVec.length === 0) {
         this.showError('Failed to embed search query.');

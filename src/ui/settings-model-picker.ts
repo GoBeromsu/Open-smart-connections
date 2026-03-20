@@ -343,3 +343,139 @@ export function renderHostField(
       });
     });
 }
+
+// ── Search Model Picker ─────────────────────────────────────────────
+
+interface SearchModelPickerDeps {
+  containerEl: HTMLElement;
+  config: ConfigAccessor;
+  onChanged: () => void;
+  display: () => void;
+}
+
+/** Resolve dims for a given adapter + model_key from the registry. */
+function resolveModelDims(adapterName: string, modelKey: string): number | null {
+  const reg = embedAdapterRegistry.get(adapterName);
+  if (!reg) return null;
+  const info = reg.models[modelKey];
+  return info?.dims ?? null;
+}
+
+type DimsSignal = 'ok' | 'warn' | 'error';
+
+function computeDimsSignal(
+  indexingAdapter: string,
+  indexingDims: number | null,
+  searchAdapter: string,
+  searchDims: number | null,
+): DimsSignal {
+  if (indexingDims == null || searchDims == null) return 'ok';
+  if (indexingDims !== searchDims) return 'error';
+  if (indexingAdapter !== searchAdapter) return 'warn';
+  return 'ok';
+}
+
+const DIMS_SIGNAL_TOOLTIPS: Record<DimsSignal, string> = {
+  ok: 'Same provider and dimensions — fully compatible',
+  warn: 'Different provider but same dimensions — should work, verify quality',
+  error: 'Dimension mismatch — search results will be incompatible',
+};
+
+/**
+ * Render the search model picker section with dims compatibility signal.
+ */
+export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
+  const { containerEl, config, onChanged, display } = deps;
+
+  const indexingAdapter = config.getConfig('smart_sources.embed_model.adapter', 'transformers');
+  const indexingModelKey = config.getConfig(
+    `smart_sources.embed_model.${indexingAdapter}.model_key`,
+    '',
+  );
+  const indexingDims = resolveModelDims(indexingAdapter, indexingModelKey);
+
+  const searchAdapter = config.getConfig('smart_sources.search_model.adapter', '');
+  const searchModelKey = config.getConfig('smart_sources.search_model.model_key', '');
+  const isSearchModelSet = searchAdapter !== '' && searchModelKey !== '';
+
+  // Heading
+  new Setting(containerEl).setName('Search Model (optional)').setHeading();
+
+  // Provider dropdown
+  new Setting(containerEl)
+    .setName('Search provider')
+    .setDesc('Provider used for search queries. "Same as indexing" uses the indexing model.')
+    .addDropdown((dropdown) => {
+      dropdown.addOption('', 'Same as indexing');
+
+      for (const reg of embedAdapterRegistry.getAll()) {
+        dropdown.addOption(reg.name, reg.displayName);
+      }
+
+      dropdown.setValue(searchAdapter);
+      dropdown.onChange((value) => {
+        if (value === '') {
+          // Clear search model — revert to indexing model
+          config.setConfig('smart_sources.search_model', undefined as any);
+          onChanged();
+          display();
+          return;
+        }
+
+        // Set provider, auto-select first model
+        const reg = embedAdapterRegistry.get(value);
+        const firstModelKey = reg ? Object.keys(reg.models)[0] ?? '' : '';
+        config.setConfig('smart_sources.search_model', {
+          adapter: value,
+          model_key: firstModelKey,
+        });
+        onChanged();
+        display();
+      });
+    });
+
+  // Model dropdown (only when a search provider is selected)
+  if (isSearchModelSet) {
+    const allKnownModels = getKnownModels();
+    const searchModels = allKnownModels[searchAdapter] ?? [];
+
+    if (searchModels.length > 0) {
+      new Setting(containerEl)
+        .setName('Search model')
+        .setDesc('Model used for embedding search queries')
+        .addDropdown((dropdown) => {
+          for (const m of searchModels) {
+            dropdown.addOption(m.value, m.name);
+          }
+          dropdown.setValue(searchModelKey);
+          dropdown.onChange((value) => {
+            config.setConfig('smart_sources.search_model', {
+              adapter: searchAdapter,
+              model_key: value,
+            });
+            onChanged();
+            display();
+          });
+        });
+    }
+
+    // Dims comparison signal
+    const searchDims = resolveModelDims(searchAdapter, searchModelKey);
+    const signal = computeDimsSignal(indexingAdapter, indexingDims, searchAdapter, searchDims);
+
+    const dimsRow = containerEl.createDiv({ cls: 'osc-dims-row' });
+
+    const indexLabel = dimsRow.createSpan({
+      text: `Indexing: ${indexingDims != null ? `${indexingDims}d` : '?'}`,
+      cls: 'osc-dims-ok',
+    });
+    indexLabel.setAttribute('aria-label', 'Indexing model dimensions');
+
+    const searchLabel = dimsRow.createSpan({
+      text: `Search: ${searchDims != null ? `${searchDims}d` : '?'}`,
+      cls: `osc-dims-${signal}`,
+    });
+    searchLabel.setAttribute('aria-label', DIMS_SIGNAL_TOOLTIPS[signal]);
+    searchLabel.title = DIMS_SIGNAL_TOOLTIPS[signal];
+  }
+}
