@@ -61,33 +61,6 @@ export class EmbedJobQueue {
     return undefined;
   }
 
-  peek(): EmbedJob | undefined {
-    for (const key of this.insertionOrder) {
-      const job = this.items.get(key);
-      if (job) return job;
-    }
-    return undefined;
-  }
-
-  has(entityKey: string): boolean {
-    return this.items.has(entityKey);
-  }
-
-  get(entityKey: string): EmbedJob | undefined {
-    return this.items.get(entityKey);
-  }
-
-  remove(entityKey: string): boolean {
-    if (!this.items.has(entityKey)) return false;
-    this.items.delete(entityKey);
-    // insertionOrder will have a stale entry; dequeue/toArray/peek skip stale keys
-    if (this.items.size === 0) {
-      this.insertionOrder = [];
-      this.onQueueEmpty?.();
-    }
-    return true;
-  }
-
   /** Remove all jobs whose sourcePath matches the given path. */
   removeBySourcePath(sourcePath: string): number {
     let removed = 0;

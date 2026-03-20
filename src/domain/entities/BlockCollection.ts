@@ -101,16 +101,4 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
     });
   }
 
-  /**
-   * Get block by line number in source
-   */
-  get_block_by_line(source_key: string, line: number): EmbeddingBlock | undefined {
-    const blocks = this.get_source_blocks(source_key);
-
-    return blocks.find(block => {
-      const lines = block.lines;
-      if (!lines) return false;
-      return lines[0] <= line && lines[1] >= line;
-    });
-  }
 }

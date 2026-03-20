@@ -22,6 +22,3 @@ export function isEmbedReady(state: EmbeddingKernelState): boolean {
   return state.phase !== 'error';
 }
 
-export function isKernelBusy(state: EmbeddingKernelState): boolean {
-  return state.phase === 'running';
-}

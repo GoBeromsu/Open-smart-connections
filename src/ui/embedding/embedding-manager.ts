@@ -118,11 +118,6 @@ export function logEmbed(plugin: SmartConnectionsPlugin, event: string, context:
 
 // ── Notice helpers ──────────────────────────────────────────────────
 
-export function buildEmbedNoticeMessage(ctx: EmbeddingRunContext): string {
-  const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
-  return `Smart Connections: ${ctx.adapter}/${ctx.modelKey} ${ctx.current}/${ctx.total} (${percent}%)`;
-}
-
 export function clearEmbedNotice(plugin: SmartConnectionsPlugin): void {
   plugin.notices.remove('embedding_progress');
   plugin.embed_notice_last_update = 0;

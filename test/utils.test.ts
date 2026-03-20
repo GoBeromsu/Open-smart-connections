@@ -7,8 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { cos_sim } from '../src/utils/cos_sim';
 import { results_acc, furthest_acc } from '../src/utils/results_acc';
 import { create_hash } from '../src/utils/create_hash';
-import { deep_merge } from '../src/utils/deep_merge';
-import type { ScoredResult, ResultsAccumulator, FurthestAccumulator } from '../src/utils/results_acc';
+import type { ResultsAccumulator, FurthestAccumulator } from '../src/utils/results_acc';
 
 describe('cos_sim', () => {
   it('should calculate cosine similarity between two vectors', () => {
@@ -163,48 +162,3 @@ describe('create_hash', () => {
   });
 });
 
-describe('deep_merge', () => {
-  it('should merge two simple objects', () => {
-    const obj1 = { a: 1, b: 2 };
-    const obj2 = { b: 3, c: 4 };
-    const result = deep_merge(obj1, obj2);
-    expect(result).toEqual({ a: 1, b: 3, c: 4 });
-  });
-
-  it('should merge nested objects', () => {
-    const obj1 = { a: { x: 1, y: 2 }, b: 1 };
-    const obj2 = { a: { y: 3, z: 4 }, c: 2 };
-    const result = deep_merge(obj1, obj2);
-    expect(result).toEqual({
-      a: { x: 1, y: 3, z: 4 },
-      b: 1,
-      c: 2,
-    });
-  });
-
-  it('should handle arrays by replacing', () => {
-    const obj1 = { arr: [1, 2, 3] };
-    const obj2 = { arr: [4, 5] };
-    const result = deep_merge(obj1, obj2);
-    expect(result).toEqual({ arr: [4, 5] });
-  });
-
-  it('should handle null and undefined values', () => {
-    const obj1 = { a: 1, b: null };
-    const obj2 = { b: 2, c: undefined };
-    const result = deep_merge(obj1, obj2);
-    expect(result.a).toBe(1);
-    expect(result.b).toBe(2);
-  });
-
-  it('should mutate target object and merge source', () => {
-    const obj1 = { a: { x: 1 } };
-    const obj2 = { a: { y: 2 } };
-    const result = deep_merge(obj1, obj2);
-
-    // deep_merge mutates obj1 (documented behavior)
-    expect(obj1).toBe(result);
-    expect(obj1).toEqual({ a: { x: 1, y: 2 } });
-    expect(obj2).toEqual({ a: { y: 2 } }); // obj2 not mutated
-  });
-});

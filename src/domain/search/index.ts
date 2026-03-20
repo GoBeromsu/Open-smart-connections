@@ -12,17 +12,4 @@ export {
 export {
   EmbeddingPipeline,
   type EmbedQueueStats,
-  type EmbedPipelineOptions,
 } from './embedding-pipeline';
-
-export {
-  find_connections,
-  get_source_path,
-  type FindConnectionsOptions,
-} from './find-connections';
-
-export {
-  lookup,
-  batch_lookup,
-  type LookupOptions,
-} from './lookup';

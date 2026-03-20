@@ -240,35 +240,4 @@ export class EmbeddingBlock extends EmbeddingEntity {
     return false;
   }
 
-  /**
-   * Get next block (following block in source)
-   */
-  get next_block(): EmbeddingBlock | undefined {
-    if (!this.lines) return undefined;
-
-    const next_line = this.lines[1] + 1;
-    const blocks = this.source?.blocks || [];
-
-    return blocks.find(block => {
-      const block_lines = (block as any).lines;
-      return block_lines && block_lines[0] === next_line;
-    }) as EmbeddingBlock | undefined;
-  }
-
-  /**
-   * Get sub-blocks (nested blocks within this block)
-   */
-  get sub_blocks(): EmbeddingBlock[] {
-    const blocks = this.source?.blocks || [];
-
-    return blocks.filter(block => {
-      const block_key = (block as any).key;
-      const block_lines = (block as any).lines;
-
-      if (!block_key.startsWith(this.key + '#')) return false;
-      if (!block_lines || !this.lines) return false;
-
-      return block_lines[0] > this.lines[0] && block_lines[1] <= this.lines[1];
-    }) as EmbeddingBlock[];
-  }
 }

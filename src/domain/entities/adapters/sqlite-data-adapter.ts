@@ -238,15 +238,6 @@ export async function closeSqliteDatabases(): Promise<void> {
   sqlJsPromise = null;
 }
 
-/**
- * Force persist all databases (e.g. after a batch save).
- */
-export async function flushSqliteDatabases(): Promise<void> {
-  for (const ctx of dbContexts.values()) {
-    await persistDb(ctx);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // SqliteDataAdapter
 // ---------------------------------------------------------------------------

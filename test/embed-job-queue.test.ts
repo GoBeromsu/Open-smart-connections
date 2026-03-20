@@ -166,47 +166,6 @@ describe('EmbedJobQueue (unified queue)', () => {
     });
   });
 
-  // ── has() and get() ────────────────────────────────────────────────
-  describe('has() and get()', () => {
-    it('has() returns true for queued items', () => {
-      const queue = new EmbedJobQueue();
-      queue.enqueue(makeJob('note.md'));
-      expect(queue.has('note.md')).toBe(true);
-      expect(queue.has('missing.md')).toBe(false);
-    });
-
-    it('get() returns the latest version of queued item', () => {
-      const queue = new EmbedJobQueue();
-      queue.enqueue(makeJob('note.md', 'v1'));
-      queue.enqueue(makeJob('note.md', 'v2'));
-      expect(queue.get('note.md')?.contentHash).toBe('v2');
-    });
-
-    it('has() returns false after item is dequeued', () => {
-      const queue = new EmbedJobQueue();
-      queue.enqueue(makeJob('note.md'));
-      queue.dequeue();
-      expect(queue.has('note.md')).toBe(false);
-    });
-  });
-
-  // ── peek() ─────────────────────────────────────────────────────────
-  describe('peek()', () => {
-    it('returns first item without removing it', () => {
-      const queue = new EmbedJobQueue();
-      queue.enqueue(makeJob('a'));
-      queue.enqueue(makeJob('b'));
-
-      expect(queue.peek()?.entityKey).toBe('a');
-      expect(queue.size()).toBe(2);
-    });
-
-    it('returns undefined for empty queue', () => {
-      const queue = new EmbedJobQueue();
-      expect(queue.peek()).toBeUndefined();
-    });
-  });
-
   // ── clear() ────────────────────────────────────────────────────────
   describe('clear()', () => {
     it('removes all items', () => {
@@ -342,7 +301,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       const queue = new EmbedJobQueue();
       const key = 'folder/sub folder/note (1).md#heading with spaces';
       queue.enqueue(makeJob(key));
-      expect(queue.has(key)).toBe(true);
+      expect(queue.size()).toBe(1);
       expect(queue.dequeue()?.entityKey).toBe(key);
     });
   });

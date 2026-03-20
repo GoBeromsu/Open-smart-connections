@@ -21,7 +21,6 @@ import { setupStatusBar as _setupStatusBar, refreshStatus as _refreshStatus, han
 import {
   loadUserState as _loadUserState,
   handleNewUser as _handleNewUser,
-  checkForUpdates as _checkForUpdates,
   addToGitignore as _addToGitignore,
   isNewUser as _isNewUser,
   saveInstalledAt as _saveInstalledAt,
@@ -545,7 +544,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async handleNewUser(): Promise<void> { return _handleNewUser(this); }
-  async checkForUpdates(): Promise<void> { return _checkForUpdates(this); }
   async checkForUpdate(): Promise<void> { return _checkForUpdate(this); }
   async getLastKnownVersion(): Promise<string> { return _getLastKnownVersion(this); }
   async setLastKnownVersion(version: string): Promise<void> { return _setLastKnownVersion(this, version); }

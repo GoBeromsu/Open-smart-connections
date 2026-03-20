@@ -102,7 +102,3 @@ export type EmbeddingKernelListener = (
   event: EmbeddingKernelEvent,
 ) => void;
 
-export interface EnqueuedKernelJob<T = unknown> {
-  key: string;
-  promise: Promise<T>;
-}
