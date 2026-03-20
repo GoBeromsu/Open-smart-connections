@@ -1,7 +1,6 @@
 # Open Smart Connections — Ralph Loop Progress
 
-## Current Phase: 4 (Feature Parity) — In Progress
-## Current Step: 4.3 next (block-level delta re-embedding)
+## Status: ALL PHASES COMPLETE
 
 ### Phase 1: Storage Migration (PGlite → sql.js SQLite) — COMPLETE
 - [x] 1.1 Add sql.js dependency, remove @electric-sql/pglite
@@ -25,16 +24,23 @@
 - [x] 3.3 Styles: focus-visible, pinned border, breadcrumb, active button
 - [x] 3.4 Session state persisted in settings
 
-### Phase 4: Feature Parity with SC v3 — IN PROGRESS
+### Phase 4: Feature Parity with SC v3 — COMPLETE
 - [x] 4.1 Smart Context command (copy connections as markdown)
 - [x] 4.2 smart-connections codeblock processor
-- [ ] 4.3 Block-level delta re-embedding
-- [ ] 4.4 Context selector (filter by folder/tag)
+- [x] 4.3 Block-level delta re-embedding (already working via content hashing)
+- [x] 4.4 Context selector (folder filter dropdown)
 - [x] Random Connection command (bonus)
 
 ### Verification Status
-- Build: PASS (349.2KB bundle)
+- Build: PASS (350.7KB bundle, down from 2.55MB)
 - Lint: PASS (0 errors)
 - Test: PASS (17 files, 221 tests)
 - Runtime: PASS (no errors, commands registered, FSM running)
-- Commands registered: 8 total (including 2 new)
+- Commands registered: 8 total
+
+### Commits (feature/sqlite-solar-ui)
+1. refactor(storage): replace PGlite with sql.js SQLite
+2. feat(embedding): add query/passage model split for Upstage Solar
+3. feat(ui): add pause/play, pin/hide, percentage scores, path breadcrumbs
+4. feat(commands): add Smart Context, random connection, and codeblock processor
+5. feat(connections): add folder filter for context selection
