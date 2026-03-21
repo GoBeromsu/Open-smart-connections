@@ -4,8 +4,11 @@
  */
 
 import type { Plugin } from 'obsidian';
+import type { BlockCollection } from '../domain/entities';
+import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { ConnectionsView } from './ConnectionsView';
 import { LookupView } from './LookupView';
+import { getBlockConnections } from './block-connections';
 
 /**
  * Register all plugin commands
@@ -52,7 +55,7 @@ export function registerCommands(plugin: Plugin): void {
     name: 'Refresh embeddings',
     callback: async () => {
       const p = plugin as any;
-      if (!p.source_collection || !p.embedding_pipeline) return;
+      if (!p.block_collection || !p.embedding_pipeline) return;
       await p.reembedStaleEntities?.('Command: Refresh embeddings');
     },
   });
@@ -73,22 +76,23 @@ export function registerCommands(plugin: Plugin): void {
     callback: async () => {
       const p = plugin as any;
       const activeFile = plugin.app.workspace.getActiveFile();
-      if (!activeFile || !p.source_collection) return;
+      if (!activeFile || !p.block_collection) return;
 
-      const source = p.source_collection.get(activeFile.path);
-      if (!source?.vec) {
+      const blockCollection = p.block_collection as BlockCollection;
+      const hasEmbedded = blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.vec);
+      if (!hasEmbedded) {
         p.notices?.show('no_embedding_for_context');
         return;
       }
 
       try {
-        const results = await p.source_collection.nearest_to(source, { limit: 20 });
+        const results = await getBlockConnections(blockCollection, activeFile.path, { limit: 20 });
         if (!results || results.length === 0) return;
 
-        const lines = results.map((r: any) => {
+        const lines = results.map(r => {
           const score = Math.round((r.score ?? 0) * 100);
-          const path = (r.item?.path ?? '').replace(/\.md$/, '');
-          return `- [[${path}]] (${score}%)`;
+          const sourcePath = ((r.item as EmbeddingBlock).source_key ?? '').replace(/\.md$/, '');
+          return `- [[${sourcePath}]] (${score}%)`;
         });
 
         const contextText = `## Smart Context: ${activeFile.basename}\n\n${lines.join('\n')}`;
@@ -107,17 +111,17 @@ export function registerCommands(plugin: Plugin): void {
     callback: async () => {
       const p = plugin as any;
       const activeFile = plugin.app.workspace.getActiveFile();
-      if (!activeFile || !p.source_collection) return;
+      if (!activeFile || !p.block_collection) return;
 
-      const source = p.source_collection.get(activeFile.path);
-      if (!source?.vec) return;
+      const blockCollection = p.block_collection as BlockCollection;
+      if (!blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.vec)) return;
 
       try {
-        const results = await p.source_collection.nearest_to(source, { limit: 20 });
+        const results = await getBlockConnections(blockCollection, activeFile.path, { limit: 20 });
         if (!results || results.length === 0) return;
 
         const randomIdx = Math.floor(Math.random() * results.length);
-        const randomPath = results[randomIdx].item?.path;
+        const randomPath = (results[randomIdx].item as EmbeddingBlock).source_key;
         if (randomPath) p.open_note(randomPath);
       } catch (e) {
         console.error('Failed to find random connection:', e);

@@ -199,6 +199,14 @@ export class EmbeddingSource extends EmbeddingEntity {
   }
 
   /**
+   * Source-level embedding is disabled — blocks only.
+   * Returning false prevents sources from entering the embed queue.
+   */
+  get should_embed(): boolean {
+    return false;
+  }
+
+  /**
    * Get outlinks (from MetadataCache)
    */
   get outlinks(): string[] {

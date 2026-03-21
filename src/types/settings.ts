@@ -100,6 +100,9 @@ export interface BlockSettings {
 
   /** Minimum characters for a block to be embedded */
   min_chars: number;
+
+  /** Maximum heading level to split blocks at (1-6). H1..H<depth> create new blocks; deeper headings merge into parent. */
+  block_heading_depth: number;
 }
 
 /**
@@ -142,6 +145,9 @@ export interface PluginSettings {
 
   /** How often to save embedding progress (in batches). Lower = safer on crash, higher = less I/O */
   embed_save_interval: number;
+
+  /** Number of batches sent to the API simultaneously (1-10, default 5) */
+  embed_concurrency: number;
 
   /** Whether this is an Obsidian vault */
   is_obsidian_vault: boolean;

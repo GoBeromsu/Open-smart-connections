@@ -5,6 +5,7 @@
 
 export { cos_sim } from './cos_sim';
 export { create_hash } from './create_hash';
+export { average_vectors } from './average_vectors';
 export {
   results_acc,
   furthest_acc,

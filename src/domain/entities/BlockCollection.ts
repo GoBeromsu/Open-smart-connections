@@ -53,11 +53,14 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
       return;
     }
 
+    const max_depth = this.settings.block_heading_depth ?? 3;
+
     // Parse blocks using MetadataCache sections and paragraph splitting
     const blocks = await parse_markdown_blocks(
       content,
       source.key,
       source.cached_metadata,
+      max_depth,
     );
 
     // Create or update block entities
@@ -85,6 +88,14 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
    */
   get_source_blocks(source_key: string): EmbeddingBlock[] {
     return this.all.filter(block => block.source_key === source_key);
+  }
+
+  /**
+   * Get all blocks whose source_key matches the given path.
+   * Preferred alias for get_source_blocks — used by UI layer to avoid inline filter calls.
+   */
+  for_source(path: string): EmbeddingBlock[] {
+    return this.all.filter(block => block.source_key === path);
   }
 
   /**

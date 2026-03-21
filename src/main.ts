@@ -8,6 +8,7 @@ import {
   Plugin,
   TFile,
 } from 'obsidian';
+import { average_vectors } from './utils';
 
 import type { PluginSettings } from './types/settings';
 import { DEFAULT_SETTINGS } from './domain/config';
@@ -220,7 +221,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       ConnectionsView.open(this.app.workspace);
     });
     this.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
-      if (!this.source_collection) {
+      if (!this.block_collection) {
         el.createEl('p', { text: 'Open Connections is loading...', cls: 'osc-state-text' });
         return;
       }
@@ -236,28 +237,46 @@ export default class SmartConnectionsPlugin extends Plugin {
       const activeFile = this.app.workspace.getActiveFile();
       if (!activeFile) return;
 
-      const entity = this.source_collection.get(activeFile.path);
-      if (!entity?.vec) {
+      // Find embedded blocks for this file and average their vectors
+      const fileBlocks = this.block_collection.all.filter(
+        (b: any) => b.source_key === activeFile.path && b.vec,
+      );
+      if (fileBlocks.length === 0) {
         el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
         return;
       }
 
+      const avgVec = average_vectors(fileBlocks.map((b: any) => b.vec));
+
       try {
-        const results = await this.source_collection.nearest_to(entity, { limit });
-        const list = el.createEl('ul', { cls: 'osc-codeblock-results' });
+        const blockKeys = new Set(fileBlocks.map((b: any) => b.key));
+        const results = await this.block_collection.nearest(avgVec, { limit: limit * 3, exclude: blockKeys });
+        // Dedupe by source path, keep highest score
+        const seen = new Map<string, { score: number; path: string; heading: string }>();
         for (const r of results) {
-          const score = Math.round((r.score ?? 0) * 100);
-          const path = (r.item?.path ?? '').replace(/\.md$/, '');
+          const key = r.item?.key ?? '';
+          const sourcePath = key.split('#')[0];
+          const heading = key.includes('#') ? key.split('#').pop() ?? '' : '';
+          const score = r.score ?? 0;
+          if (!seen.has(sourcePath) || score > (seen.get(sourcePath)?.score ?? 0)) {
+            seen.set(sourcePath, { score, path: sourcePath, heading });
+          }
+        }
+        const deduped = [...seen.values()].slice(0, limit);
+        const list = el.createEl('ul', { cls: 'osc-codeblock-results' });
+        for (const r of deduped) {
+          const score = Math.round(r.score * 100);
+          const displayPath = r.path.replace(/\.md$/, '');
           const li = list.createEl('li');
           const link = li.createEl('a', {
-            text: path.split('/').pop() ?? path,
+            text: displayPath.split('/').pop() ?? displayPath,
             cls: 'internal-link',
-            attr: { 'data-href': path },
+            attr: { 'data-href': displayPath },
           });
           li.createSpan({ text: ` (${score}%)`, cls: 'osc-score--medium' });
           link.addEventListener('click', (e) => {
             e.preventDefault();
-            this.open_note(r.item?.path ?? '');
+            this.open_note(r.path);
           });
         }
       } catch (_e) {

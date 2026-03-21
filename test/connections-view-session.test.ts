@@ -27,13 +27,15 @@ function createPluginStub() {
     },
     source_collection: {
       size: 2,
-      all: [{ vec: [1, 2, 3] }, { vec: null }],
+      all: [],
       data_dir: '/tmp/sources',
       get: vi.fn(() => null),
-      nearest_to: vi.fn(async () => []),
     },
     block_collection: {
       data_dir: '/tmp/blocks',
+      all: [] as any[],
+      for_source(path: string) { return (this.all as any[]).filter((b: any) => b.source_key === path); },
+      nearest: vi.fn(async () => []),
     },
     open_note: vi.fn(),
     embed_job_queue: null,
@@ -94,51 +96,51 @@ function createObsidianLikeContainer(): any {
 }
 
 describe('ConnectionsView rendering states', () => {
-  it('shows cached results with banner when source is stale but has vec', async () => {
+  it('calls block_collection.nearest when blocks with vectors exist for the active file', async () => {
     const plugin = createPluginStub();
     plugin.status_state = 'idle';
-    const staleSource = {
-      key: 'note.md',
+    const embeddedBlock = {
+      key: 'note.md#Section',
+      source_key: 'note.md',
       vec: [1, 2, 3],
-      is_unembedded: true,
+      is_unembedded: false,
     };
-    plugin.source_collection.get = vi.fn(() => staleSource);
-    plugin.source_collection.nearest_to = vi.fn(async () => [{ item: { path: 'other.md' }, score: 0.9 }]);
-    plugin.embed_job_queue = { enqueue: vi.fn() };
-    plugin.runEmbeddingJob = vi.fn(async () => ({}));
+    plugin.block_collection.all = [embeddedBlock];
+    plugin.block_collection.nearest = vi.fn(async () => [
+      { item: { key: 'other.md#Topic', source_key: 'other.md' }, score: 0.9 },
+    ]);
 
     const view = new ConnectionsView({} as any, plugin);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
 
-    // Should show results (nearest_to was called) instead of empty/loading
-    expect(plugin.source_collection.nearest_to).toHaveBeenCalled();
+    // Should search blocks and render results
+    expect(plugin.block_collection.nearest).toHaveBeenCalled();
   });
 
-  it('shows cached results with banner when source is stale and queue is active', async () => {
+  it('shows loading state when blocks exist but have no vectors yet', async () => {
     const plugin = createPluginStub();
-    const staleSource = {
-      key: 'note.md',
-      vec: [1, 2, 3],
+    const unembeddedBlock = {
+      key: 'note.md#Section',
+      source_key: 'note.md',
+      vec: null,
       is_unembedded: true,
+      queue_embed: vi.fn(),
+      _queue_embed: false,
     };
-    plugin.source_collection.get = vi.fn(() => staleSource);
-    plugin.source_collection.nearest_to = vi.fn(async () => [{ item: { path: 'other.md' }, score: 0.9 }]);
+    plugin.block_collection.all = [unembeddedBlock];
     plugin.embed_job_queue = { enqueue: vi.fn() };
     plugin.runEmbeddingJob = vi.fn(async () => ({}));
-    plugin.getEmbeddingKernelState = vi.fn(() => ({
-      phase: 'idle',
-      queue: { queuedTotal: 1 },
-    }));
 
     const view = new ConnectionsView({} as any, plugin);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
 
-    // Should show results instead of loading spinner
-    expect(plugin.source_collection.nearest_to).toHaveBeenCalled();
+    // Should show loading state (no embedded blocks to search with)
+    const text = (view as any).container.textContent;
+    expect(text).toContain('Embedding');
   });
 
   it('refresh button triggers re-embed from loading state', async () => {
