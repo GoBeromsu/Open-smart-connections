@@ -62,19 +62,36 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
       throw new Error('Collections must be initialized before loading');
     }
 
-    let t = performance.now();
-    await plugin.source_collection.data_adapter.load();
+    const t = performance.now();
+    await Promise.all([
+      plugin.source_collection.data_adapter.load(),
+      plugin.block_collection.data_adapter.load(),
+    ]);
     plugin.source_collection.loaded = true;
-    console.log(`[SC][Init]   [collections] Loading sources ✓ (${(performance.now() - t).toFixed(0)}ms)`);
-
-    t = performance.now();
-    await plugin.block_collection.data_adapter.load();
     plugin.block_collection.loaded = true;
-    console.log(`[SC][Init]   [collections] Loading blocks ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+    console.log(`[SC][Init]   [collections] Loading sources + blocks ✓ (${(performance.now() - t).toFixed(0)}ms)`);
+
+    plugin.source_collection._initializing = false;
   } catch (error) {
     console.error('[SC][Init]   [collections] Failed to load collections:', error);
     plugin.notices.show('failed_load_collection_data');
     throw error;
+  }
+}
+
+export async function discoverNewSources(plugin: SmartConnectionsPlugin): Promise<void> {
+  if (!plugin.source_collection?.vault) return;
+  const knownPaths = new Set(plugin.source_collection.all.map((s: any) => s.key));
+  const vaultFiles = plugin.app.vault.getMarkdownFiles();
+  let discovered = 0;
+  for (const file of vaultFiles) {
+    if (!knownPaths.has(file.path)) {
+      await plugin.source_collection.import_source(file);
+      discovered++;
+    }
+  }
+  if (discovered > 0) {
+    console.log(`[SC][Init] Discovered ${discovered} new files`);
   }
 }
 
