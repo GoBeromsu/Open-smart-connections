@@ -33,7 +33,7 @@ import {
 import {
   initCollections as _initCollections,
   loadCollections as _loadCollections,
-  discoverNewSources as _discoverNewSources,
+  processNewSourcesChunked as _processNewSourcesChunked,
   queueUnembeddedEntities as _queueUnembeddedEntities,
   getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
@@ -382,8 +382,12 @@ export default class SmartConnectionsPlugin extends Plugin {
     } catch { /* use default 'unknown' */ }
     console.log(`[SC][Init] ▶ Phase 2: Embedding initialization starting (model: ${modelId})`);
     try {
-      await this.discoverNewSources();
+      // Step 1: Load model + handle stale existing entities (modified since last run)
       await this.switchEmbeddingModel('Initial embedding setup');
+
+      // Step 2: Chunk-based discovery + embedding for new files not yet in DB
+      await _processNewSourcesChunked(this);
+
       console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
@@ -526,7 +530,6 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initCollections(): Promise<void> { return _initCollections(this); }
   async loadCollections(): Promise<void> { return _loadCollections(this); }
-  async discoverNewSources(): Promise<void> { return _discoverNewSources(this); }
 
   async initPipeline(): Promise<void> { return _initPipeline(this); }
   async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
