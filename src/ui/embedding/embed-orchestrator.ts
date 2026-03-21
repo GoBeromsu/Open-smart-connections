@@ -188,7 +188,6 @@ export function emitEmbedProgress(
     current: ctx.current,
     total: ctx.total,
     percent,
-    sourceTotal: ctx.sourceTotal,
     blockTotal: ctx.blockTotal,
     saveCount: ctx.saveCount,
     sourceDataDir: ctx.sourceDataDir,
@@ -605,9 +604,10 @@ function handleRunCompleted(
   plugin.current_embed_context = null;
   plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
   plugin.notices.show('embedding_complete', { success: stats.success });
-  plugin.embed_job_queue?.clear();
-  // Skip full re-scan if called from chunked pipeline — the chunked loop manages its own queueing.
-  const isChunkedRun = ctx.reason.includes('Chunk');
+  const isChunkedRun = ctx.reason.startsWith('[chunked-pipeline]');
+  if (!isChunkedRun) {
+    plugin.embed_job_queue?.clear();
+  }
   const unresolvedAfterRun = isChunkedRun ? 0 : plugin.queueUnembeddedEntities();
   dispatchQueueSnapshot(plugin);
   if (unresolvedAfterRun > 0) {
@@ -691,19 +691,13 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     return null;
   }
 
-  // Collect entities to embed from the unified EmbedJobQueue.
-  // The pipeline still reads _queue_embed internally, so we resolve entity objects
-  // from the queue's entityKeys and filter for those with _queue_embed set.
   const jobKeys = plugin.embed_job_queue
     ? new Set(plugin.embed_job_queue.toArray().map(j => j.entityKey))
     : new Set<string>();
-  const sourcesToEmbed = plugin.source_collection.all.filter(
-    (s: any) => s._queue_embed && s.should_embed && jobKeys.has(s.key),
-  );
   const blocksToEmbed = (plugin.block_collection?.all || []).filter(
     (b: any) => b._queue_embed && b.should_embed && jobKeys.has(b.key),
   );
-  const entitiesToEmbed = [...sourcesToEmbed, ...blocksToEmbed];
+  const entitiesToEmbed = blocksToEmbed;
 
   if (entitiesToEmbed.length === 0) {
     plugin.logEmbed('run-skip-empty', { reason });
@@ -726,7 +720,6 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     startedAt: Date.now(),
     current: 0,
     total: entitiesToEmbed.length,
-    sourceTotal: sourcesToEmbed.length,
     blockTotal: blocksToEmbed.length,
     saveCount: 0,
     sourceDataDir: plugin.source_collection.data_dir,
@@ -743,7 +736,6 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
       reason,
       current: 0,
       total: ctx.total,
-      sourceTotal: ctx.sourceTotal,
       blockTotal: ctx.blockTotal,
       startedAt: ctx.startedAt,
       currentEntityKey: ctx.currentEntityKey,
@@ -760,7 +752,6 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     dims: ctx.dims,
     current: 0,
     total: ctx.total,
-    sourceTotal: ctx.sourceTotal,
     blockTotal: ctx.blockTotal,
     sourceDataDir: ctx.sourceDataDir,
     blockDataDir: ctx.blockDataDir,

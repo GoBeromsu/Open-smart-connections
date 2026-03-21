@@ -42,14 +42,14 @@ function createPlugin() {
     },
     data_dir: '/tmp/sources',
     size: 2,
-    all: [
-      { key: 's1', vec: [1, 2, 3], _queue_embed: true, should_embed: true },
-      { key: 's2', vec: null, _queue_embed: true, should_embed: true },
-    ],
+    all: [],
   } as any;
 
   plugin.block_collection = {
-    all: [],
+    all: [
+      { key: 's1#h1', vec: [1, 2, 3], _queue_embed: true, should_embed: true },
+      { key: 's2#h1', vec: null, _queue_embed: true, should_embed: true },
+    ],
     data_adapter: {
       save: vi.fn(async () => {}),
     },
@@ -64,12 +64,12 @@ function createPlugin() {
 
   plugin.ensureEmbeddingKernel();
 
-  // Pre-populate EmbedJobQueue with the source entities
-  for (const entity of (plugin.source_collection as any).all) {
+  // Pre-populate EmbedJobQueue with the block entities
+  for (const entity of (plugin.block_collection as any).all) {
     plugin.embed_job_queue!.enqueue({
       entityKey: entity.key,
       contentHash: '',
-      sourcePath: entity.key,
+      sourcePath: String(entity.key).split('#')[0],
       enqueuedAt: Date.now(),
     });
   }

@@ -21,7 +21,6 @@ export interface EmbeddingKernelRun {
   reason: string;
   current: number;
   total: number;
-  sourceTotal: number;
   blockTotal: number;
   startedAt: number;
   currentEntityKey: string | null;

@@ -86,7 +86,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
 export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): Promise<void> {
   if (!plugin.source_collection?.vault || !plugin.block_collection) return;
 
-  const knownPaths = new Set(plugin.source_collection.all.map((s: any) => s.key));
+  const knownPaths = new Set(plugin.source_collection.all.map(s => s.key));
   const newFiles = plugin.app.vault.getMarkdownFiles().filter(f => !knownPaths.has(f.path));
 
   if (newFiles.length === 0) return;
@@ -108,20 +108,22 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
       }
     }
 
-    // 2. Queue unembedded blocks (O(n) rescan — fast, only in-memory entities)
-    const chunkQueued = queueUnembeddedEntities(plugin);
-
-    // 3. Embed if there's work and pipeline is ready
-    if (chunkQueued > 0 && plugin.embedding_pipeline) {
-      await plugin.runEmbeddingJobImmediate(`Chunk ${Math.min(i + chunkSize, total)}/${total}`);
+    // 2. Save discovery metadata before embedding
+    await plugin.source_collection.data_adapter.save();
+    if (plugin.block_collection) {
+      await plugin.block_collection.data_adapter.save();
     }
 
-    // 4. Save to in-memory DB (disk flush via autosave timer)
-    await plugin.source_collection.data_adapter.save();
-    await plugin.block_collection.data_adapter.save();
+    // 3. Queue unembedded blocks (O(n) rescan — fast, only in-memory entities)
+    const chunkQueued = queueUnembeddedEntities(plugin);
+
+    // 4. Embed if there's work and pipeline is ready (embedding run handles its own saves)
+    const processed = Math.min(i + chunkSize, total);
+    if (chunkQueued > 0 && plugin.embedding_pipeline) {
+      await plugin.runEmbeddingJobImmediate(`[chunked-pipeline] ${processed}/${total}`);
+    }
 
     // 5. Yield + status
-    const processed = Math.min(i + chunkSize, total);
     console.log(`[SC] Processed ${processed}/${total} files`);
     plugin.refreshStatus?.();
     await new Promise(r => setTimeout(r, 0));

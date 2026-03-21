@@ -47,13 +47,9 @@ export class EmbeddingBlock extends EmbeddingEntity {
     }
   }
 
-  /**
-   * Queue for embedding (also queues parent source)
-   */
   queue_embed(): void {
-    if (this.should_embed) {
+    if (this.should_embed && this.is_unembedded) {
       this._queue_embed = true;
-      this.source?.queue_embed();
     }
   }
 

@@ -22,7 +22,7 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
   /** Block collection reference */
   block_collection?: any;
 
-  /** True during initial vault discovery — blocks loaded from DB, not parsed from files */
+  /** False once SQLite load is complete; import_source only parses blocks when this is false */
   _initializing = true;
 
   constructor(
@@ -47,28 +47,9 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
 
   /**
    * Initialize collection
-   * DB load happens in loadCollections(); discovery happens after via discoverNewSources()
    */
   async init(): Promise<void> {
     await super.init();
-  }
-
-  /**
-   * Discover sources from vault
-   * Uses vault.getMarkdownFiles()
-   */
-  async discover_sources(): Promise<void> {
-    if (!this.vault) {
-      console.warn('No vault available for source discovery');
-      return;
-    }
-
-    const markdown_files = this.vault.getMarkdownFiles();
-    console.log(`Discovered ${markdown_files.length} markdown files`);
-
-    for (const file of markdown_files) {
-      await this.import_source(file);
-    }
   }
 
   /**

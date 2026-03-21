@@ -87,6 +87,7 @@ export interface EmbeddingRunContext {
   runId: number;
   phase: 'running' | 'completed' | 'failed';
   reason: string;
+  isChunkedPipeline?: boolean;
   adapter: string;
   modelKey: string;
   dims: number | null;
@@ -95,7 +96,6 @@ export interface EmbeddingRunContext {
   startedAt: number;
   current: number;
   total: number;
-  sourceTotal: number;
   blockTotal: number;
   saveCount: number;
   sourceDataDir: string;
@@ -114,7 +114,6 @@ export interface EmbedProgressEventPayload {
   current: number;
   total: number;
   percent: number;
-  sourceTotal: number;
   blockTotal: number;
   saveCount: number;
   sourceDataDir: string;
