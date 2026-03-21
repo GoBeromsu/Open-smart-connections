@@ -100,20 +100,17 @@ src/
 │   ├── commands.ts           # Command palette registrations
 │   ├── status-bar.ts         # Status bar widget
 │   ├── file-watcher.ts       # Vault file change handlers
-│   ├── user-state.ts         # Install date, version tracking, update checks
-│   ├── connections/
-│   │   └── ConnectionsView.ts   # ItemView: related notes for active file
-│   ├── lookup/
-│   │   └── LookupView.ts        # ItemView: semantic search across vault
+│   ├── user-state.ts         # Install date, version tracking
+│   ├── ConnectionsView.ts       # ItemView: related notes for active file
+│   ├── LookupView.ts            # ItemView: semantic search across vault
+│   ├── result-context-menu.ts   # Right-click context menu for results
 │   ├── embedding/
-│   │   ├── collection-manager.ts # Source/Block collection init and loading
-│   │   └── embedding-manager.ts  # Model lifecycle, embed jobs, pipeline
-│   ├── models/embed/adapters/   # API adapters (use requestUrl — Obsidian-dependent)
-│   │   ├── _api.ts           # Shared fetch helper
-│   │   ├── transformers.ts   # Local WebWorker adapter
-│   │   ├── openai.ts, gemini.ts, ollama.ts, lm_studio.ts, open_router.ts, upstage.ts
-│   └── views/
-│       └── result-context-menu.ts  # Right-click context menu for results
+│   │   ├── collection-loader.ts  # Source/Block collection init and loading
+│   │   └── embed-orchestrator.ts # Model lifecycle, embed jobs, pipeline
+│   └── models/embed/adapters/   # API adapters (use requestUrl — Obsidian-dependent)
+│       ├── api-base.ts       # Base adapter classes
+│       ├── transformers.ts   # Local WebWorker adapter
+│       ├── openai.ts, gemini.ts, ollama.ts, lm-studio.ts, open-router.ts, upstage.ts
 ├── types/                    # Pure type definitions — NO obsidian imports
 │   ├── entities.ts
 │   ├── models.ts
@@ -213,8 +210,8 @@ pnpm vitest run test/notices.test.ts
 | `src/shared/plugin-logger.ts` | Shared PluginLogger (synced from boiler template — do not edit) |
 | `src/domain/config.ts` | DEFAULT_SETTINGS |
 | `src/types/obsidian-shims.ts` | Structural shims for TFile, Vault, MetadataCache — used by domain layer |
-| `src/ui/connections/ConnectionsView.ts` | Connections panel (related notes) |
-| `src/ui/lookup/LookupView.ts` | Semantic search panel |
+| `src/ui/ConnectionsView.ts` | Connections panel (related notes) |
+| `src/ui/LookupView.ts` | Semantic search panel |
 | `src/domain/embedding/kernel/store.ts` | Embedding state machine |
 | `src/domain/entities/` | Source/Block entity model + SQLite adapter |
 | `src/domain/models/embed/` | Abstract EmbedModel + registry |

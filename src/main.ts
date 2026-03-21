@@ -15,8 +15,8 @@ import { SmartConnectionsNotices, NOTICE_CATALOG } from './domain/notices';
 import { PluginLogger } from './shared/plugin-logger';
 import { SmartConnectionsSettingsTab } from './ui/settings';
 import { registerCommands } from './ui/commands';
-import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './ui/connections/ConnectionsView';
-import { LookupView, LOOKUP_VIEW_TYPE } from './ui/lookup/LookupView';
+import { ConnectionsView, CONNECTIONS_VIEW_TYPE } from './ui/ConnectionsView';
+import { LookupView, LOOKUP_VIEW_TYPE } from './ui/LookupView';
 import { setupStatusBar as _setupStatusBar, refreshStatus as _refreshStatus, handleStatusBarClick as _handleStatusBarClick } from './ui/status-bar';
 import {
   loadUserState as _loadUserState,
@@ -36,7 +36,7 @@ import {
   getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
   getEmbedAdapterSettings as _getEmbedAdapterSettings,
-} from './ui/embedding/collection-manager';
+} from './ui/embedding/collection-loader';
 import {
   registerFileWatchers as _registerFileWatchers,
   isSourceFile as _isSourceFile,
@@ -56,7 +56,7 @@ import {
   getActiveEmbeddingContext as _getActiveEmbeddingContext,
   logEmbed as _logEmbed,
   clearEmbedNotice as _clearEmbedNotice,
-} from './ui/embedding/embedding-manager';
+} from './ui/embedding/embed-orchestrator';
 import { EmbeddingKernelStore } from './domain/embedding/kernel/store';
 import { EmbeddingKernelJobQueue } from './domain/embedding/kernel/queue';
 import {

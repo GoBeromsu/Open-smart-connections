@@ -4,7 +4,7 @@
  */
 
 import type SmartConnectionsPlugin from '../main';
-import { ConnectionsView } from './connections/ConnectionsView';
+import { ConnectionsView } from './ConnectionsView';
 import { determine_installed_at } from '../utils/determine_installed_at';
 
 export async function loadUserState(plugin: SmartConnectionsPlugin): Promise<void> {

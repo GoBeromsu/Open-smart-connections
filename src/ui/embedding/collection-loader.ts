@@ -1,5 +1,5 @@
 /**
- * @file embedding/collection-manager.ts
+ * @file embedding/collection-loader.ts
  * @description Collection initialization, loading, and embedding context sync
  */
 

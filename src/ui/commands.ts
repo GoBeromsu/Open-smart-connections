@@ -4,8 +4,8 @@
  */
 
 import type { Plugin } from 'obsidian';
-import { ConnectionsView } from './connections/ConnectionsView';
-import { LookupView } from './lookup/LookupView';
+import { ConnectionsView } from './ConnectionsView';
+import { LookupView } from './LookupView';
 
 /**
  * Register all plugin commands

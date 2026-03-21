@@ -5,7 +5,7 @@
 
 import { setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
-import { ConnectionsView } from './connections/ConnectionsView';
+import { ConnectionsView } from './ConnectionsView';
 
 /**
  * Create the status bar item, wire up click handler, and render initial state.

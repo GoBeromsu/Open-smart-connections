@@ -1,5 +1,5 @@
 /**
- * @file lm_studio.ts
+ * @file lm-studio.ts
  * @description Adapter for LM Studio's local embedding API
  */
 
@@ -8,7 +8,7 @@ import {
   EmbedModelApiAdapter,
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
-} from './_api';
+} from './api-base';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../../../types/models';
 import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
 
