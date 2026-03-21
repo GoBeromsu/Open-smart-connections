@@ -33,6 +33,7 @@ import {
 import {
   initCollections as _initCollections,
   loadCollections as _loadCollections,
+  discoverNewSources as _discoverNewSources,
   queueUnembeddedEntities as _queueUnembeddedEntities,
   getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
@@ -309,8 +310,11 @@ export default class SmartConnectionsPlugin extends Plugin {
     const phase1Start = performance.now();
     console.log('[SC][Init] ▶ Phase 1: Core initialization starting');
 
-    const TOTAL = 6;
+    const TOTAL = 5;
     let step = 0;
+
+    // Setup status bar first so users see feedback during the rest of init
+    this.setupStatusBar();
 
     /**
      * Run an init step with timing and error capture.
@@ -356,11 +360,11 @@ export default class SmartConnectionsPlugin extends Plugin {
       },
     })) return;
 
-    await runStep('Setting up status bar', () => this.setupStatusBar());
     await runStep('Registering file watchers', () => this.registerFileWatchers());
 
     this.ready = true;
     this.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
+    this.app.workspace.trigger('smart-connections:core-ready' as any);
     console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - phase1Start).toFixed(0)}ms) — ready=${this.ready}, errors=${this.init_errors.length}`);
 
     if (this.init_errors.length > 0) {
@@ -378,6 +382,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     } catch { /* use default 'unknown' */ }
     console.log(`[SC][Init] ▶ Phase 2: Embedding initialization starting (model: ${modelId})`);
     try {
+      await this.discoverNewSources();
       await this.switchEmbeddingModel('Initial embedding setup');
       console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
@@ -494,14 +499,13 @@ export default class SmartConnectionsPlugin extends Plugin {
   isNewUser(): boolean { return _isNewUser(this); }
 
   async waitForSync(): Promise<void> {
-    // Wait 3 seconds for other processes to finish
-    await new Promise((r) => setTimeout(r, 3000));
-
-    // Wait for Obsidian Sync if active
+    if (!this.obsidianIsSyncing()) return;
+    console.log('[SC][Init] Waiting for Obsidian Sync to finish...');
+    await new Promise(r => setTimeout(r, 1000));
     while (this.obsidianIsSyncing()) {
-      console.log('Open Connections: Waiting for Obsidian Sync to finish');
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1000));
     }
+    console.log('[SC][Init] Obsidian Sync complete');
   }
 
   obsidianIsSyncing(): boolean {
@@ -522,6 +526,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initCollections(): Promise<void> { return _initCollections(this); }
   async loadCollections(): Promise<void> { return _loadCollections(this); }
+  async discoverNewSources(): Promise<void> { return _discoverNewSources(this); }
 
   async initPipeline(): Promise<void> { return _initPipeline(this); }
   async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }

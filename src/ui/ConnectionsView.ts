@@ -85,6 +85,13 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
+      this.app.workspace.on('smart-connections:core-ready' as any, () => {
+        const file = this.app.workspace.getActiveFile();
+        if (file) void this.renderView(file.path);
+      }),
+    );
+
+    this.registerEvent(
       this.app.workspace.on('smart-connections:embed-ready' as any, () => {
         void this.renderView();
       }),

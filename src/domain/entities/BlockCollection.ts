@@ -63,12 +63,11 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
       max_depth,
     );
 
-    // Create or update block entities
+    // Create or update block entities — strip embeddings so Object.assign in
+    // create_or_update does not overwrite vectors loaded from the DB with {}
     for (const block_data of blocks) {
-      this.create_or_update(block_data);
-
-      // Store block reference in source
-      // (Not storing in source.data.blocks to avoid circular dependency)
+      const { embeddings: _, ...update_data } = block_data;
+      this.create_or_update(update_data);
     }
 
     // Clean up removed blocks

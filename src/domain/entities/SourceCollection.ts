@@ -22,6 +22,9 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
   /** Block collection reference */
   block_collection?: any;
 
+  /** True during initial vault discovery — blocks loaded from DB, not parsed from files */
+  _initializing = true;
+
   constructor(
     data_dir: string,
     settings: any = {},
@@ -44,15 +47,10 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
 
   /**
    * Initialize collection
-   * Discover files from vault
+   * DB load happens in loadCollections(); discovery happens after via discoverNewSources()
    */
   async init(): Promise<void> {
     await super.init();
-
-    // Discover files if vault is available
-    if (this.vault) {
-      await this.discover_sources();
-    }
   }
 
   /**
@@ -100,8 +98,9 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
       }
     }
 
-    // Import blocks if enabled (embed_blocks lives in block_collection's settings)
-    if (this.block_collection?.settings?.embed_blocks) {
+    // Skip block import during initial discovery — blocks are loaded from SQLite.
+    // Only parse blocks on file change (re-import after vault events).
+    if (!this._initializing && this.block_collection?.settings?.embed_blocks) {
       await this.block_collection.import_source_blocks(source);
     }
 
