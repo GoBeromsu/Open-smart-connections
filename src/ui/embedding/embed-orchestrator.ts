@@ -1,11 +1,11 @@
 /**
- * @file embedding/embedding-manager.ts
+ * @file embedding/embed-orchestrator.ts
  * @description Embedding model initialization, pipeline management, run orchestration, notices, and progress events
  */
 
 import type SmartConnectionsPlugin from '../../main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../../main';
-import { CONNECTIONS_VIEW_TYPE } from '../connections/ConnectionsView';
+import { CONNECTIONS_VIEW_TYPE } from '../ConnectionsView';
 
 import { EmbedModel, embedAdapterRegistry } from '../../domain/models/embed';
 // Import adapters to trigger self-registration
@@ -13,9 +13,9 @@ import '../models/embed/adapters/transformers';
 import '../models/embed/adapters/openai';
 import '../models/embed/adapters/ollama';
 import '../models/embed/adapters/gemini';
-import '../models/embed/adapters/lm_studio';
+import '../models/embed/adapters/lm-studio';
 import '../models/embed/adapters/upstage';
-import '../models/embed/adapters/open_router';
+import '../models/embed/adapters/open-router';
 
 import {
   EmbeddingPipeline,
@@ -23,7 +23,7 @@ import {
 } from '../../domain/search/embedding-pipeline';
 import {
   getEmbeddingQueueSnapshot,
-} from './collection-manager';
+} from './collection-loader';
 import { buildKernelModel } from '../../domain/embedding/kernel/effects';
 import type { EmbeddingKernelJobType } from '../../domain/embedding/kernel/types';
 

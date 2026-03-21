@@ -1,5 +1,5 @@
 /**
- * @file _api.ts
+ * @file api-base.ts
  * @description Base adapter classes for API-based embedding models
  */
 

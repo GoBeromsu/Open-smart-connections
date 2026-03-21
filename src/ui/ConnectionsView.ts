@@ -6,8 +6,8 @@ import {
   Menu,
   setIcon,
 } from 'obsidian';
-import type SmartConnectionsPlugin from '../../main';
-import { showResultContextMenu } from '../views/result-context-menu';
+import type SmartConnectionsPlugin from '../main';
+import { showResultContextMenu } from './result-context-menu';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 

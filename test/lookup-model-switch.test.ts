@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { LookupView } from '../src/ui/lookup/LookupView';
+import { LookupView } from '../src/ui/LookupView';
 
 function createPluginStub() {
   const nearest = vi.fn().mockResolvedValue([]);

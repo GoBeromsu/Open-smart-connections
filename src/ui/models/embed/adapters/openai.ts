@@ -7,7 +7,7 @@ import {
   EmbedModelApiAdapter,
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
-} from './_api';
+} from './api-base';
 import type { EmbedResult, ModelInfo } from '../../../../types/models';
 import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
 

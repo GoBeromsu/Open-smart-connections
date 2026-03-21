@@ -1,5 +1,5 @@
 /**
- * @file views/result-context-menu.ts
+ * @file result-context-menu.ts
  * @description Shared context menu for result items in ConnectionsView and LookupView
  */
 

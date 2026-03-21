@@ -13,9 +13,9 @@ import '../src/ui/models/embed/adapters/transformers';
 import '../src/ui/models/embed/adapters/openai';
 import '../src/ui/models/embed/adapters/ollama';
 import '../src/ui/models/embed/adapters/gemini';
-import '../src/ui/models/embed/adapters/lm_studio';
+import '../src/ui/models/embed/adapters/lm-studio';
 import '../src/ui/models/embed/adapters/upstage';
-import '../src/ui/models/embed/adapters/open_router';
+import '../src/ui/models/embed/adapters/open-router';
 
 // Import model catalogs for verification
 import { TRANSFORMERS_EMBED_MODELS } from '../src/ui/models/embed/adapters/transformers';

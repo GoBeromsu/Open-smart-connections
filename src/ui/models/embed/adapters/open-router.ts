@@ -1,5 +1,5 @@
 /**
- * @file open_router.ts
+ * @file open-router.ts
  * @description Adapter for OpenRouter's embedding API
  */
 
@@ -8,7 +8,7 @@ import {
   EmbedModelApiAdapter,
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
-} from './_api';
+} from './api-base';
 import type { EmbedResult, ModelInfo } from '../../../../types/models';
 import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
 
