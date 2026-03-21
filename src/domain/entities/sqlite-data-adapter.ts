@@ -5,10 +5,10 @@
  */
 
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
-import type { EmbeddingEntity } from '../EmbeddingEntity';
-import type { EntityCollection } from '../EntityCollection';
-import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../../types/entities';
-import { cos_sim } from '../../../utils/cos_sim';
+import type { EmbeddingEntity } from './EmbeddingEntity';
+import type { EntityCollection } from './EntityCollection';
+import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
+import { cos_sim } from '../../utils';
 
 // ---------------------------------------------------------------------------
 // Constants

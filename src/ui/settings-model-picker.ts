@@ -4,8 +4,8 @@
  */
 
 import { Setting, Notice } from 'obsidian';
-import { TRANSFORMERS_EMBED_MODELS } from './models/embed/adapters/transformers';
-import { embedAdapterRegistry } from '../domain/models/embed/registry';
+import { TRANSFORMERS_EMBED_MODELS } from './embed-adapters/transformers';
+import { embedAdapterRegistry } from '../domain/embed-model';
 
 interface ConfirmReembedFn {
   (message: string): Promise<boolean>;

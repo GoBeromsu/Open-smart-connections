@@ -1,11 +1,11 @@
 /**
- * @file embedding/collection-loader.ts
+ * @file collection-loader.ts
  * @description Collection initialization, loading, and embedding context sync
  */
 
-import type SmartConnectionsPlugin from '../../main';
-import { SourceCollection, BlockCollection } from '../../domain/entities';
-import type { EmbeddingKernelQueueSnapshot } from '../../domain/embedding/kernel/types';
+import type SmartConnectionsPlugin from '../main';
+import { SourceCollection, BlockCollection } from '../domain/entities';
+import type { EmbeddingKernelQueueSnapshot } from '../domain/embedding/kernel/types';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
@@ -91,83 +91,88 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
   if (newFiles.length === 0) return;
 
+  plugin._chunked_pipeline_active = true;
   const chunkSize = plugin.settings.discovery_chunk_size || 1000;
   const total = newFiles.length;
 
-  for (let i = 0; i < total; i += chunkSize) {
-    if (plugin._unloading) return;
-    const chunk = newFiles.slice(i, i + chunkSize);
-
-    // 1. Discover: import sources + blocks for this chunk
-    for (const file of chunk) {
+  try {
+    for (let i = 0; i < total; i += chunkSize) {
       if (plugin._unloading) return;
-      try {
-        await plugin.source_collection.import_source(file);
-      } catch (err) {
-        console.warn(`[SC] Failed to import ${file.path}:`, err);
+      const chunk = newFiles.slice(i, i + chunkSize);
+
+      for (const file of chunk) {
+        if (plugin._unloading) return;
+        try {
+          await plugin.source_collection.import_source(file);
+        } catch (err) {
+          console.warn(`[SC] Failed to import ${file.path}:`, err);
+        }
+      }
+
+      await plugin.source_collection.data_adapter.save();
+      await plugin.block_collection.data_adapter.save();
+
+      const chunkQueued = queueUnembeddedEntities(plugin);
+      const processed = Math.min(i + chunkSize, total);
+
+      if (chunkQueued > 0 && plugin.embedding_pipeline) {
+        await plugin.runEmbeddingJobImmediate(`[chunked-pipeline] ${processed}/${total}`);
+      }
+
+      console.log(`[SC] Processed ${processed}/${total} files`);
+      plugin.refreshStatus?.();
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    if (!plugin._unloading) {
+      const remaining = queueUnembeddedEntities(plugin);
+      if (remaining > 0 && plugin.embedding_pipeline) {
+        console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
+        await plugin.runEmbeddingJobImmediate('[chunked-pipeline] final sweep');
+      }
+      // Preserve source-level re-import paths queued during chunked processing,
+      // then clear only block-level embed jobs (which are done).
+      const pendingReimports = plugin.embed_job_queue?.toArray().filter(j => !j.entityKey.includes('#')) ?? [];
+      plugin.embed_job_queue?.clear();
+      // Re-queue source paths so post-chunked re-import can process them
+      for (const j of pendingReimports) {
+        plugin.embed_job_queue?.enqueue(j);
       }
     }
 
-    // 2. Save discovery metadata before embedding
-    await plugin.source_collection.data_adapter.save();
-    if (plugin.block_collection) {
-      await plugin.block_collection.data_adapter.save();
+    console.log(`[SC] All ${total} new files processed`);
+  } finally {
+    plugin._chunked_pipeline_active = false;
+    // If source paths were queued during chunked processing, trigger re-import
+    if (!plugin._unloading) {
+      const { debounceReImport } = await import('./file-watcher');
+      const pending = plugin.embed_job_queue?.toArray().filter(j => !j.entityKey.includes('#')) ?? [];
+      if (pending.length > 0) {
+        console.log(`[SC] Post-chunked: ${pending.length} source paths need re-import`);
+        debounceReImport(plugin);
+      }
     }
-
-    // 3. Queue unembedded blocks (O(n) rescan — fast, only in-memory entities)
-    const chunkQueued = queueUnembeddedEntities(plugin);
-
-    // 4. Embed if there's work and pipeline is ready (embedding run handles its own saves)
-    const processed = Math.min(i + chunkSize, total);
-    if (chunkQueued > 0 && plugin.embedding_pipeline) {
-      await plugin.runEmbeddingJobImmediate(`[chunked-pipeline] ${processed}/${total}`);
-    }
-
-    // 5. Yield + status
-    console.log(`[SC] Processed ${processed}/${total} files`);
-    plugin.refreshStatus?.();
-    await new Promise(r => setTimeout(r, 0));
   }
-
-  // Final sweep: pick up any blocks missed during chunked processing
-  if (!plugin._unloading) {
-    const remaining = queueUnembeddedEntities(plugin);
-    if (remaining > 0 && plugin.embedding_pipeline) {
-      console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
-      await plugin.runEmbeddingJobImmediate('[chunked-pipeline] final sweep');
-    }
-    // Clear stale queue entries — all embeddable work is done
-    plugin.embed_job_queue?.clear();
-  }
-
-  console.log(`[SC] All ${total} new files processed`);
 }
 
 export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number {
+  if (!plugin.block_collection) return 0;
+
   let queued = 0;
   const now = Date.now();
 
-  const enqueueEntity = (entity: any): void => {
-    if (!entity.is_unembedded) return;
-    // Set _queue_embed for pipeline compatibility
-    entity.queue_embed();
-    if (!entity._queue_embed) return;
-    // Enqueue into the unified EmbedJobQueue (single source of truth)
+  for (const block of plugin.block_collection.all) {
+    if (!block.is_unembedded) continue;
+    block.queue_embed();
+    if (!block._queue_embed) continue;
+
     plugin.embed_job_queue?.enqueue({
-      entityKey: entity.key,
-      contentHash: entity.read_hash || '',
-      sourcePath: String(entity.key || '').split('#')[0],
+      entityKey: block.key,
+      contentHash: block.read_hash || '',
+      sourcePath: String(block.key || '').split('#')[0],
       enqueuedAt: now,
     });
     queued++;
-  };
-
-  // Source-level embedding is disabled — blocks only.
-  // Sources return should_embed=false so skipping them avoids unnecessary iteration.
-  if (plugin.block_collection) {
-    for (const block of plugin.block_collection.all) {
-      enqueueEntity(block);
-    }
   }
 
   return queued;
@@ -177,21 +182,19 @@ export function getEmbeddingQueueSnapshot(plugin: SmartConnectionsPlugin): Embed
   let staleTotal = 0;
   let staleEmbeddableTotal = 0;
 
-  // Use EmbedJobQueue as the single source of truth for queued count
   const queuedTotal = plugin.embed_job_queue?.size() ?? 0;
 
-  const accountEntity = (entity: any): void => {
-    if (!entity) return;
-    if (!entity.is_unembedded) return;
-    staleTotal += 1;
-    if (entity.should_embed) staleEmbeddableTotal += 1;
-  };
-
   for (const source of plugin.source_collection?.all || []) {
-    accountEntity(source);
+    if (source?.is_unembedded) {
+      staleTotal += 1;
+      if (source.should_embed) staleEmbeddableTotal += 1;
+    }
   }
   for (const block of plugin.block_collection?.all || []) {
-    accountEntity(block);
+    if (block?.is_unembedded) {
+      staleTotal += 1;
+      if (block.should_embed) staleEmbeddableTotal += 1;
+    }
   }
 
   return {

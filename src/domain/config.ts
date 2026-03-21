@@ -1,10 +1,55 @@
 /**
  * @file config.ts
- * @description Hand-written configuration for Smart Connections plugin
- * No auto-scanner - explicit configuration only
+ * @description Domain constants for Open Connections plugin:
+ *   - TransientError, FatalError: typed error classes for embedding API error classification
+ *   - DEFAULT_SETTINGS: hand-written plugin defaults (no auto-scanner)
+ *   - NOTICE_CATALOG: all notice definitions + SmartConnectionsNotices alias
  */
 
 import type { PluginSettings } from '../types/settings';
+import { PluginNotices, type NoticeCatalog } from '../shared/plugin-notices';
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+/**
+ * Transient errors are retryable: 429 (rate limit), 503 (service unavailable),
+ * network timeouts, connection refused, etc.
+ */
+export class TransientError extends Error {
+  readonly status: number;
+  readonly retryAfterMs?: number;
+
+  constructor(
+    message: string,
+    status: number,
+    opts?: { retryAfterMs?: number },
+  ) {
+    super(message);
+    this.name = 'TransientError';
+    this.status = status;
+    this.retryAfterMs = opts?.retryAfterMs;
+  }
+}
+
+/**
+ * Fatal errors are NOT retryable: 400 (bad request), 401 (unauthorized),
+ * 403 (forbidden), malformed response, etc.
+ */
+export class FatalError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'FatalError';
+    this.status = status;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
 
 /**
  * Default plugin settings
@@ -50,3 +95,54 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Notices
+// ---------------------------------------------------------------------------
+
+export const NOTICE_CATALOG: NoticeCatalog = {
+  notice_muted: {
+    template: 'Notice muted. Undo in settings.',
+    timeout: 2000,
+    immutable: true,
+  },
+  embedding_progress: {
+    template: '{{adapter}}/{{modelKey}} {{current}}/{{total}} ({{percent}}%)',
+    timeout: 0,
+  },
+  embedding_complete: {
+    template: 'Embedding complete! {{success}} notes embedded.',
+  },
+  embedding_failed: {
+    template: 'Embedding failed. See console for details.',
+  },
+  failed_init_embed_model: {
+    template: 'Failed to initialize embedding model',
+  },
+  failed_download_transformers_model: {
+    template: 'Failed to download transformers model assets. Check network/CDN access and retry.',
+  },
+  failed_init_embed_pipeline: {
+    template: 'Failed to initialize embedding pipeline',
+  },
+  failed_load_collection_data: {
+    template: 'Failed to load collection data',
+  },
+  reimport_failed: {
+    template: 'Re-import failed. See console for details.',
+  },
+  no_stale_entities: {
+    template: 'No stale entities to re-embed.',
+  },
+  reinitializing_embedding_model: {
+    template: 'Re-initializing embedding model...',
+  },
+  embedding_model_switched: {
+    template: 'Embedding model switched.',
+  },
+  failed_reinitialize_model: {
+    template: 'Failed to re-initialize model. Check console.',
+  },
+};
+
+export { PluginNotices as SmartConnectionsNotices };
+export type { NoticeCatalog };

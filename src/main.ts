@@ -12,7 +12,7 @@ import { average_vectors } from './utils';
 
 import type { PluginSettings } from './types/settings';
 import { DEFAULT_SETTINGS } from './domain/config';
-import { SmartConnectionsNotices, NOTICE_CATALOG } from './domain/notices';
+import { SmartConnectionsNotices, NOTICE_CATALOG } from './domain/config';
 import { PluginLogger } from './shared/plugin-logger';
 import { SmartConnectionsSettingsTab } from './ui/settings';
 import { registerCommands } from './ui/commands';
@@ -38,7 +38,7 @@ import {
   getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
   getEmbedAdapterSettings as _getEmbedAdapterSettings,
-} from './ui/embedding/collection-loader';
+} from './ui/collection-loader';
 import {
   registerFileWatchers as _registerFileWatchers,
   isSourceFile as _isSourceFile,
@@ -58,30 +58,28 @@ import {
   getActiveEmbeddingContext as _getActiveEmbeddingContext,
   logEmbed as _logEmbed,
   clearEmbedNotice as _clearEmbedNotice,
-} from './ui/embedding/embed-orchestrator';
-import { EmbeddingKernelStore } from './domain/embedding/kernel/store';
-import { EmbeddingKernelJobQueue } from './domain/embedding/kernel/queue';
+} from './ui/embed-orchestrator';
 import {
+  EmbeddingKernelStore,
+  EmbeddingKernelJobQueue,
   logKernelTransition,
-} from './domain/embedding/kernel/effects';
-import {
   isEmbedReady,
   toLegacyStatusState,
   type EmbedStatusState,
-} from './domain/embedding/kernel/selectors';
+} from './domain/embedding/kernel';
 import type {
   EmbeddingKernelEvent,
   EmbeddingKernelJob,
   EmbeddingKernelQueueSnapshot,
   EmbeddingKernelState,
 } from './domain/embedding/kernel/types';
-import { EmbedJobQueue } from './domain/embedding/queue/embed-job-queue';
+import { EmbedJobQueue } from './domain/embedding/embed-job-queue';
 
 // Core type imports needed for plugin fields
-import type { EmbedModel } from './domain/models/embed';
+import type { EmbedModel } from './domain/embed-model';
 import type { EmbedModelAdapter } from './types/models';
 import type { SourceCollection, BlockCollection } from './domain/entities';
-import type { EmbeddingPipeline, EmbedQueueStats } from './domain/search/embedding-pipeline';
+import type { EmbeddingPipeline, EmbedQueueStats } from './domain/embedding-pipeline';
 
 export interface EmbeddingRunContext {
   runId: number;
@@ -134,7 +132,9 @@ export default class SmartConnectionsPlugin extends Plugin {
   re_import_timeout?: number;
   re_import_retry_timeout?: number;
   re_import_halted = false;
+  _defer_retry_count = 0;
   _unloading = false;
+  _chunked_pipeline_active = false;
   _installed_at: number | null = null;
   readonly logger = new PluginLogger('Open Connections');
 
@@ -279,7 +279,8 @@ export default class SmartConnectionsPlugin extends Plugin {
             this.open_note(r.path);
           });
         }
-      } catch (_e) {
+      } catch (e) {
+        console.error("[SC] Codeblock: failed to load connections:", e);
         el.createEl('p', { text: 'Failed to load connections.', cls: 'osc-state-text' });
       }
     });

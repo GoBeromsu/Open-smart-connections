@@ -7,8 +7,8 @@
  * from CDN. This matches the proven v3.0.80 approach.
  */
 
-import type { EmbedInput, EmbedResult, ModelInfo } from '../../../../types/models';
-import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
+import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
+import { embedAdapterRegistry } from '../../domain/embed-model';
 
 /**
  * Transformers.js embedding models configuration

@@ -21,9 +21,9 @@ import SmartConnectionsPlugin from '../src/main';
 import {
   createInitialKernelState,
   reduceEmbeddingKernelState,
-} from '../src/domain/embedding/kernel/reducer';
-import { toLegacyStatusState } from '../src/domain/embedding/kernel/selectors';
-import { EmbedJobQueue } from '../src/domain/embedding/queue/embed-job-queue';
+  toLegacyStatusState,
+} from '../src/domain/embedding/kernel';
+import { EmbedJobQueue } from '../src/domain/embedding/embed-job-queue';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Helper Functions

@@ -4,8 +4,8 @@
  */
 
 import { requestUrl } from 'obsidian';
-import type { EmbedInput, EmbedResult, ModelInfo } from '../../../../types/models';
-import { TransientError, FatalError } from '../../../../domain/errors';
+import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
+import { TransientError, FatalError } from '../../domain/config';
 
 /**
  * Base adapter class for API-based embedding models (e.g., OpenAI, Gemini)

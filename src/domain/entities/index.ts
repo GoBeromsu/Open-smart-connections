@@ -9,5 +9,5 @@ export { EmbeddingBlock } from './EmbeddingBlock';
 export { EntityCollection } from './EntityCollection';
 export { SourceCollection } from './SourceCollection';
 export { BlockCollection } from './BlockCollection';
-export { parse_markdown_blocks } from './parsers/markdown-splitter';
-export { SqliteDataAdapter, closeSqliteDatabases } from './adapters/sqlite-data-adapter';
+export { parse_markdown_blocks } from './markdown-splitter';
+export { SqliteDataAdapter, closeSqliteDatabases } from './sqlite-data-adapter';

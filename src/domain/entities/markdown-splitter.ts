@@ -4,9 +4,9 @@
  * Splits markdown into heading-based blocks and paragraph blocks
  */
 
-import type { BlockData } from '../../../types/entities';
-import type { CachedMetadataShim as CachedMetadata, HeadingCacheShim as HeadingCache } from '../../../types/obsidian-shims';
-import { create_hash } from '../../../utils';
+import type { BlockData } from '../../types/entities';
+import type { CachedMetadataShim as CachedMetadata, HeadingCacheShim as HeadingCache } from '../../types/obsidian-shims';
+import { create_hash } from '../../utils';
 
 interface BlockRange {
   key: string;

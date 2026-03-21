@@ -1,5 +1,5 @@
 /**
- * @file embedding/queue/embed-job-queue.ts
+ * @file embedding/embed-job-queue.ts
  * @description Unified FIFO embedding queue with dedup by entityKey (Latest-Write-Wins)
  *
  * Replaces the previous scattered queue mechanisms:
@@ -49,9 +49,9 @@ export class EmbedJobQueue {
         removed++;
       }
     }
-    if (removed > 0 && this.items.size === 0) {
-      this.insertionOrder = [];
-      this.onQueueEmpty?.();
+    if (removed > 0) {
+      this.insertionOrder = this.insertionOrder.filter(k => this.items.has(k));
+      if (this.items.size === 0) this.onQueueEmpty?.();
     }
     return removed;
   }

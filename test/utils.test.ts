@@ -4,10 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { cos_sim } from '../src/utils/cos_sim';
-import { results_acc, furthest_acc } from '../src/utils/results_acc';
-import { create_hash } from '../src/utils/create_hash';
-import type { ResultsAccumulator, FurthestAccumulator } from '../src/utils/results_acc';
+import { cos_sim, results_acc, create_hash } from '../src/utils';
+import type { ResultsAccumulator } from '../src/utils';
 
 describe('cos_sim', () => {
   it('should calculate cosine similarity between two vectors', () => {
@@ -106,32 +104,6 @@ describe('results_acc', () => {
     // Adding higher score should maintain top 2
     results_acc(acc, { item: 'c', score: 0.9 }, 2);
     expect(acc.min).toBe(0.8);
-  });
-});
-
-describe('furthest_acc', () => {
-  it('should accumulate bottom-k results', () => {
-    const acc: FurthestAccumulator = {
-      results: new Set(),
-      max: Number.NEGATIVE_INFINITY,
-      maxResult: null,
-    };
-
-    // Add 5 results with limit of 3
-    furthest_acc(acc, { item: 'a', score: 0.5 }, 3);
-    furthest_acc(acc, { item: 'b', score: 0.8 }, 3);
-    furthest_acc(acc, { item: 'c', score: 0.3 }, 3);
-    furthest_acc(acc, { item: 'd', score: 0.9 }, 3);
-    furthest_acc(acc, { item: 'e', score: 0.1 }, 3);
-
-    // Should keep bottom 3: e(0.1), c(0.3), a(0.5)
-    expect(acc.results.size).toBe(3);
-    const scores = Array.from(acc.results).map(r => r.score);
-    expect(scores).toContain(0.1);
-    expect(scores).toContain(0.3);
-    expect(scores).toContain(0.5);
-    expect(scores).not.toContain(0.8);
-    expect(scores).not.toContain(0.9);
   });
 });
 

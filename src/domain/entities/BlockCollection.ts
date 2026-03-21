@@ -7,7 +7,7 @@ import { EntityCollection } from './EntityCollection';
 import { EmbeddingBlock } from './EmbeddingBlock';
 import type { EmbeddingSource } from './EmbeddingSource';
 import type { SourceCollection } from './SourceCollection';
-import { parse_markdown_blocks } from './parsers/markdown-splitter';
+import { parse_markdown_blocks } from './markdown-splitter';
 
 /**
  * Collection of block entities
@@ -85,13 +85,12 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   /**
    * Get all blocks for a source
    */
-  get_source_blocks(source_key: string): EmbeddingBlock[] {
+  private get_source_blocks(source_key: string): EmbeddingBlock[] {
     return this.all.filter(block => block.source_key === source_key);
   }
 
   /**
    * Get all blocks whose source_key matches the given path.
-   * Preferred alias for get_source_blocks — used by UI layer to avoid inline filter calls.
    */
   for_source(path: string): EmbeddingBlock[] {
     return this.all.filter(block => block.source_key === path);
