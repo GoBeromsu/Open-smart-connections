@@ -100,8 +100,8 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
       }
     }
 
-    // Import blocks if enabled
-    if (this.settings?.embed_blocks && this.block_collection) {
+    // Import blocks if enabled (embed_blocks lives in block_collection's settings)
+    if (this.block_collection?.settings?.embed_blocks) {
       await this.block_collection.import_source_blocks(source);
     }
 
