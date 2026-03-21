@@ -9,8 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { App } from 'obsidian';
 import SmartConnectionsPlugin from '../src/main';
-import { queueUnembeddedEntities, processNewSourcesChunked } from '../src/ui/embedding/collection-loader';
-import { EmbedJobQueue } from '../src/domain/embedding/queue/embed-job-queue';
+import { queueUnembeddedEntities, processNewSourcesChunked } from '../src/ui/collection-loader';
+import { EmbedJobQueue } from '../src/domain/embedding/embed-job-queue';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

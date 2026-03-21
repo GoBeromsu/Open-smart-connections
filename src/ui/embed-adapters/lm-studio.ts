@@ -9,8 +9,8 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedInput, EmbedResult, ModelInfo } from '../../../../types/models';
-import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
+import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
+import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const LM_STUDIO_SIGNUP_URL = 'https://lmstudio.ai/';
 

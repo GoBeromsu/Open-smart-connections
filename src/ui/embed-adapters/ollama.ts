@@ -9,8 +9,8 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedResult, ModelInfo } from '../../../../types/models';
-import { embedAdapterRegistry } from '../../../../domain/models/embed/registry';
+import type { EmbedResult, ModelInfo } from '../../types/models';
+import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const OLLAMA_SIGNUP_URL = 'https://ollama.com/download';
 

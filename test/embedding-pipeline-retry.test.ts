@@ -15,7 +15,7 @@
  *
  * Contract: After implementation, replace inline stubs with:
  *   import { TransientError, FatalError } from '../src/features/embedding/errors';
- *   import { EmbeddingPipeline } from '../src/domain/search/embedding-pipeline';
+ *   import { EmbeddingPipeline } from '../src/domain/embedding-pipeline';
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -111,10 +111,10 @@ function makeModel(opts: {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Minimal pipeline stub for TDD red phase
-// After implementation, import from '../src/domain/search/embedding-pipeline'
+// After implementation, import from '../src/domain/embedding-pipeline'
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-import { EmbeddingPipeline } from '../src/domain/search/embedding-pipeline';
+import { EmbeddingPipeline } from '../src/domain/embedding-pipeline';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Phase 3 — Typed Error Classification

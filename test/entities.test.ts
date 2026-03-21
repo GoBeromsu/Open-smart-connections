@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
 import { EntityCollection } from '../src/domain/entities/EntityCollection';
-import { getEmbedAdapterSettings } from '../src/ui/embedding/collection-loader';
+import { getEmbedAdapterSettings } from '../src/ui/collection-loader';
 import type { EntityData } from '../src/types/entities';
 
 describe('EmbeddingEntity', () => {

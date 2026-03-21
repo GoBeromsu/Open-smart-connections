@@ -208,8 +208,8 @@ export class ConnectionsView extends ItemView {
     try {
       this.enqueueBlocksForEmbedding(blocks);
       void this.plugin.runEmbeddingJob('Auto embed blocks for connections view');
-    } catch {
-      // Non-critical — embedding will happen via normal pipeline eventually
+    } catch (error) {
+      console.warn('[SC] Auto-queue block embedding failed (non-critical):', error);
     }
   }
 

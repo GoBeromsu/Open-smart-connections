@@ -6,22 +6,22 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 
 // Import the registry
-import { embedAdapterRegistry } from '../src/domain/models/embed/registry';
+import { embedAdapterRegistry } from '../src/domain/embed-model';
 
 // Import all adapters to trigger self-registration
-import '../src/ui/models/embed/adapters/transformers';
-import '../src/ui/models/embed/adapters/openai';
-import '../src/ui/models/embed/adapters/ollama';
-import '../src/ui/models/embed/adapters/gemini';
-import '../src/ui/models/embed/adapters/lm-studio';
-import '../src/ui/models/embed/adapters/upstage';
-import '../src/ui/models/embed/adapters/open-router';
+import '../src/ui/embed-adapters/transformers';
+import '../src/ui/embed-adapters/openai';
+import '../src/ui/embed-adapters/ollama';
+import '../src/ui/embed-adapters/gemini';
+import '../src/ui/embed-adapters/lm-studio';
+import '../src/ui/embed-adapters/upstage';
+import '../src/ui/embed-adapters/open-router';
 
 // Import model catalogs for verification
-import { TRANSFORMERS_EMBED_MODELS } from '../src/ui/models/embed/adapters/transformers';
-import { OPENAI_EMBED_MODELS } from '../src/ui/models/embed/adapters/openai';
-import { GEMINI_EMBED_MODELS } from '../src/ui/models/embed/adapters/gemini';
-import { UPSTAGE_EMBED_MODELS } from '../src/ui/models/embed/adapters/upstage';
+import { TRANSFORMERS_EMBED_MODELS } from '../src/ui/embed-adapters/transformers';
+import { OPENAI_EMBED_MODELS } from '../src/ui/embed-adapters/openai';
+import { GEMINI_EMBED_MODELS } from '../src/ui/embed-adapters/gemini';
+import { UPSTAGE_EMBED_MODELS } from '../src/ui/embed-adapters/upstage';
 
 describe('EmbedAdapterRegistry', () => {
   const EXPECTED_ADAPTERS = [

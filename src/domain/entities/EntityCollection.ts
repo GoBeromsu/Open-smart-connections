@@ -5,8 +5,8 @@
 
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
-import { SqliteDataAdapter } from './adapters/sqlite-data-adapter';
-import type { EmbeddingPipeline } from '../search';
+import { SqliteDataAdapter } from './sqlite-data-adapter';
+import type { EmbeddingPipeline } from '../search/embedding-pipeline';
 
 /**
  * Base collection class for entities

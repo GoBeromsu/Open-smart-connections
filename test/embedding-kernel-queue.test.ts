@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { EmbeddingKernelJobQueue } from '../src/domain/embedding/kernel/queue';
+import { EmbeddingKernelJobQueue } from '../src/domain/embedding/kernel';
 
 describe('EmbeddingKernelJobQueue', () => {
   it('runs higher-priority jobs first', async () => {

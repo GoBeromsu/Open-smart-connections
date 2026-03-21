@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildKernelModel,
   logKernelTransition,
-} from '../src/domain/embedding/kernel/effects';
-import { createInitialKernelState } from '../src/domain/embedding/kernel/reducer';
+  createInitialKernelState,
+} from '../src/domain/embedding/kernel';
 
 describe('kernel effects', () => {
   it('normalizes kernel model fingerprint', () => {

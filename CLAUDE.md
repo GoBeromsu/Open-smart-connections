@@ -66,75 +66,43 @@ The codebase follows a strict 4-layer architecture enforced by ESLint `no-restri
 src/
 ├── main.ts                   # Composition root — SmartConnectionsPlugin (extends Plugin)
 ├── domain/                   # Business logic — NO obsidian imports
-│   ├── config.ts             # DEFAULT_SETTINGS
-│   ├── notices.ts            # NOTICE_CATALOG + SmartConnectionsNotices alias
-│   ├── errors.ts             # TransientError, FatalError
-│   ├── entities/             # Data model (Source, Block, Collection, adapters, parsers)
-│   │   ├── EmbeddingEntity.ts
-│   │   ├── EmbeddingSource.ts
-│   │   ├── EmbeddingBlock.ts
-│   │   ├── SourceCollection.ts
-│   │   ├── BlockCollection.ts
-│   │   ├── EntityCollection.ts
-│   │   ├── adapters/         # SQLite (sql.js WASM) data adapter
-│   │   └── parsers/          # Markdown heading splitter
-│   ├── search/               # Search and embedding logic
-│   │   └── embedding-pipeline.ts # Batch embedding pipeline
-│   ├── models/embed/         # Abstract EmbedModel + registry (no adapters here)
-│   │   ├── EmbedModel.ts
-│   │   ├── registry.ts
+│   ├── config.ts             # DEFAULT_SETTINGS, NOTICE_CATALOG, error classes
+│   ├── embed-model.ts        # EmbedModel + EmbedAdapterRegistry
+│   ├── embedding-pipeline.ts # Batch embedding pipeline
+│   ├── entities/             # Data model (Source, Block, Collection, SQLite, parser)
+│   │   ├── EmbeddingEntity.ts, EmbeddingSource.ts, EmbeddingBlock.ts
+│   │   ├── EntityCollection.ts, SourceCollection.ts, BlockCollection.ts
+│   │   ├── sqlite-data-adapter.ts, markdown-splitter.ts
 │   │   └── index.ts
 │   └── embedding/
-│       ├── kernel/           # Redux-style embedding state machine
-│       │   ├── store.ts      # EmbeddingKernelStore
-│       │   ├── reducer.ts    # State transitions
-│       │   ├── effects.ts    # Side-effect logging
-│       │   ├── selectors.ts  # Derived state queries
-│       │   ├── queue.ts      # EmbeddingKernelJobQueue
-│       │   └── types.ts      # State/Event type definitions
-│       └── queue/
-│           └── embed-job-queue.ts  # EmbedJobQueue (async job scheduling)
+│       ├── embed-job-queue.ts  # EmbedJobQueue (async job scheduling)
+│       └── kernel/             # Redux-style embedding state machine
+│           ├── index.ts        # Store, reducer, selectors, effects, queue
+│           └── types.ts        # State/Event type definitions
 ├── ui/                       # Obsidian-dependent code
-│   ├── settings.ts           # Settings tab UI
-│   ├── settings-model-picker.ts  # Embedding model picker component
-│   ├── commands.ts           # Command palette registrations
-│   ├── status-bar.ts         # Status bar widget
-│   ├── file-watcher.ts       # Vault file change handlers
-│   ├── user-state.ts         # Install date, version tracking
-│   ├── ConnectionsView.ts       # ItemView: related notes for active file
-│   ├── LookupView.ts            # ItemView: semantic search across vault
-│   ├── result-context-menu.ts   # Right-click context menu for results
-│   ├── embedding/
-│   │   ├── collection-loader.ts  # Source/Block collection init and loading
-│   │   └── embed-orchestrator.ts # Model lifecycle, embed jobs, pipeline
-│   └── models/embed/adapters/   # API adapters (use requestUrl — Obsidian-dependent)
-│       ├── api-base.ts       # Base adapter classes
-│       ├── transformers.ts   # Local WebWorker adapter
-│       ├── openai.ts, gemini.ts, ollama.ts, lm-studio.ts, open-router.ts, upstage.ts
+│   ├── settings.ts, settings-model-picker.ts, commands.ts, status-bar.ts
+│   ├── file-watcher.ts, user-state.ts, block-connections.ts
+│   ├── ConnectionsView.ts, LookupView.ts, result-context-menu.ts
+│   ├── collection-loader.ts   # Source/Block collection init and loading
+│   ├── embed-orchestrator.ts   # Model lifecycle, embed jobs, pipeline
+│   └── embed-adapters/         # API adapters (use requestUrl — Obsidian-dependent)
+│       ├── api-base.ts, transformers.ts
+│       ├── openai.ts, gemini.ts, ollama.ts
+│       ├── lm-studio.ts, open-router.ts, upstage.ts
 ├── types/                    # Pure type definitions — NO obsidian imports
-│   ├── entities.ts
-│   ├── models.ts
-│   ├── settings.ts
-│   ├── obsidian-shims.ts     # Structural shims: TFileShim, VaultShim, etc.
-│   └── index.ts
-├── utils/                    # Pure utility functions — NO obsidian imports
-│   ├── cos_sim.ts, create_hash.ts
-│   ├── results_acc.ts, sort_by_score.ts, determine_installed_at.ts
-│   └── index.ts
+│   ├── entities.ts, models.ts, settings.ts, obsidian-shims.ts
+├── utils/                    # Pure utility functions (single file)
+│   └── index.ts              # cos_sim, create_hash, results_acc, etc.
 └── shared/                   # Boiler-template synced — DO NOT EDIT
-    ├── plugin-logger.ts
-    ├── plugin-notices.ts
-    ├── settings-migration.ts
-    ├── debounce-controller.ts
+    ├── plugin-logger.ts, plugin-notices.ts
+    ├── settings-migration.ts, debounce-controller.ts
     └── styles.base.css
 
 worker/
-└── embed-worker.ts           # Web Worker for Transformers.js embedding
-                              # WebGPU -> WASM fallback chain
-                              # JSON-RPC: load, unload, embed_batch, count_tokens
+└── embed-worker.ts           # Web Worker for Transformers.js (WebGPU/WASM)
 
-test/                         # Vitest tests (co-located in test/ directory)
-├── *.test.ts                 # Unit/integration tests
+test/
+├── *.test.ts                 # Vitest unit/integration tests
 ├── mocks/                    # Test mocks
 └── setup.ts                  # Vitest setup
 ```
@@ -143,7 +111,7 @@ test/                         # Vitest tests (co-located in test/ directory)
 
 - `domain/`, `types/`, `utils/` must never import from `obsidian` — enforced by ESLint `no-restricted-imports`
 - Entity classes in `domain/entities/` use shim interfaces from `types/obsidian-shims.ts` instead of real Obsidian types (structural typing — no runtime difference)
-- Adapter self-registration (side effects) is triggered in `ui/embedding/embedding-manager.ts` via `import './models/embed/adapters/transformers'` etc.
+- Adapter self-registration (side effects) is triggered in `ui/embed-orchestrator.ts` via `import './embed-adapters/transformers'` etc.
 
 ### Initialization Flow
 
@@ -205,22 +173,18 @@ pnpm vitest run test/notices.test.ts
 | File | Purpose |
 |------|---------|
 | `src/main.ts` | Plugin class: lifecycle, commands, views, embedding orchestration |
-| `src/domain/notices.ts` | NOTICE_CATALOG + SmartConnectionsNotices alias (wraps shared PluginNotices) |
-| `src/shared/plugin-notices.ts` | Shared PluginNotices (synced from boiler template — do not edit) |
-| `src/shared/plugin-logger.ts` | Shared PluginLogger (synced from boiler template — do not edit) |
-| `src/domain/config.ts` | DEFAULT_SETTINGS |
-| `src/types/obsidian-shims.ts` | Structural shims for TFile, Vault, MetadataCache — used by domain layer |
+| `src/domain/config.ts` | DEFAULT_SETTINGS, NOTICE_CATALOG, error classes |
+| `src/domain/embed-model.ts` | EmbedModel + EmbedAdapterRegistry |
+| `src/domain/embedding-pipeline.ts` | Batch embedding pipeline |
+| `src/domain/entities/` | Source/Block entity model + SQLite adapter |
+| `src/domain/embedding/kernel/` | Redux-style embedding state machine |
+| `src/ui/embed-orchestrator.ts` | Model lifecycle, embed jobs, pipeline |
+| `src/ui/collection-loader.ts` | Collection init, chunked pipeline |
 | `src/ui/ConnectionsView.ts` | Connections panel (related notes) |
 | `src/ui/LookupView.ts` | Semantic search panel |
-| `src/domain/embedding/kernel/store.ts` | Embedding state machine |
-| `src/domain/entities/` | Source/Block entity model + SQLite adapter |
-| `src/domain/models/embed/` | Abstract EmbedModel + registry |
-| `src/ui/models/embed/adapters/` | Provider adapters (transformers, openai, ollama, gemini, etc.) |
-| `src/domain/search/` | embedding-pipeline |
+| `src/ui/embed-adapters/` | Provider adapters (transformers, openai, ollama, etc.) |
 | `worker/embed-worker.ts` | Transformers.js Web Worker |
 | `esbuild.js` | Build config (CSS/markdown plugins, vault copy) |
-| `scripts/dev.mjs` | Dev orchestrator (vault discovery + delegate) |
-| `scripts/version.mjs` | Version bump script |
 
 ## Resources
 
