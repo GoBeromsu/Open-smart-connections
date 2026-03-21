@@ -774,7 +774,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
       max_retries: 3,
       on_progress: createProgressCallback(plugin, runId, ctx),
       on_save: createSaveCallback(plugin, runId, ctx),
-      save_interval: 50,
+      save_interval: plugin.settings.embed_save_interval || 5,
     });
 
     if (plugin.active_embed_run_id !== runId) {

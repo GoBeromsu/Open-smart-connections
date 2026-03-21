@@ -315,6 +315,19 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           this.setConfig('smart_blocks.min_chars', parseInt(value) || 200);
         });
       });
+
+    new Setting(containerEl)
+      .setName('Save frequency')
+      .setDesc('Save progress every N batches. Lower = safer on crash, higher = less disk I/O')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 50, 1)
+          .setValue(this.getConfig('embed_save_interval', 5))
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.setConfig('embed_save_interval', value);
+          });
+      });
   }
 
   private renderViewSettings(containerEl: HTMLElement): void {

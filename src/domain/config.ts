@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   language: 'en',
   new_user: true,
   re_import_wait_time: 13,
+  embed_save_interval: 5,
   is_obsidian_vault: true,
 
   smart_sources: {
