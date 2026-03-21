@@ -234,11 +234,6 @@ describe('EmbeddingEntity', () => {
     expect(entity2.validate_save()).toBe(false);
   });
 
-  it('should get embed link', () => {
-    const entity = new EmbeddingEntity(mockCollection, { path: 'test.md' });
-    expect(entity.embed_link).toBe('![[test.md]]');
-  });
-
   it('should queue save when vector is set', () => {
     const entity = new EmbeddingEntity(mockCollection, { path: 'test.md' });
     entity._queue_save = false;
@@ -369,7 +364,7 @@ describe('EntityCollection', () => {
       embeddings: {},
     });
 
-    const notesWithVec = collection.filter(
+    const notesWithVec = collection.all.filter(
       (entity) => entity.key.startsWith('notes/') && entity.has_embed()
     );
 

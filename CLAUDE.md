@@ -79,7 +79,6 @@ src/
 │   │   ├── adapters/         # SQLite (sql.js WASM) data adapter
 │   │   └── parsers/          # Markdown heading splitter
 │   ├── search/               # Search and embedding logic
-│   │   ├── vector-search.ts      # Low-level vector search (cosine similarity)
 │   │   └── embedding-pipeline.ts # Batch embedding pipeline
 │   ├── models/embed/         # Abstract EmbedModel + registry (no adapters here)
 │   │   ├── EmbedModel.ts
@@ -220,7 +219,7 @@ pnpm vitest run test/notices.test.ts
 | `src/domain/entities/` | Source/Block entity model + SQLite adapter |
 | `src/domain/models/embed/` | Abstract EmbedModel + registry |
 | `src/ui/models/embed/adapters/` | Provider adapters (transformers, openai, ollama, gemini, etc.) |
-| `src/domain/search/` | vector-search, embedding-pipeline |
+| `src/domain/search/` | embedding-pipeline |
 | `worker/embed-worker.ts` | Transformers.js Web Worker |
 | `esbuild.js` | Build config (CSS/markdown plugins, vault copy) |
 | `scripts/dev.mjs` | Dev orchestrator (vault discovery + delegate) |

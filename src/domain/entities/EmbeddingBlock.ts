@@ -135,34 +135,10 @@ export class EmbeddingBlock extends EmbeddingEntity {
   }
 
   /**
-   * Get sub-key (heading path)
-   * Format: #heading1#heading2
-   */
-  get sub_key(): string {
-    const parts = this.key.split('#');
-    if (parts.length <= 1) return '';
-    return '#' + parts.slice(1).join('#');
-  }
-
-  /**
    * Get line range [start, end]
    */
   get lines(): [number, number] | undefined {
     return this.data.lines;
-  }
-
-  /**
-   * Get start line
-   */
-  get line_start(): number | undefined {
-    return this.lines?.[0];
-  }
-
-  /**
-   * Get end line
-   */
-  get line_end(): number | undefined {
-    return this.lines?.[1];
   }
 
   /**
@@ -173,24 +149,10 @@ export class EmbeddingBlock extends EmbeddingEntity {
   }
 
   /**
-   * Get file path
-   */
-  get file_path(): string {
-    return this.source_key;
-  }
-
-  /**
    * Get file type from source
    */
   get file_type(): string {
     return this.source?.file_type || 'md';
-  }
-
-  /**
-   * Get embed link (with heading anchor)
-   */
-  get embed_link(): string {
-    return `![[${this.link}]]`;
   }
 
   /**
@@ -228,16 +190,6 @@ export class EmbeddingBlock extends EmbeddingEntity {
     // TODO: Check if fully covered by sub-blocks
     // For now, assume we should embed
     return true;
-  }
-
-  /**
-   * Check if block is gone (source missing or block data missing)
-   */
-  get is_gone(): boolean {
-    if (!this.source) return true;
-    if (!this.source.file) return true;
-    // TODO: Check if block still exists in source
-    return false;
   }
 
 }

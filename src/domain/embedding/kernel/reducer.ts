@@ -5,7 +5,6 @@
 
 import type {
   EmbeddingKernelEvent,
-  EmbeddingKernelPhase,
   EmbeddingKernelState,
 } from './types';
 
@@ -163,22 +162,6 @@ export function reduceEmbeddingKernelState(
         },
       };
 
-    case 'RETRY_SUCCESS':
-      if (prev.phase !== 'error') return prev;
-      return {
-        ...prev,
-        phase: 'running',
-        lastError: null,
-      };
-
-    case 'MANUAL_RETRY':
-      if (prev.phase !== 'error') return prev;
-      return {
-        ...prev,
-        phase: 'running',
-        lastError: null,
-      };
-
     case 'REFRESH_REQUESTED':
     case 'REIMPORT_REQUESTED':
       return {
@@ -198,23 +181,6 @@ export function reduceEmbeddingKernelState(
           at: Date.now(),
         },
       };
-
-    case 'SET_PHASE': {
-      const validSetPhaseTransitions: Record<string, EmbeddingKernelPhase[]> = {
-        idle: ['error'],
-        running: ['error'],
-        error: ['idle'],
-      };
-      const allowed = validSetPhaseTransitions[prev.phase] ?? [];
-      if (!allowed.includes(event.phase)) {
-        console.warn(`[SC][FSM] SET_PHASE blocked: ${prev.phase} -> ${event.phase}`);
-        return prev;
-      }
-      return {
-        ...prev,
-        phase: event.phase,
-      };
-    }
 
     case 'RESET_ERROR':
       return {

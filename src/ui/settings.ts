@@ -34,7 +34,6 @@ interface SmartConnectionsPlugin extends Plugin {
   initPipeline?: () => Promise<void>;
   syncCollectionEmbeddingContext?: () => void;
   queueUnembeddedEntities?: () => number;
-  processInitialEmbedQueue?: () => Promise<void>;
   initializeEmbedding?: () => Promise<void>;
   switchEmbeddingModel?: (reason?: string) => Promise<void>;
   reembedStaleEntities?: (reason?: string) => Promise<number>;

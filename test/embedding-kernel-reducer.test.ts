@@ -166,32 +166,26 @@ describe('embedding kernel reducer (3-state FSM)', () => {
     });
   });
 
-  // ── error -> running transitions ───────────────────────────────────────
-  describe('error -> running', () => {
-    function makeErrorState() {
+  // ── error recovery ─────────────────────────────────────────────────────
+  describe('error recovery', () => {
+    it('MODEL_SWITCH_SUCCEEDED clears error and returns to idle', () => {
       let state = createInitialKernelState();
       state = step(state, { type: 'QUEUE_HAS_ITEMS' });
-      state = step(state, {
-        type: 'FATAL_ERROR',
-        error: 'API key expired',
-        code: 'API_KEY_EXPIRED',
-      });
+      state = step(state, { type: 'FATAL_ERROR', error: 'API key expired', code: 'API_KEY_EXPIRED' });
       expect(state.phase).toBe('error');
-      return state;
-    }
 
-    it('transitions from error to running on RETRY_SUCCESS', () => {
-      const state = makeErrorState();
-      const next = step(state, { type: 'RETRY_SUCCESS' });
-      expect(next.phase).toBe('running');
-      expect(next.lastError).toBeNull();
-    });
-
-    it('transitions from error to running on MANUAL_RETRY', () => {
-      const state = makeErrorState();
-      const next = step(state, { type: 'MANUAL_RETRY' });
-      expect(next.phase).toBe('running');
-      expect(next.lastError).toBeNull();
+      state = step(state, {
+        type: 'MODEL_SWITCH_SUCCEEDED',
+        model: {
+          adapter: 'openai',
+          modelKey: 'text-embedding-3-small',
+          host: '',
+          dims: 1536,
+          fingerprint: 'openai|text-embedding-3-small|',
+        },
+      });
+      expect(state.phase).toBe('idle');
+      expect(state.lastError).toBeNull();
     });
   });
 
@@ -222,19 +216,6 @@ describe('embedding kernel reducer (3-state FSM)', () => {
       expect(state.phase).toBe('running');
 
       const next = step(state, { type: 'QUEUE_HAS_ITEMS' });
-      expect(next.phase).toBe('running');
-    });
-
-    it('ignores RETRY_SUCCESS when not in error', () => {
-      const state = createInitialKernelState();
-      const next = step(state, { type: 'RETRY_SUCCESS' });
-      expect(next.phase).toBe('idle');
-    });
-
-    it('ignores MANUAL_RETRY when not in error', () => {
-      let state = createInitialKernelState();
-      state = step(state, { type: 'QUEUE_HAS_ITEMS' });
-      const next = step(state, { type: 'MANUAL_RETRY' });
       expect(next.phase).toBe('running');
     });
 
@@ -314,8 +295,7 @@ describe('embedding kernel reducer (3-state FSM)', () => {
         { type: 'QUEUE_EMPTY' },
         { type: 'QUEUE_HAS_ITEMS' },
         { type: 'FATAL_ERROR', error: 'test', code: 'TEST' },
-        { type: 'RETRY_SUCCESS' },
-        { type: 'QUEUE_EMPTY' },
+        { type: 'RESET_ERROR' },
       ];
 
       let state = initial;
@@ -479,7 +459,7 @@ describe('embedding kernel reducer (3-state FSM)', () => {
     });
   });
 
-  // ── Full lifecycle: idle -> running -> idle -> running -> error -> running -> idle
+  // ── Full lifecycle: idle -> running -> idle -> running -> error -> idle (via model switch)
   describe('full lifecycle', () => {
     it('handles complete embedding workflow', () => {
       let state = createInitialKernelState();
@@ -506,14 +486,29 @@ describe('embedding kernel reducer (3-state FSM)', () => {
       expect(state.phase).toBe('error');
       expect(state.lastError?.message).toBe('API key revoked');
 
-      // Retry success -> back to running
-      state = step(state, { type: 'RETRY_SUCCESS' });
-      expect(state.phase).toBe('running');
-      expect(state.lastError).toBeNull();
-
-      // Finish -> idle
-      state = step(state, { type: 'QUEUE_EMPTY' });
+      // Recover via model switch -> back to idle
+      state = step(state, {
+        type: 'MODEL_SWITCH_SUCCEEDED',
+        model: {
+          adapter: 'openai',
+          modelKey: 'text-embedding-3-small',
+          host: '',
+          dims: 1536,
+          fingerprint: 'openai|text-embedding-3-small|',
+        },
+      });
       expect(state.phase).toBe('idle');
+    });
+
+    it('QUEUE_EMPTY is ignored when in error state', () => {
+      let state = createInitialKernelState();
+      state = step(state, { type: 'QUEUE_HAS_ITEMS' });
+      state = step(state, { type: 'FATAL_ERROR', error: 'fatal', code: 'FATAL' });
+      expect(state.phase).toBe('error');
+
+      // QUEUE_EMPTY should not change error phase
+      state = step(state, { type: 'QUEUE_EMPTY' });
+      expect(state.phase).toBe('error');
     });
   });
 });

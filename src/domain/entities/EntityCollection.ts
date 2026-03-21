@@ -81,13 +81,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   }
 
   /**
-   * Get multiple items by keys
-   */
-  get_many(keys: string[]): T[] {
-    return keys.map(key => this.items[key]).filter(Boolean);
-  }
-
-  /**
    * Set item in collection
    */
   set(item: T): void {
@@ -131,13 +124,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
    */
   get all(): T[] {
     return Object.values(this.items);
-  }
-
-  /**
-   * Filter items
-   */
-  filter(filter_fn: (item: T) => boolean): T[] {
-    return this.all.filter(filter_fn);
   }
 
   /**

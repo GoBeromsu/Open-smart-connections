@@ -71,19 +71,14 @@ export type EmbeddingKernelEvent =
   | { type: 'RUN_FINISHED' }
   | { type: 'RUN_FAILED'; error: string }
   | { type: 'FATAL_ERROR'; error: string; code: string }
-  | { type: 'RETRY_SUCCESS' }
-  | { type: 'MANUAL_RETRY' }
   | { type: 'REFRESH_REQUESTED'; reason: string }
   | { type: 'REIMPORT_REQUESTED'; reason: string }
   | { type: 'REIMPORT_COMPLETED' }
   | { type: 'REIMPORT_FAILED'; error: string }
-  | { type: 'SET_PHASE'; phase: EmbeddingKernelPhase }
   | { type: 'RESET_ERROR' };
 
 export type EmbeddingKernelJobType =
   | 'MODEL_SWITCH'
-  | 'SYNC_QUEUE_SNAPSHOT'
-  | 'QUEUE_STALE_ENTITIES'
   | 'RUN_EMBED_BATCH'
   | 'REIMPORT_SOURCES'
   | 'REFRESH_REQUEST';

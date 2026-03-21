@@ -152,8 +152,7 @@ describe('Phase 5: UI State Cleanup', () => {
         { type: 'QUEUE_EMPTY' },
         { type: 'QUEUE_HAS_ITEMS' },
         { type: 'FATAL_ERROR', error: 'test', code: 'TEST' },
-        { type: 'RETRY_SUCCESS' },
-        { type: 'QUEUE_EMPTY' },
+        { type: 'RESET_ERROR' },
       ];
 
       for (const event of stateSequence) {
@@ -459,7 +458,7 @@ describe('Phase 6: Model Switch Simplification', () => {
       expect(state.lastError?.message).toBe('Model not found');
     });
 
-    it('error state recoverable via MANUAL_RETRY after model switch failure', () => {
+    it('error state recoverable via MODEL_SWITCH_SUCCEEDED after model switch failure', () => {
       let state = createInitialKernelState();
       state = reduceEmbeddingKernelState(state, {
         type: 'MODEL_SWITCH_REQUESTED',
@@ -473,8 +472,18 @@ describe('Phase 6: Model Switch Simplification', () => {
       });
       expect(state.phase).toBe('error');
 
-      state = reduceEmbeddingKernelState(state, { type: 'MANUAL_RETRY' });
-      expect(state.phase).toBe('running');
+      // Retry by switching model again
+      state = reduceEmbeddingKernelState(state, {
+        type: 'MODEL_SWITCH_SUCCEEDED',
+        model: {
+          adapter: 'openai',
+          modelKey: 'text-embedding-3-small',
+          host: '',
+          dims: 1536,
+          fingerprint: 'openai|text-embedding-3-small|',
+        },
+      });
+      expect(state.phase).toBe('idle');
       expect(state.lastError).toBeNull();
     });
 
@@ -564,11 +573,9 @@ describe('Phase 6: Model Switch Simplification', () => {
 
       expect(queue.size()).toBe(2);
 
-      const job1 = queue.dequeue();
-      expect(job1?.entityKey).toBe('note-1.md');
-
-      const job2 = queue.dequeue();
-      expect(job2?.entityKey).toBe('note-2.md');
+      const arr = queue.toArray();
+      expect(arr[0]?.entityKey).toBe('note-1.md');
+      expect(arr[1]?.entityKey).toBe('note-2.md');
     });
 
     it('maintains FIFO order when re-queueing stale entities', () => {
@@ -590,10 +597,10 @@ describe('Phase 6: Model Switch Simplification', () => {
         });
       }
 
-      // Should dequeue in same order
-      for (const entity of staleEntities) {
-        const job = queue.dequeue();
-        expect(job?.entityKey).toBe(entity.key);
+      // Should return in same order via toArray
+      const arr = queue.toArray();
+      for (let i = 0; i < staleEntities.length; i++) {
+        expect(arr[i]?.entityKey).toBe(staleEntities[i].key);
       }
     });
 
@@ -617,8 +624,7 @@ describe('Phase 6: Model Switch Simplification', () => {
 
       // Should only have 1 entry with latest hash
       expect(queue.size()).toBe(1);
-      const job = queue.dequeue();
-      expect(job?.contentHash).toBe('hash-v2');
+      expect(queue.toArray()[0]?.contentHash).toBe('hash-v2');
     });
 
     it('queue transitions idle → running when stale entities queued', () => {
@@ -747,7 +753,7 @@ describe('Phase 6: Model Switch Simplification', () => {
       expect(state.run).toBeNull();
     });
 
-    it('model switch failure recoverable via retry', () => {
+    it('model switch failure recoverable via model switch retry', () => {
       let state = createInitialKernelState();
 
       state = reduceEmbeddingKernelState(state, {
@@ -763,13 +769,19 @@ describe('Phase 6: Model Switch Simplification', () => {
       });
       expect(state.phase).toBe('error');
 
-      // User retries
-      state = reduceEmbeddingKernelState(state, { type: 'MANUAL_RETRY' });
-      expect(state.phase).toBe('running');
-
-      // Eventually succeeds
-      state = reduceEmbeddingKernelState(state, { type: 'QUEUE_EMPTY' });
+      // User retries by switching model again
+      state = reduceEmbeddingKernelState(state, {
+        type: 'MODEL_SWITCH_SUCCEEDED',
+        model: {
+          adapter: 'openai',
+          modelKey: 'text-embedding-3-small',
+          host: '',
+          dims: 1536,
+          fingerprint: 'openai|text-embedding-3-small|',
+        },
+      });
       expect(state.phase).toBe('idle');
+      expect(state.lastError).toBeNull();
     });
   });
 });

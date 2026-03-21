@@ -28,8 +28,6 @@ import {
   migrateInstalledAtFromLocalStorage as _migrateInstalledAtFromLocalStorage,
   getLastKnownVersion as _getLastKnownVersion,
   setLastKnownVersion as _setLastKnownVersion,
-  shouldShowReleaseNotes as _shouldShowReleaseNotes,
-  checkForUpdate as _checkForUpdate,
 } from './ui/user-state';
 import {
   initCollections as _initCollections,
@@ -67,6 +65,7 @@ import {
 import {
   isEmbedReady,
   toLegacyStatusState,
+  type EmbedStatusState,
 } from './domain/embedding/kernel/selectors';
 import type {
   EmbeddingKernelEvent,
@@ -81,11 +80,6 @@ import type { EmbedModel } from './domain/models/embed';
 import type { EmbedModelAdapter } from './types/models';
 import type { SourceCollection, BlockCollection } from './domain/entities';
 import type { EmbeddingPipeline, EmbedQueueStats } from './domain/search/embedding-pipeline';
-
-export type EmbedStatusState =
-  | 'idle'
-  | 'embedding'
-  | 'error';
 
 export interface EmbeddingRunContext {
   runId: number;
@@ -402,6 +396,35 @@ export default class SmartConnectionsPlugin extends Plugin {
     }
 
     const settings = Object.assign({}, DEFAULT_SETTINGS, loadedSettings) as PluginSettings;
+
+    // Deep-merge nested objects that shallow Object.assign misses.
+    // Without this, a saved smart_sources without the adapter sub-key
+    // causes embed_model_key to resolve to 'None' → full re-embed on update.
+    if (loadedSettings.smart_sources && typeof loadedSettings.smart_sources === 'object') {
+      const loaded = loadedSettings.smart_sources as Record<string, any>;
+      settings.smart_sources = { ...DEFAULT_SETTINGS.smart_sources, ...loaded };
+      if (loaded.embed_model && typeof loaded.embed_model === 'object') {
+        settings.smart_sources.embed_model = {
+          ...DEFAULT_SETTINGS.smart_sources.embed_model,
+          ...loaded.embed_model,
+        };
+        const adapter = settings.smart_sources.embed_model.adapter;
+        const defaults = (DEFAULT_SETTINGS.smart_sources.embed_model as Record<string, any>)[adapter];
+        const saved = (loaded.embed_model as Record<string, any>)[adapter];
+        if (defaults && typeof defaults === 'object') {
+          (settings.smart_sources.embed_model as Record<string, any>)[adapter] = {
+            ...defaults,
+            ...(saved && typeof saved === 'object' ? saved : {}),
+          };
+        }
+      }
+    }
+    if (loadedSettings.smart_blocks && typeof loadedSettings.smart_blocks === 'object') {
+      settings.smart_blocks = { ...DEFAULT_SETTINGS.smart_blocks, ...(loadedSettings.smart_blocks as Record<string, any>) };
+    }
+    if (loadedSettings.smart_view_filter && typeof loadedSettings.smart_view_filter === 'object') {
+      settings.smart_view_filter = { ...DEFAULT_SETTINGS.smart_view_filter, ...(loadedSettings.smart_view_filter as Record<string, any>) };
+    }
     // Migrate legacy smart_notices.muted → plugin_notices.muted
     const legacyMuted = (settings.smart_notices as Record<string, unknown> | undefined)?.muted;
     if (legacyMuted && typeof legacyMuted === 'object' && Object.keys(legacyMuted).length > 0) {
@@ -482,7 +505,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   async loadCollections(): Promise<void> { return _loadCollections(this); }
 
   async initPipeline(): Promise<void> { return _initPipeline(this); }
-  async processInitialEmbedQueue(): Promise<void> { await _runEmbeddingJob(this, 'Initial queue'); }
   async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
   async runEmbeddingJobImmediate(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJobImmediate(this, reason); }
 
@@ -544,10 +566,8 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async handleNewUser(): Promise<void> { return _handleNewUser(this); }
-  async checkForUpdate(): Promise<void> { return _checkForUpdate(this); }
   async getLastKnownVersion(): Promise<string> { return _getLastKnownVersion(this); }
   async setLastKnownVersion(version: string): Promise<void> { return _setLastKnownVersion(this, version); }
-  async shouldShowReleaseNotes(currentVersion: string): Promise<boolean> { return _shouldShowReleaseNotes(this, currentVersion); }
   async addToGitignore(ignore: string, message: string | null = null): Promise<void> { return _addToGitignore(this, ignore, message); }
 
   async open_note(targetPath: string, event: MouseEvent | null = null): Promise<void> {
