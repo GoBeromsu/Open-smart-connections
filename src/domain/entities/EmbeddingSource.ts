@@ -102,17 +102,6 @@ export class EmbeddingSource extends EmbeddingEntity {
       return;
     }
 
-    // Exclude lines from excluded blocks
-    if (this.excluded_lines.length > 0) {
-      const content_lines = content.split('\n');
-      this.excluded_lines.forEach(({ start, end }) => {
-        for (let i = start; i <= end; i++) {
-          content_lines[i] = '';
-        }
-      });
-      content = content_lines.filter(line => line.length).join('\n');
-    }
-
     // Add breadcrumbs
     const breadcrumbs = this.path.split('/').join(' > ').replace('.md', '');
 
@@ -124,15 +113,31 @@ export class EmbeddingSource extends EmbeddingEntity {
   }
 
   /**
-   * Update file stats from TFile
+   * Update file stats from TFile.
+   * Uses content-based hashing so mtime-only changes (Sync, git, backup)
+   * don't trigger unnecessary re-embedding.
    */
   async update_from_file(file: TFile): Promise<void> {
     this.file = file;
+
+    // Fast path: stat unchanged → content hasn't changed either
+    if (this.data.mtime === file.stat.mtime && this.data.size === file.stat.size) {
+      return;
+    }
+
     this.data.size = file.stat.size;
     this.data.mtime = file.stat.mtime;
 
-    // Update read hash if content changed
-    const hash = await create_hash(`${file.stat.mtime}-${file.stat.size}`);
+    // First import (no stored hash) → stat-based hash to avoid reading every file at startup.
+    // Subsequent changes → content-based hash so mtime-only touches (Sync/git) don't re-embed.
+    let hash: string;
+    if (!this.read_hash || !this.vault) {
+      hash = await create_hash(`${file.stat.mtime}-${file.stat.size}`);
+    } else {
+      const content = await this.vault.cachedRead(file);
+      hash = await create_hash(content);
+    }
+
     if (this.read_hash !== hash) {
       this.read_hash = hash;
       this.queue_embed();
@@ -147,20 +152,6 @@ export class EmbeddingSource extends EmbeddingEntity {
   }
 
   // Getters
-
-  /**
-   * Get file name
-   */
-  get file_name(): string {
-    return this.path.split('/').pop() || '';
-  }
-
-  /**
-   * Get file path (alias for path)
-   */
-  get file_path(): string {
-    return this.path;
-  }
 
   /**
    * Get file extension
@@ -201,37 +192,10 @@ export class EmbeddingSource extends EmbeddingEntity {
   }
 
   /**
-   * Get excluded lines from excluded blocks
-   * Returns array of {start, end} line ranges
-   */
-  get excluded_lines(): Array<{ start: number; end: number }> {
-    // TODO: Implement block-level exclusion based on headings
-    // For now, return empty array
-    return [];
-  }
-
-  /**
    * Check if source is excluded
    */
   get excluded(): boolean {
     return this.data.is_excluded || false;
-  }
-
-  /**
-   * Get blocks for this source
-   * Delegates to BlockCollection
-   */
-  get blocks(): any[] {
-    // TODO: Implement when BlockCollection is ready
-    return [];
-  }
-
-  /**
-   * Get inlinks (from MetadataCache)
-   */
-  get inlinks(): string[] {
-    // TODO: Implement using MetadataCache resolvedLinks
-    return [];
   }
 
   /**

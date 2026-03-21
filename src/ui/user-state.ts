@@ -3,7 +3,6 @@
  * @description User state management: install tracking, update checks, gitignore helpers
  */
 
-import { requestUrl } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { ConnectionsView } from './connections/ConnectionsView';
 import { determine_installed_at } from '../utils/determine_installed_at';
@@ -78,23 +77,6 @@ export async function handleNewUser(plugin: SmartConnectionsPlugin): Promise<voi
   await addToGitignore(plugin, '\n\n# Ignore Smart Environment folder\n.smart-env');
 }
 
-export async function checkForUpdate(plugin: SmartConnectionsPlugin): Promise<void> {
-  try {
-    const { json: response } = await requestUrl({
-      url: 'https://api.github.com/repos/GoBeromsu/obsidian-smart-connections/releases/latest',
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      contentType: 'application/json',
-    });
-
-    if (response.tag_name !== plugin.manifest.version) {
-      plugin.notices.show('update_available', { tag_name: response.tag_name });
-    }
-  } catch {
-    // Silent failure
-  }
-}
-
 export async function getLastKnownVersion(plugin: SmartConnectionsPlugin): Promise<string> {
   const data = (await plugin.loadData()) || {};
   return data.last_version || '';
@@ -104,10 +86,6 @@ export async function setLastKnownVersion(plugin: SmartConnectionsPlugin, versio
   const data = (await plugin.loadData()) || {};
   data.last_version = version;
   await plugin.saveData(data);
-}
-
-export async function shouldShowReleaseNotes(plugin: SmartConnectionsPlugin, currentVersion: string): Promise<boolean> {
-  return (await getLastKnownVersion(plugin)) !== currentVersion;
 }
 
 export async function addToGitignore(plugin: SmartConnectionsPlugin, ignore: string, message: string | null = null): Promise<void> {

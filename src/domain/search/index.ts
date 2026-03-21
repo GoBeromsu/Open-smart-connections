@@ -4,12 +4,6 @@
  */
 
 export {
-  findNearest,
-  findFurthest,
-  findNearestToEntity,
-} from './vector-search';
-
-export {
   EmbeddingPipeline,
   type EmbedQueueStats,
 } from './embedding-pipeline';

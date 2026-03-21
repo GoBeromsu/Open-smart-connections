@@ -90,7 +90,7 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
 
     // Update from file
     source.vault = this.vault;
-    source.update_from_file(file);
+    await source.update_from_file(file);
 
     // Update from metadata cache
     if (this.metadata_cache) {

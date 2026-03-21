@@ -3,7 +3,7 @@
  * @description Base embedding model class with adapter pattern
  */
 
-import type { EmbedInput, EmbedResult, EmbedModelAdapter, ModelInfo } from '../../../types/models';
+import type { EmbedInput, EmbedResult, EmbedModelAdapter } from '../../../types/models';
 
 /**
  * Configuration options for EmbedModel
@@ -44,60 +44,12 @@ export class EmbedModel {
   }
 
   /**
-   * Count tokens in an input string
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
-  async count_tokens(input: string): Promise<number> {
-    return await this.adapter.count_tokens(input);
-  }
-
-  /**
-   * Generate embeddings for a single input
-   * @param input - Text or object with embed_input property
-   * @returns Embedding result
-   */
-  async embed(input: string | EmbedInput): Promise<EmbedResult> {
-    if (typeof input === 'string') {
-      input = { embed_input: input };
-    }
-    const results = await this.embed_batch([input]);
-    return results[0];
-  }
-
-  /**
    * Generate embeddings for multiple inputs in batch
    * @param inputs - Array of texts or objects with embed_input
    * @returns Array of embedding results
    */
   async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
     return await this.adapter.embed_batch(inputs);
-  }
-
-  /**
-   * Get the current batch size based on adapter settings
-   * @returns Current batch size for processing
-   */
-  get batch_size(): number {
-    return this.adapter.dims || 1;
-  }
-
-  /**
-   * Get model information
-   * @param model_key - Optional model key override
-   * @returns Model information
-   */
-  get_model_info(model_key?: string): ModelInfo | undefined {
-    return this.adapter.get_model_info(model_key);
-  }
-
-  /**
-   * Test API key/connection
-   */
-  async test_api_key(): Promise<void> {
-    if (this.adapter.test_api_key) {
-      await this.adapter.test_api_key();
-    }
   }
 
   /**

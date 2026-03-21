@@ -1,18 +1,6 @@
 /**
  * @file embed-job-queue.test.ts
- * @description TDD tests for Phase 2: Unified EmbedJobQueue
- *
- * Phase 2 unifies 4 disparate queue mechanisms into a single EmbedJobQueue:
- *   - re_import_queue (Record<string, {path, queued_at}>)
- *   - _queue_embed flag (per-entity boolean)
- *   - embed_queue getter (collection property)
- *   - EmbeddingKernelJobQueue (priority queue for orchestration)
- *
- * The new EmbedJobQueue is:
- *   - FIFO ordered (insertion order preserved)
- *   - Map-based dedup by entityKey (Latest-Write-Wins)
- *   - Emits QUEUE_HAS_ITEMS when first item arrives in empty queue
- *   - Emits QUEUE_EMPTY when last item is consumed
+ * @description TDD tests for EmbedJobQueue - FIFO queue with Latest-Write-Wins dedup
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -27,30 +15,30 @@ function makeJob(entityKey: string, contentHash: string = 'hash-' + entityKey): 
   };
 }
 
+
 describe('EmbedJobQueue (unified queue)', () => {
   // ── FIFO ordering ──────────────────────────────────────────────────
   describe('FIFO ordering', () => {
-    it('dequeues items in insertion order', () => {
+    it('returns items in insertion order via toArray()', () => {
       const queue = new EmbedJobQueue();
       queue.enqueue(makeJob('note-a.md'));
       queue.enqueue(makeJob('note-b.md'));
       queue.enqueue(makeJob('note-c.md'));
 
-      expect(queue.dequeue()?.entityKey).toBe('note-a.md');
-      expect(queue.dequeue()?.entityKey).toBe('note-b.md');
-      expect(queue.dequeue()?.entityKey).toBe('note-c.md');
-      expect(queue.dequeue()).toBeUndefined();
+      const arr = queue.toArray();
+      expect(arr[0]?.entityKey).toBe('note-a.md');
+      expect(arr[1]?.entityKey).toBe('note-b.md');
+      expect(arr[2]?.entityKey).toBe('note-c.md');
     });
 
-    it('maintains FIFO order across interleaved enqueue/dequeue', () => {
+    it('maintains FIFO order — toArray reflects insertion sequence', () => {
       const queue = new EmbedJobQueue();
       queue.enqueue(makeJob('a'));
       queue.enqueue(makeJob('b'));
-      expect(queue.dequeue()?.entityKey).toBe('a');
-
       queue.enqueue(makeJob('c'));
-      expect(queue.dequeue()?.entityKey).toBe('b');
-      expect(queue.dequeue()?.entityKey).toBe('c');
+
+      const arr = queue.toArray();
+      expect(arr.map(j => j.entityKey)).toEqual(['a', 'b', 'c']);
     });
   });
 
@@ -62,9 +50,9 @@ describe('EmbedJobQueue (unified queue)', () => {
       queue.enqueue(makeJob('note.md', 'hash-v2'));
 
       expect(queue.size()).toBe(1);
-      const item = queue.dequeue();
-      expect(item?.entityKey).toBe('note.md');
-      expect(item?.contentHash).toBe('hash-v2');
+      const arr = queue.toArray();
+      expect(arr[0]?.entityKey).toBe('note.md');
+      expect(arr[0]?.contentHash).toBe('hash-v2');
     });
 
     it('preserves FIFO position when replacing', () => {
@@ -74,8 +62,9 @@ describe('EmbedJobQueue (unified queue)', () => {
       queue.enqueue(makeJob('a', 'hash-a-v2'));
 
       // 'a' should still come first (original position preserved)
-      expect(queue.dequeue()?.entityKey).toBe('a');
-      expect(queue.dequeue()?.entityKey).toBe('b');
+      const arr = queue.toArray();
+      expect(arr[0]?.entityKey).toBe('a');
+      expect(arr[1]?.entityKey).toBe('b');
     });
 
     it('Latest-Write-Wins: most recent contentHash is used', () => {
@@ -85,7 +74,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       queue.enqueue(makeJob('note.md', 'hash-3'));
 
       expect(queue.size()).toBe(1);
-      expect(queue.dequeue()?.contentHash).toBe('hash-3');
+      expect(queue.toArray()[0]?.contentHash).toBe('hash-3');
     });
 
     it('does not dedup different entityKeys', () => {
@@ -103,9 +92,9 @@ describe('EmbedJobQueue (unified queue)', () => {
       queue.enqueue(makeJob('note.md#block-1', 'hash-v2'));
 
       expect(queue.size()).toBe(2);
-      const first = queue.dequeue()!;
-      expect(first.entityKey).toBe('note.md#block-1');
-      expect(first.contentHash).toBe('hash-v2');
+      const arr = queue.toArray();
+      expect(arr[0]?.entityKey).toBe('note.md#block-1');
+      expect(arr[0]?.contentHash).toBe('hash-v2');
     });
   });
 
@@ -118,8 +107,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       }
 
       expect(queue.size()).toBe(1);
-      const item = queue.dequeue();
-      expect(item?.contentHash).toBe('hash-99');
+      expect(queue.toArray()[0]?.contentHash).toBe('hash-99');
     });
 
     it('burst updates to multiple files keep all files queued', () => {
@@ -130,8 +118,9 @@ describe('EmbedJobQueue (unified queue)', () => {
       }
 
       expect(queue.size()).toBe(2);
-      expect(queue.dequeue()?.contentHash).toBe('a-hash-49');
-      expect(queue.dequeue()?.contentHash).toBe('b-hash-49');
+      const arr = queue.toArray();
+      expect(arr[0]?.contentHash).toBe('a-hash-49');
+      expect(arr[1]?.contentHash).toBe('b-hash-49');
     });
   });
 
@@ -150,11 +139,11 @@ describe('EmbedJobQueue (unified queue)', () => {
       expect(queue.size()).toBe(3);
     });
 
-    it('size decreases on dequeue', () => {
+    it('size decreases after removeBySourcePath', () => {
       const queue = new EmbedJobQueue();
       queue.enqueue(makeJob('a'));
       queue.enqueue(makeJob('b'));
-      queue.dequeue();
+      queue.removeBySourcePath('a');
       expect(queue.size()).toBe(1);
     });
 
@@ -175,7 +164,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       queue.clear();
 
       expect(queue.size()).toBe(0);
-      expect(queue.dequeue()).toBeUndefined();
+      expect(queue.toArray()).toHaveLength(0);
     });
   });
 
@@ -203,6 +192,44 @@ describe('EmbedJobQueue (unified queue)', () => {
       expect(arr[0].contentHash).toBe('v2');
       expect(arr[1].entityKey).toBe('b');
     });
+
+    it('returns empty array for empty queue', () => {
+      const queue = new EmbedJobQueue();
+      expect(queue.toArray()).toHaveLength(0);
+    });
+  });
+
+  // ── removeBySourcePath() ───────────────────────────────────────────
+  describe('removeBySourcePath()', () => {
+    it('removes all jobs matching the given source path', () => {
+      const queue = new EmbedJobQueue();
+      queue.enqueue(makeJob('folder/note.md'));
+      queue.enqueue(makeJob('folder/note.md#block-1'));
+      queue.enqueue(makeJob('other.md'));
+
+      const removed = queue.removeBySourcePath('folder/note.md');
+      expect(removed).toBe(2);
+      expect(queue.size()).toBe(1);
+      expect(queue.toArray()[0]?.entityKey).toBe('other.md');
+    });
+
+    it('fires onQueueEmpty when removing the last item', () => {
+      const onEmpty = vi.fn();
+      const queue = new EmbedJobQueue({ onQueueEmpty: onEmpty });
+
+      queue.enqueue(makeJob('a'));
+      queue.removeBySourcePath('a');
+      expect(onEmpty).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns 0 when no matching jobs found', () => {
+      const queue = new EmbedJobQueue();
+      queue.enqueue(makeJob('a.md'));
+
+      const removed = queue.removeBySourcePath('b.md');
+      expect(removed).toBe(0);
+      expect(queue.size()).toBe(1);
+    });
   });
 
   // ── FSM event integration ──────────────────────────────────────────
@@ -224,22 +251,22 @@ describe('EmbedJobQueue (unified queue)', () => {
       expect(onHasItems).toHaveBeenCalledTimes(1);
     });
 
-    it('fires onQueueEmpty when last item is dequeued', () => {
+    it('fires onQueueEmpty when all items are removed via removeBySourcePath', () => {
       const onEmpty = vi.fn();
       const queue = new EmbedJobQueue({ onQueueEmpty: onEmpty });
 
       queue.enqueue(makeJob('a'));
-      queue.dequeue();
+      queue.removeBySourcePath('a');
       expect(onEmpty).toHaveBeenCalledTimes(1);
     });
 
-    it('does not fire onQueueEmpty when items remain', () => {
+    it('does not fire onQueueEmpty when items remain after removeBySourcePath', () => {
       const onEmpty = vi.fn();
       const queue = new EmbedJobQueue({ onQueueEmpty: onEmpty });
 
       queue.enqueue(makeJob('a'));
       queue.enqueue(makeJob('b'));
-      queue.dequeue();
+      queue.removeBySourcePath('a');
       expect(onEmpty).not.toHaveBeenCalled();
     });
 
@@ -265,7 +292,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       const queue = new EmbedJobQueue({ onQueueHasItems: onHasItems });
 
       queue.enqueue(makeJob('a'));
-      queue.dequeue(); // empties
+      queue.clear(); // empties
       queue.enqueue(makeJob('b'));
       expect(onHasItems).toHaveBeenCalledTimes(2);
     });
@@ -282,19 +309,19 @@ describe('EmbedJobQueue (unified queue)', () => {
 
   // ── Edge cases ─────────────────────────────────────────────────────
   describe('edge cases', () => {
-    it('dequeue on empty queue returns undefined', () => {
+    it('toArray on empty queue returns empty array', () => {
       const queue = new EmbedJobQueue();
-      expect(queue.dequeue()).toBeUndefined();
+      expect(queue.toArray()).toEqual([]);
     });
 
-    it('handles enqueue after complete drain', () => {
+    it('handles enqueue after complete drain via clear()', () => {
       const queue = new EmbedJobQueue();
       queue.enqueue(makeJob('a'));
-      queue.dequeue();
+      queue.clear();
 
       queue.enqueue(makeJob('b'));
       expect(queue.size()).toBe(1);
-      expect(queue.dequeue()?.entityKey).toBe('b');
+      expect(queue.toArray()[0]?.entityKey).toBe('b');
     });
 
     it('handles entity keys with special characters', () => {
@@ -302,7 +329,7 @@ describe('EmbedJobQueue (unified queue)', () => {
       const key = 'folder/sub folder/note (1).md#heading with spaces';
       queue.enqueue(makeJob(key));
       expect(queue.size()).toBe(1);
-      expect(queue.dequeue()?.entityKey).toBe(key);
+      expect(queue.toArray()[0]?.entityKey).toBe(key);
     });
   });
 });

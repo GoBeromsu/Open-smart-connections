@@ -40,22 +40,6 @@ export class EmbedJobQueue {
     if (wasEmpty) this.onQueueHasItems?.();
   }
 
-  dequeue(): EmbedJob | undefined {
-    while (this.insertionOrder.length > 0) {
-      const key = this.insertionOrder.shift()!;
-      const job = this.items.get(key);
-      if (job) {
-        this.items.delete(key);
-        if (this.items.size === 0) {
-          this.onQueueEmpty?.();
-        }
-        return job;
-      }
-      // Key was already removed (stale entry in insertionOrder), skip
-    }
-    return undefined;
-  }
-
   /** Remove all jobs whose sourcePath matches the given path. */
   removeBySourcePath(sourcePath: string): number {
     let removed = 0;

@@ -13,7 +13,6 @@ export {
   type FurthestAccumulator,
 } from './results_acc';
 export {
-  sort_by_score,
   sort_by_score_descending,
   sort_by_score_ascending,
 } from './sort_by_score';

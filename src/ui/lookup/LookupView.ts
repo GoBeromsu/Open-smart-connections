@@ -447,8 +447,4 @@ export class LookupView extends ItemView {
     }
   }
 
-  static getView(workspace: any): LookupView | null {
-    const leaves = workspace.getLeavesOfType(LOOKUP_VIEW_TYPE);
-    return leaves.length ? leaves[0].view as LookupView : null;
-  }
 }

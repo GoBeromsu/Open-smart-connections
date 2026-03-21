@@ -53,10 +53,6 @@ export class EmbeddingKernelJobQueue {
     return this.pending.length + (this.running ? 1 : 0);
   }
 
-  isRunning(): boolean {
-    return this.running;
-  }
-
   clear(reason: string = 'Queue cleared'): void {
     const rest = [...this.pending];
     this.pending = [];

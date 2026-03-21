@@ -259,13 +259,6 @@ export class EmbeddingEntity {
   }
 
   /**
-   * Get embed link (for Obsidian)
-   */
-  get embed_link(): string {
-    return `![[${this.path}]]`;
-  }
-
-  /**
    * Get size (to be overridden)
    */
   get size(): number {
