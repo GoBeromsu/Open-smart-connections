@@ -140,6 +140,9 @@ export interface PluginSettings {
   /** Re-import wait time in seconds */
   re_import_wait_time: number;
 
+  /** How often to save embedding progress (in batches). Lower = safer on crash, higher = less I/O */
+  embed_save_interval: number;
+
   /** Whether this is an Obsidian vault */
   is_obsidian_vault: boolean;
 
