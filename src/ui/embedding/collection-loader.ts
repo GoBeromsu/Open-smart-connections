@@ -129,14 +129,15 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
     await new Promise(r => setTimeout(r, 0));
   }
 
-  // Final sweep: pick up any blocks that were missed during chunked processing
-  // (e.g., blocks queued by switchEmbeddingModel's initial run that finished mid-chunk)
+  // Final sweep: pick up any blocks missed during chunked processing
   if (!plugin._unloading) {
     const remaining = queueUnembeddedEntities(plugin);
     if (remaining > 0 && plugin.embedding_pipeline) {
       console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
       await plugin.runEmbeddingJobImmediate('[chunked-pipeline] final sweep');
     }
+    // Clear stale queue entries — all embeddable work is done
+    plugin.embed_job_queue?.clear();
   }
 
   console.log(`[SC] All ${total} new files processed`);
