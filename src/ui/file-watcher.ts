@@ -6,10 +6,12 @@
 
 import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
+import { invalidateConnectionsCache } from './block-connections';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   function handleSourceChange(file: TFile): void {
     if (isSourceFile(file)) {
+      invalidateConnectionsCache(file.path);
       queueSourceReImport(plugin, file.path);
     }
   }
@@ -23,7 +25,10 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   plugin.registerEvent(
     plugin.app.vault.on('rename', (file, oldPath) => {
       if (file instanceof TFile) handleSourceChange(file);
-      if (oldPath) removeSource(plugin, oldPath);
+      if (oldPath) {
+        invalidateConnectionsCache(oldPath);
+        removeSource(plugin, oldPath);
+      }
     }),
   );
 
@@ -71,6 +76,7 @@ export function queueSourceReImport(plugin: SmartConnectionsPlugin, path: string
 }
 
 export function removeSource(plugin: SmartConnectionsPlugin, path: string): void {
+  invalidateConnectionsCache(path);
   plugin.embed_job_queue?.removeBySourcePath(path);
   plugin.source_collection?.delete(path);
   plugin.block_collection?.delete_source_blocks(path);

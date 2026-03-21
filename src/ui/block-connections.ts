@@ -9,6 +9,22 @@ import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import type { ConnectionResult } from '../types/entities';
 import { average_vectors } from '../utils';
 
+interface CachedResult {
+  results: ConnectionResult[];
+  ts: number;
+}
+const _cache = new Map<string, CachedResult>();
+const CACHE_MAX_SIZE = 20;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+export function invalidateConnectionsCache(path?: string): void {
+  if (path) {
+    _cache.delete(path);
+  } else {
+    _cache.clear();
+  }
+}
+
 /**
  * Find connections for a file using its embedded blocks.
  *
@@ -23,6 +39,12 @@ export async function getBlockConnections(
   opts?: { limit?: number },
 ): Promise<ConnectionResult[]> {
   const limit = opts?.limit ?? 50;
+
+  const cached = _cache.get(filePath);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.results;
+  }
+
   const fileBlocks = blockCollection.for_source(filePath);
   const embedded = fileBlocks.filter(b => b.vec);
   if (embedded.length === 0) return [];
@@ -42,7 +64,15 @@ export async function getBlockConnections(
     }
   }
 
-  return [...seen.values()]
+  const finalResults = [...seen.values()]
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, limit);
+
+  if (_cache.size >= CACHE_MAX_SIZE) {
+    const firstKey = _cache.keys().next().value;
+    if (firstKey !== undefined) _cache.delete(firstKey);
+  }
+  _cache.set(filePath, { results: finalResults, ts: Date.now() });
+
+  return finalResults;
 }
