@@ -399,14 +399,13 @@ export class ConnectionsView extends ItemView {
       else if (score >= 0.7) scoreBadge.addClass('osc-score--medium');
       else scoreBadge.addClass('osc-score--low');
 
-      // Content: title + breadcrumb + heading indicator
+      // Content: title + breadcrumb (with heading appended)
       const content = item.createDiv({ cls: 'osc-result-content' });
       content.createSpan({ text: name, cls: 'osc-result-title' });
-      if (breadcrumb) {
-        content.createSpan({ text: breadcrumb, cls: 'osc-result-breadcrumb' });
-      }
-      if (lastHeading && !lastHeading.startsWith('paragraph-')) {
-        content.createSpan({ text: lastHeading, cls: 'osc-result-heading' });
+      const headingSuffix = (lastHeading && !lastHeading.startsWith('paragraph-')) ? lastHeading : '';
+      const fullBreadcrumb = [breadcrumb, headingSuffix].filter(Boolean).join(' > ');
+      if (fullBreadcrumb) {
+        content.createSpan({ text: fullBreadcrumb, cls: 'osc-result-breadcrumb' });
       }
 
       // Pin indicator
