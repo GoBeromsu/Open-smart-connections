@@ -38,9 +38,9 @@ export class EmbeddingEntity {
   /** Flag for deleting all persisted embeddings for this entity */
   _remove_all_embeddings: boolean = false;
 
-  constructor(collection: EntityCollection<any>, data: Partial<EntityData> = {}) {
+  constructor(collection: EntityCollection<any>, data: Partial<EntityData> = {}, defaults?: EntityData) {
     this.collection = collection;
-    this.data = this.get_defaults();
+    this.data = defaults ?? this.get_defaults();
 
     // Merge provided data
     Object.assign(this.data, data);

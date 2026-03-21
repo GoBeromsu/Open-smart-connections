@@ -235,7 +235,7 @@ export class LookupView extends ItemView {
 
     this.lastQuery = query;
 
-    if (!this.plugin.embed_ready || !this.plugin.embed_model) {
+    if (!this.plugin.embed_ready || !this.plugin.embed_adapter) {
       this.showLoading('Embedding model is still loading...');
       return;
     }

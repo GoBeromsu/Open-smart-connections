@@ -5,7 +5,7 @@
  */
 
 import { EmbeddingEntity } from './EmbeddingEntity';
-import type { BlockData } from '../../types/entities';
+import type { BlockData, EntityData } from '../../types/entities';
 import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingSource } from './EmbeddingSource';
 
@@ -18,10 +18,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
   data: BlockData;
 
   constructor(collection: EntityCollection<any>, data: Partial<BlockData> = {}) {
-    super(collection, data);
-    this.data = this.get_defaults() as BlockData;
-    Object.assign(this.data, data);
-    this.key = this.get_key();
+    super(collection, data, { path: '', text: '', length: 0, embeddings: {} } as EntityData);
   }
 
   /**

@@ -1,80 +1,7 @@
 /**
  * @file embedding/kernel/types.ts
- * @description Core kernel state, event, and job types for embedding orchestration
+ * @description Job types for the embedding job queue
  */
-
-export type EmbeddingKernelPhase =
-  | 'idle'
-  | 'running'
-  | 'error';
-
-export interface EmbeddingKernelModel {
-  adapter: string;
-  modelKey: string;
-  host: string;
-  dims: number | null;
-  fingerprint: string;
-}
-
-export interface EmbeddingKernelRun {
-  runId: number;
-  reason: string;
-  current: number;
-  total: number;
-  blockTotal: number;
-  startedAt: number;
-  currentEntityKey: string | null;
-  currentSourcePath: string | null;
-}
-
-export interface EmbeddingKernelQueueSnapshot {
-  pendingJobs: number;
-  staleTotal: number;
-  staleEmbeddableTotal: number;
-  queuedTotal: number;
-}
-
-export interface EmbeddingKernelError {
-  code: string;
-  message: string;
-  at: number;
-  context?: string;
-}
-
-export interface EmbeddingKernelState {
-  phase: EmbeddingKernelPhase;
-  model: EmbeddingKernelModel | null;
-  run: EmbeddingKernelRun | null;
-  queue: EmbeddingKernelQueueSnapshot;
-  lastError: EmbeddingKernelError | null;
-}
-
-export type EmbeddingKernelEvent =
-  | { type: 'INIT_CORE_READY' }
-  | { type: 'INIT_CORE_FAILED'; error: string }
-  | { type: 'MODEL_SWITCH_REQUESTED'; reason: string }
-  | { type: 'MODEL_SWITCH_SUCCEEDED'; model: EmbeddingKernelModel }
-  | { type: 'MODEL_SWITCH_FAILED'; reason: string; error: string }
-  | { type: 'QUEUE_SNAPSHOT_UPDATED'; queue: EmbeddingKernelQueueSnapshot }
-  | { type: 'QUEUE_HAS_ITEMS' }
-  | { type: 'QUEUE_EMPTY' }
-  | { type: 'RUN_REQUESTED'; reason: string }
-  | { type: 'RUN_STARTED'; run: EmbeddingKernelRun }
-  | {
-    type: 'RUN_PROGRESS';
-    current: number;
-    total: number;
-    currentEntityKey?: string | null;
-    currentSourcePath?: string | null;
-  }
-  | { type: 'RUN_FINISHED' }
-  | { type: 'RUN_FAILED'; error: string }
-  | { type: 'FATAL_ERROR'; error: string; code: string }
-  | { type: 'REFRESH_REQUESTED'; reason: string }
-  | { type: 'REIMPORT_REQUESTED'; reason: string }
-  | { type: 'REIMPORT_COMPLETED' }
-  | { type: 'REIMPORT_FAILED'; error: string }
-  | { type: 'RESET_ERROR' };
 
 export type EmbeddingKernelJobType =
   | 'MODEL_SWITCH'
@@ -89,10 +16,3 @@ export interface EmbeddingKernelJob<T = unknown> {
   payload?: unknown;
   run: () => Promise<T>;
 }
-
-export type EmbeddingKernelListener = (
-  state: EmbeddingKernelState,
-  prev: EmbeddingKernelState,
-  event: EmbeddingKernelEvent,
-) => void;
-

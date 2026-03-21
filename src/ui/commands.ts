@@ -149,7 +149,7 @@ export function registerCommands(plugin: Plugin): void {
           await p.block_collection.data_adapter?.save();
         }
         // Notify kernel that cache was cleared
-        p.dispatchKernelEvent?.({ type: 'RESET_ERROR' });
+        p.resetError?.();
       }
     },
   });

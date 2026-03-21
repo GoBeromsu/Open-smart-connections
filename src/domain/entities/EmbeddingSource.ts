@@ -5,7 +5,7 @@
  */
 
 import { EmbeddingEntity } from './EmbeddingEntity';
-import type { SourceData } from '../../types/entities';
+import type { EntityData, SourceData } from '../../types/entities';
 import type { EntityCollection } from './EntityCollection';
 import type { TFileShim as TFile, CachedMetadataShim as CachedMetadata, VaultShim as Vault } from '../../types/obsidian-shims';
 import { create_hash } from '../../utils';
@@ -27,10 +27,7 @@ export class EmbeddingSource extends EmbeddingEntity {
   cached_metadata?: CachedMetadata;
 
   constructor(collection: EntityCollection<any>, data: Partial<SourceData> = {}) {
-    super(collection, data);
-    this.data = this.get_defaults() as SourceData;
-    Object.assign(this.data, data);
-    this.key = this.get_key();
+    super(collection, data, { path: '', embeddings: {} } as EntityData);
   }
 
   /**

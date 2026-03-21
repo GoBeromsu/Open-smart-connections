@@ -100,8 +100,6 @@ export function debounceReImport(plugin: SmartConnectionsPlugin): void {
       console.error('Failed to enqueue debounced re-import:', error);
     });
   }, waitTime);
-
-  plugin.refreshStatus();
 }
 
 const MAX_DEFER_RETRIES = 20;
@@ -144,7 +142,6 @@ function getReImportPaths(plugin: SmartConnectionsPlugin): string[] {
 
 export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void> {
   plugin.re_import_halted = false;
-  plugin.dispatchKernelEvent({ type: 'REIMPORT_REQUESTED', reason: 'runReImport' });
 
   if (!plugin.source_collection || !plugin.embedding_pipeline) {
     console.warn('Collections or pipeline not initialized');
@@ -204,7 +201,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
     plugin.refreshStatus();
     plugin._defer_retry_count = 0;
     console.log('Re-import completed');
-    plugin.dispatchKernelEvent({ type: 'REIMPORT_COMPLETED' });
+    // re-import completed
 
     if (!plugin._unloading && getReImportPaths(plugin).length > 0) {
       deferReImport(plugin, 'Re-import queue still has pending updates');
@@ -217,10 +214,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
       return;
     }
     console.error('Re-import failed:', error);
-    plugin.dispatchKernelEvent({
-      type: 'REIMPORT_FAILED',
-      error: error instanceof Error ? error.message : String(error),
-    });
+    plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
     plugin.notices.show('reimport_failed');
     plugin.refreshStatus();
   }

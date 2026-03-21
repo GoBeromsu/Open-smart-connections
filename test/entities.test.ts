@@ -5,6 +5,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
+import { EmbeddingSource } from '../src/domain/entities/EmbeddingSource';
+import { EmbeddingBlock } from '../src/domain/entities/EmbeddingBlock';
 import { EntityCollection } from '../src/domain/entities/EntityCollection';
 import { getEmbedAdapterSettings } from '../src/ui/collection-loader';
 import type { EntityData } from '../src/types/entities';
@@ -250,6 +252,21 @@ describe('EmbeddingEntity', () => {
     entity.vec = [1, 2, 3];
 
     expect(entity._queue_embed).toBe(false);
+  });
+
+  it('EmbeddingSource constructor sets data correctly in one pass', () => {
+    const source = new EmbeddingSource(mockCollection as any, { path: 'test.md' });
+    expect(source.data.path).toBe('test.md');
+    expect(source.key).toBe('test.md');
+    expect(source.data.embeddings).toEqual({});
+  });
+
+  it('EmbeddingBlock constructor sets data correctly in one pass', () => {
+    const block = new EmbeddingBlock(mockCollection as any, { path: 'test.md#heading', text: 'content' });
+    expect(block.data.path).toBe('test.md#heading');
+    expect(block.key).toBe('test.md#heading');
+    expect(block.data.text).toBe('content');
+    expect(block.data.embeddings).toEqual({});
   });
 });
 

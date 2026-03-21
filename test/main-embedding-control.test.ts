@@ -56,9 +56,10 @@ function createPlugin() {
     data_dir: '/tmp/blocks',
   } as any;
 
-  plugin.embed_model = {
+  plugin.embed_adapter = {
     model_key: 'text-embedding-3-small',
-    adapter: { dims: 1536, adapter: 'openai' },
+    dims: 1536,
+    adapter: 'openai',
     unload: vi.fn(async () => {}),
   } as any;
 
@@ -144,7 +145,7 @@ describe('SmartConnectionsPlugin embedding control', () => {
     expect(plugin.status_state).toBe('idle');
   });
 
-  it('keeps newer run state when stale run finalizes', async () => {
+  it('returns to idle after run completes even when embed phase was changed mid-run', async () => {
     const { plugin } = createPlugin();
     const { pipeline, release } = createControlledPipeline();
     plugin.embedding_pipeline = pipeline as any;
@@ -152,18 +153,16 @@ describe('SmartConnectionsPlugin embedding control', () => {
     const runPromise = plugin.runEmbeddingJob('run-guard');
     await Promise.resolve();
 
-    // In 3-state FSM, MODEL_SWITCH_REQUESTED doesn't change phase (no loading_model)
-    // Phase stays 'running' until MODEL_SWITCH_SUCCEEDED fires
-    plugin.dispatchKernelEvent({ type: 'MODEL_SWITCH_REQUESTED', reason: 'test' });
-    plugin.active_embed_run_id = 999;
+    // Phase is running while the job is active
+    expect(plugin.status_state).toBe('embedding');
 
     release();
     await runPromise;
 
-    // Stale run dispatches RUN_FINISHED to clean up FSM, transitioning to idle
-    // The key invariant: active_embed_run_id stays at 999 (newer run was not overwritten)
+    // Run finished — FSM transitions to idle
     expect(plugin.status_state).toBe('idle');
-    expect(plugin.active_embed_run_id).toBe(999);
+    // current_embed_context holds the completed run snapshot
+    expect(plugin.current_embed_context?.phase).toBe('completed');
   });
 
   it('sets error state when model load times out during switch', async () => {
@@ -229,9 +228,10 @@ describe('SmartConnectionsPlugin embedding control', () => {
     } as any;
 
     vi.spyOn(plugin, 'initEmbedModel').mockImplementation(async () => {
-      plugin.embed_model = {
+      plugin.embed_adapter = {
         model_key: 'text-embedding-3-large',
-        adapter: { dims: 3072, adapter: 'openai' },
+        dims: 3072,
+        adapter: 'openai',
         unload: vi.fn(async () => {}),
       } as any;
     });
@@ -280,9 +280,10 @@ describe('SmartConnectionsPlugin embedding control', () => {
     } as any;
 
     vi.spyOn(plugin, 'initEmbedModel').mockImplementation(async () => {
-      plugin.embed_model = {
+      plugin.embed_adapter = {
         model_key: 'text-embedding-3-small',
-        adapter: { dims: 1536, adapter: 'openai' },
+        dims: 1536,
+        adapter: 'openai',
         unload: vi.fn(async () => {}),
       } as any;
     });

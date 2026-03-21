@@ -16,7 +16,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
       plugin.settings.smart_sources.embed_model as unknown as Record<string, any>,
     );
     const modelKey =
-      plugin.embed_model?.model_key || adapterSettings.model_key || 'None';
+      plugin.embed_adapter?.model_key || adapterSettings.model_key || 'None';
 
     console.log(`[SC][Init]   [collections] Initializing with model_key=${modelKey}, data_dir=${dataDir}`);
 
@@ -206,8 +206,8 @@ export function getEmbeddingQueueSnapshot(plugin: SmartConnectionsPlugin): Embed
 }
 
 export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): void {
-  const modelKey = plugin.embed_model?.model_key;
-  const modelDims = plugin.embed_model?.adapter?.dims;
+  const modelKey = plugin.embed_adapter?.model_key;
+  const modelDims = plugin.embed_adapter?.dims;
 
   if (plugin.source_collection) {
     if (modelKey) plugin.source_collection.embed_model_key = modelKey;

@@ -60,23 +60,14 @@ import {
   clearEmbedNotice as _clearEmbedNotice,
 } from './ui/embed-orchestrator';
 import {
-  EmbeddingKernelStore,
   EmbeddingKernelJobQueue,
-  logKernelTransition,
-  isEmbedReady,
-  toLegacyStatusState,
-  type EmbedStatusState,
 } from './domain/embedding/kernel';
 import type {
-  EmbeddingKernelEvent,
   EmbeddingKernelJob,
-  EmbeddingKernelQueueSnapshot,
-  EmbeddingKernelState,
 } from './domain/embedding/kernel/types';
 import { EmbedJobQueue } from './domain/embedding/embed-job-queue';
 
 // Core type imports needed for plugin fields
-import type { EmbedModel } from './domain/embed-model';
 import type { EmbedModelAdapter } from './types/models';
 import type { SourceCollection, BlockCollection } from './domain/entities';
 import type { EmbeddingPipeline, EmbedQueueStats } from './domain/embedding-pipeline';
@@ -139,7 +130,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   readonly logger = new PluginLogger('Open Connections');
 
   // Core components
-  embed_model?: EmbedModel;
+  embed_adapter?: EmbedModelAdapter;
   _search_embed_model?: EmbedModelAdapter;
   source_collection?: SourceCollection;
   block_collection?: BlockCollection;
@@ -149,14 +140,16 @@ export default class SmartConnectionsPlugin extends Plugin {
   ready: boolean = false;
   init_errors: Array<{ phase: string; error: Error }> = [];
   embed_run_seq: number = 0;
-  active_embed_run_id: number | null = null;
   embed_notice_last_update = 0;
   embed_notice_last_percent = 0;
   current_embed_context: EmbeddingRunContext | null = null;
-  embedding_kernel_store?: EmbeddingKernelStore;
   embedding_job_queue?: EmbeddingKernelJobQueue;
   embed_job_queue?: EmbedJobQueue;
-  private embedding_kernel_unsubscribe?: () => void;
+  private _embed_state: { phase: 'idle' | 'running' | 'error'; modelFingerprint: string | null; lastError: string | null } = {
+    phase: 'idle',
+    modelFingerprint: null,
+    lastError: null,
+  };
   private _notices?: SmartConnectionsNotices;
 
   get notices(): SmartConnectionsNotices {
@@ -174,7 +167,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   get embed_ready(): boolean {
-    return isEmbedReady(this.getEmbeddingKernelState());
+    return this._embed_state.phase !== 'error' && this._embed_state.modelFingerprint !== null;
   }
 
   /**
@@ -183,11 +176,31 @@ export default class SmartConnectionsPlugin extends Plugin {
    */
   get search_embed_model(): EmbedModelAdapter | undefined {
     if (this._search_embed_model) return this._search_embed_model;
-    return this.embed_model?.adapter;
+    return this.embed_adapter;
   }
 
-  get status_state(): EmbedStatusState {
-    return toLegacyStatusState(this.getEmbeddingKernelState());
+  get status_state(): 'idle' | 'embedding' | 'error' {
+    return this._embed_state.phase === 'running' ? 'embedding' : this._embed_state.phase;
+  }
+
+  setEmbedPhase(phase: 'idle' | 'running' | 'error', opts: { error?: string; fingerprint?: string } = {}): void {
+    const prev = this._embed_state.phase;
+    this._embed_state = {
+      phase,
+      modelFingerprint: opts.fingerprint ?? this._embed_state.modelFingerprint,
+      lastError: phase === 'error' ? (opts.error ?? this._embed_state.lastError) : null,
+    };
+    if (prev !== phase) {
+      console.log(`[Open Connections] ${prev} → ${phase}${opts.error ? `: ${opts.error}` : ''}`);
+      this.app.workspace.trigger('smart-connections:embed-state-changed' as any, { phase, prev });
+      this.refreshStatus();
+    }
+  }
+
+  resetError(): void {
+    if (this._embed_state.lastError) {
+      this._embed_state = { ...this._embed_state, lastError: null };
+    }
   }
 
   async onload(): Promise<void> {
@@ -195,7 +208,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     console.log('Loading Open Connections plugin');
 
     await this.loadSettings();
-    this.ensureEmbeddingKernel();
 
     if (this.app.workspace.layoutReady) {
       await this.initialize();
@@ -340,7 +352,7 @@ export default class SmartConnectionsPlugin extends Plugin {
         console.error(`[SC][Init]   ${tag} ${name} ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
         if (opts?.critical) {
           this.ready = false;
-          this.dispatchKernelEvent({ type: 'INIT_CORE_FAILED', error: `Failed: ${name}` });
+          this.setEmbedPhase('error', { error: `Failed: ${name}` });
           console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): ${name} failed`);
         }
         return false;
@@ -363,7 +375,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     await runStep('Registering file watchers', () => this.registerFileWatchers());
 
     this.ready = true;
-    this.dispatchKernelEvent({ type: 'INIT_CORE_READY' });
     this.app.workspace.trigger('smart-connections:core-ready' as any);
     console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - phase1Start).toFixed(0)}ms) — ready=${this.ready}, errors=${this.init_errors.length}`);
 
@@ -392,11 +403,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     } catch (e) {
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
       console.error(`[SC][Init] ✗ Phase 2 failed (${(performance.now() - t0).toFixed(0)}ms): ${e instanceof Error ? e.message : String(e)}`);
-      this.dispatchKernelEvent({
-        type: 'MODEL_SWITCH_FAILED',
-        reason: 'Initial embedding setup',
-        error: e instanceof Error ? e.message : String(e),
-      });
+      this.setEmbedPhase('error', { error: e instanceof Error ? e.message : String(e) });
 
       // Don't rethrow — Phase 1 is already working
     }
@@ -547,49 +554,14 @@ export default class SmartConnectionsPlugin extends Plugin {
   handleStatusBarClick(): void { _handleStatusBarClick(this); }
 
   ensureEmbeddingKernel(): void {
-    if (this.embedding_kernel_store && this.embedding_job_queue) return;
-    this.embedding_kernel_store = new EmbeddingKernelStore();
+    if (this.embedding_job_queue) return;
     this.embedding_job_queue = new EmbeddingKernelJobQueue();
-    this.embed_job_queue = new EmbedJobQueue({
-      onQueueHasItems: () => {
-        this.dispatchKernelEvent({ type: 'QUEUE_HAS_ITEMS' });
-      },
-      onQueueEmpty: () => {
-        this.dispatchKernelEvent({ type: 'QUEUE_EMPTY' });
-      },
-    });
-    this.embedding_kernel_unsubscribe = this.embedding_kernel_store.subscribe((state, _prev, event) => {
-      logKernelTransition(_prev, event, state);
-      this.app.workspace.trigger('smart-connections:embed-state-changed' as any, {
-        state,
-        event,
-      });
-      this.refreshStatus();
-    });
-  }
-
-  getEmbeddingKernelState(): EmbeddingKernelState {
-    this.ensureEmbeddingKernel();
-    return this.embedding_kernel_store!.getState();
-  }
-
-  dispatchKernelEvent(event: EmbeddingKernelEvent): EmbeddingKernelState {
-    this.ensureEmbeddingKernel();
-    return this.embedding_kernel_store!.dispatch(event);
+    this.embed_job_queue = new EmbedJobQueue();
   }
 
   enqueueEmbeddingJob<T = unknown>(job: EmbeddingKernelJob<T>): Promise<T> {
     this.ensureEmbeddingKernel();
-    const promise = this.embedding_job_queue!.enqueue(job);
-    const updateSnapshot = (): void => {
-      this.dispatchKernelEvent({
-        type: 'QUEUE_SNAPSHOT_UPDATED',
-        queue: this.getEmbeddingQueueSnapshot(),
-      });
-    };
-    updateSnapshot();
-    void promise.then(updateSnapshot, updateSnapshot);
-    return promise;
+    return this.embedding_job_queue!.enqueue(job);
   }
 
   async handleNewUser(): Promise<void> { return _handleNewUser(this); }
@@ -614,8 +586,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.embedding_pipeline?.halt();
     this.clearEmbedNotice();
     this._notices?.unload();
-    this.embedding_kernel_unsubscribe?.();
-    this.embedding_kernel_unsubscribe = undefined;
     this.embedding_job_queue?.clear('Plugin unload');
     this.embed_job_queue?.clear();
 
@@ -637,8 +607,8 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Fire-and-forget async cleanup with error handling
     // Obsidian does not await onunload, so we cannot use await here
-    if (this.embed_model) {
-      this.embed_model.unload().catch((err: unknown) => {
+    if (this.embed_adapter?.unload) {
+      this.embed_adapter.unload().catch((err: unknown) => {
         console.warn('Failed to unload embed model:', err);
       });
     }

@@ -7,7 +7,7 @@ import type SmartConnectionsPlugin from '../main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../main';
 import { CONNECTIONS_VIEW_TYPE } from './ConnectionsView';
 
-import { EmbedModel, embedAdapterRegistry } from '../domain/embed-model';
+import { embedAdapterRegistry } from '../domain/embed-model';
 // Import adapters to trigger self-registration
 import './embed-adapters/transformers';
 import './embed-adapters/openai';
@@ -21,22 +21,20 @@ import {
   EmbeddingPipeline,
   type EmbedQueueStats,
 } from '../domain/embedding-pipeline';
-import {
-  getEmbeddingQueueSnapshot,
-} from './collection-loader';
+// getEmbeddingQueueSnapshot import removed — snapshot computed on demand
 import { buildKernelModel } from '../domain/embedding/kernel';
 import type { EmbeddingKernelJobType } from '../domain/embedding/kernel/types';
 
 // ── Model info helpers ──────────────────────────────────────────────
 
 export function getCurrentModelInfo(plugin: SmartConnectionsPlugin): { adapter: string; modelKey: string; dims: number | null } {
-  const adapter = plugin.embed_model?.adapter?.adapter
+  const adapter = plugin.embed_adapter?.adapter
     ?? plugin.settings?.smart_sources?.embed_model?.adapter
     ?? 'unknown';
-  const modelKey = plugin.embed_model?.model_key
+  const modelKey = plugin.embed_adapter?.model_key
     ?? plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as any)?.model_key
     ?? 'unknown';
-  const dims = plugin.embed_model?.adapter?.dims ?? null;
+  const dims = plugin.embed_adapter?.dims ?? null;
   return { adapter, modelKey, dims };
 }
 
@@ -45,12 +43,7 @@ export function getActiveEmbeddingContext(plugin: SmartConnectionsPlugin): Embed
   return { ...plugin.current_embed_context };
 }
 
-function dispatchQueueSnapshot(plugin: SmartConnectionsPlugin): void {
-  plugin.dispatchKernelEvent({
-    type: 'QUEUE_SNAPSHOT_UPDATED',
-    queue: getEmbeddingQueueSnapshot(plugin),
-  });
-}
+// dispatchQueueSnapshot removed — snapshot computed on demand by status bar
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeoutId: number | undefined;
@@ -76,7 +69,7 @@ const NOISY_EVENTS = new Set([
 export function logEmbed(plugin: SmartConnectionsPlugin, event: string, context: Partial<EmbedProgressEventPayload> = {}): void {
   if (NOISY_EVENTS.has(event)) return;
 
-  const runId = context.runId ?? plugin.active_embed_run_id ?? '-';
+  const runId = context.runId ?? plugin.current_embed_context?.runId ?? '-';
   const current = context.current;
   const total = context.total;
   const progress =
@@ -200,11 +193,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       console.log(`[SC][Init]   [model] Adapter loaded ✓ (${(performance.now() - tLoad).toFixed(0)}ms)`);
     }
 
-    plugin.embed_model = new EmbedModel({
-      adapter,
-      model_key: modelKey,
-      settings: plugin.settings,
-    });
+    plugin.embed_adapter = adapter;
 
     console.log(`[SC][Init]   [model] Embed model initialized ✓ (${adapterType}/${modelKey})`);
   } catch (error) {
@@ -270,11 +259,11 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
 // ── Pipeline initialization ─────────────────────────────────────────
 
 export function initPipeline(plugin: SmartConnectionsPlugin): void {
-  if (!plugin.embed_model) {
+  if (!plugin.embed_adapter) {
     plugin.notices.show('failed_init_embed_pipeline');
-    throw new Error('Embed model must be initialized before pipeline');
+    throw new Error('Embed adapter must be initialized before pipeline');
   }
-  plugin.embedding_pipeline = new EmbeddingPipeline(plugin.embed_model.adapter);
+  plugin.embedding_pipeline = new EmbeddingPipeline(plugin.embed_adapter);
   console.log('[SC][Init]   [pipeline] Embedding pipeline initialized');
 }
 
@@ -286,9 +275,8 @@ export async function reembedStaleEntities(plugin: SmartConnectionsPlugin, reaso
     key: 'REFRESH_REQUEST',
     priority: 20,
     run: async () => {
-      plugin.dispatchKernelEvent({ type: 'REFRESH_REQUESTED', reason });
+      plugin.resetError();
       const queued = plugin.queueUnembeddedEntities();
-      dispatchQueueSnapshot(plugin);
       if (queued === 0) {
         plugin.logEmbed('reembed-skip-empty', { reason });
         return 0;
@@ -320,9 +308,9 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
     plugin._search_embed_model = undefined;
   }
 
-  if (!plugin.embed_model) return;
+  if (!plugin.embed_adapter) return;
   try {
-    await plugin.embed_model.unload();
+    await plugin.embed_adapter.unload?.();
   } catch (error) {
     console.warn('Failed to unload previous embed model during switch:', error);
   }
@@ -339,16 +327,16 @@ function getModelLoadTimeoutMs(plugin: SmartConnectionsPlugin): number {
 }
 
 async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding model switch'): Promise<void> {
-  plugin.dispatchKernelEvent({ type: 'MODEL_SWITCH_REQUESTED', reason });
+  plugin.resetError();
   const previous = getCurrentModelInfo(plugin);
-  const previousModelKey = plugin.embed_model?.model_key ?? '';
+  const previousModelKey = plugin.embed_adapter?.model_key ?? '';
   const targetAdapterSettings = plugin.getEmbedAdapterSettings(
     plugin.settings?.smart_sources?.embed_model as any,
   );
   const targetAdapter = plugin.settings?.smart_sources?.embed_model?.adapter ?? '';
   const targetModelKey = (targetAdapterSettings as any)?.model_key ?? '';
   const shouldForceReembed =
-    !!plugin.embed_model && (previousModelKey !== targetModelKey || previous.adapter !== targetAdapter);
+    !!plugin.embed_adapter && (previousModelKey !== targetModelKey || previous.adapter !== targetAdapter);
   plugin.logEmbed('switch-start', {
     reason,
     adapter: previous.adapter,
@@ -419,8 +407,6 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
 
     const queuedAfterSync = plugin.queueUnembeddedEntities();
     console.log(`[SC][Init]   [switch] Queue: ${queuedAfterSync} entities need embedding`);
-    dispatchQueueSnapshot(plugin);
-
     t = performance.now();
     console.log('[SC][Init]   [switch] Initializing pipeline...');
     await plugin.initPipeline();
@@ -431,15 +417,13 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     const activeAdapterSettings = plugin.getEmbedAdapterSettings(
       plugin.settings?.smart_sources?.embed_model as any,
     );
-    plugin.dispatchKernelEvent({
-      type: 'MODEL_SWITCH_SUCCEEDED',
-      model: buildKernelModel(
-        active.adapter,
-        active.modelKey,
-        String((activeAdapterSettings as any)?.host || ''),
-        active.dims,
-      ),
-    });
+    const kernelModel = buildKernelModel(
+      active.adapter,
+      active.modelKey,
+      String((activeAdapterSettings as any)?.host || ''),
+      active.dims,
+    );
+    plugin.setEmbedPhase('idle', { fingerprint: kernelModel.fingerprint });
     plugin.app.workspace.trigger('smart-connections:embed-ready');
     plugin.app.workspace.trigger('smart-connections:model-switched' as any, {
       ...active,
@@ -459,11 +443,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
       });
     }
   } catch (error) {
-    plugin.dispatchKernelEvent({
-      type: 'MODEL_SWITCH_FAILED',
-      reason,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
     plugin.logEmbed('switch-failed', {
       reason,
       error: error instanceof Error ? error.message : String(error),
@@ -498,9 +478,8 @@ export async function runEmbeddingJobImmediate(plugin: SmartConnectionsPlugin, r
 }
 
 async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
-  const phase = plugin.getEmbeddingKernelState().phase;
-  if (phase === 'error') {
-    console.warn(`[SC] runEmbeddingJobNow rejected: kernel phase is '${phase}'`);
+  if (plugin.status_state === 'error') {
+    console.warn('[SC] runEmbeddingJobNow rejected: embed phase is error');
     return null;
   }
 
@@ -510,13 +489,11 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
   }
 
   if (!plugin.source_collection || !plugin.embedding_pipeline) {
-    dispatchQueueSnapshot(plugin);
     return null;
   }
 
   if (plugin.embedding_pipeline.is_active()) {
     plugin.logEmbed('run-skip-active', { reason });
-    dispatchQueueSnapshot(plugin);
     return null;
   }
 
@@ -529,7 +506,6 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
 
   if (entitiesToEmbed.length === 0) {
     plugin.logEmbed('run-skip-empty', { reason });
-    dispatchQueueSnapshot(plugin);
     return null;
   }
 
@@ -554,22 +530,8 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     blockDataDir: plugin.block_collection?.data_dir ?? '',
   };
 
-  plugin.dispatchKernelEvent({ type: 'RUN_REQUESTED', reason });
-  plugin.active_embed_run_id = runId;
   plugin.current_embed_context = ctx;
-  plugin.dispatchKernelEvent({
-    type: 'RUN_STARTED',
-    run: {
-      runId,
-      reason,
-      current: 0,
-      total: ctx.total,
-      blockTotal: ctx.blockTotal,
-      startedAt: ctx.startedAt,
-      currentEntityKey: ctx.currentEntityKey,
-      currentSourcePath: ctx.currentSourcePath,
-    },
-  });
+  plugin.setEmbedPhase('running');
   updateEmbedNotice(plugin, ctx, true);
   emitEmbedProgress(plugin, ctx);
   plugin.logEmbed('run-start', {
@@ -586,6 +548,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
   });
 
   let unresolvedAfterRun = 0;
+  let lastProgressEmit = 0;
 
   try {
     const stats = await plugin.embedding_pipeline.process(entitiesToEmbed, {
@@ -593,32 +556,31 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
       max_retries: 3,
       concurrency: plugin.settings.embed_concurrency || 5,
       on_progress: (current, total, progress) => {
-        if (plugin.active_embed_run_id !== runId) return;
+        if (plugin.current_embed_context?.runId !== runId) return;
         ctx.current = current;
         ctx.total = total;
         if (progress?.current_key) ctx.currentEntityKey = progress.current_key;
         if (progress?.current_source_path) ctx.currentSourcePath = progress.current_source_path;
         ctx.phase = 'running';
-        plugin.dispatchKernelEvent({
-          type: 'RUN_PROGRESS',
-          current: ctx.current,
-          total: ctx.total,
-          currentEntityKey: ctx.currentEntityKey,
-          currentSourcePath: ctx.currentSourcePath,
-        });
-        emitEmbedProgress(plugin, ctx);
-        updateEmbedNotice(plugin, ctx);
+        // Throttle UI updates to max 1/sec
+        const now = Date.now();
+        if (now - lastProgressEmit > 1000) {
+          lastProgressEmit = now;
+          plugin.refreshStatus();
+          emitEmbedProgress(plugin, ctx);
+          updateEmbedNotice(plugin, ctx);
+        }
       },
       on_save: async () => {
         await saveCollections(plugin);
-        if (plugin.active_embed_run_id === runId) ctx.saveCount += 1;
+        if (plugin.current_embed_context?.runId === runId) ctx.saveCount += 1;
       },
       save_interval: plugin.settings.embed_save_interval || 5,
     });
 
-    if (plugin.active_embed_run_id !== runId) {
+    if (plugin.current_embed_context?.runId !== runId) {
       plugin.current_embed_context = null;
-      plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
+      plugin.setEmbedPhase('idle');
       return stats;
     }
 
@@ -631,7 +593,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     // Handle completion
     ctx.phase = 'completed';
     plugin.current_embed_context = null;
-    plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
+    plugin.setEmbedPhase('idle');
     plugin.notices.show('embedding_complete', { success: stats.success });
 
     const isChunkedRun = ctx.reason.startsWith('[chunked-pipeline]');
@@ -639,7 +601,6 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
       plugin.embed_job_queue?.clear();
     }
     unresolvedAfterRun = isChunkedRun ? 0 : plugin.queueUnembeddedEntities();
-    dispatchQueueSnapshot(plugin);
 
     if (unresolvedAfterRun > 0) {
       plugin.logEmbed('run-stale-remaining', {
@@ -663,18 +624,15 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
 
     return stats;
   } catch (error) {
-    if (plugin.active_embed_run_id !== runId) {
+    if (plugin.current_embed_context?.runId !== runId) {
       plugin.current_embed_context = null;
-      plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
+      plugin.setEmbedPhase('idle');
       throw error;
     }
 
     ctx.phase = 'failed';
     plugin.current_embed_context = null;
-    plugin.dispatchKernelEvent({
-      type: 'RUN_FAILED',
-      error: error instanceof Error ? error.message : String(error),
-    });
+    plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
     plugin.logEmbed('run-failed', {
       runId: ctx.runId,
       adapter: ctx.adapter,
@@ -688,12 +646,10 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     plugin.notices.show('embedding_failed');
     throw error;
   } finally {
-    if (plugin.active_embed_run_id === runId) {
+    if (plugin.current_embed_context?.runId === runId || plugin.current_embed_context === null) {
       emitEmbedProgress(plugin, ctx, { done: true });
-      plugin.current_embed_context = ctx.phase === 'failed' ? null : { ...ctx };
-      plugin.active_embed_run_id = null;
+      if (ctx.phase !== 'failed') plugin.current_embed_context = { ...ctx };
       clearEmbedNotice(plugin);
-      dispatchQueueSnapshot(plugin);
 
       // Retry once for entities that stayed stale after the first run
       if (!reason.includes('[stale-retry]') && unresolvedAfterRun > 0) {
