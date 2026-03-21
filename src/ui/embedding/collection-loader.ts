@@ -83,16 +83,41 @@ export async function discoverNewSources(plugin: SmartConnectionsPlugin): Promis
   if (!plugin.source_collection?.vault) return;
   const knownPaths = new Set(plugin.source_collection.all.map((s: any) => s.key));
   const vaultFiles = plugin.app.vault.getMarkdownFiles();
-  let discovered = 0;
-  for (const file of vaultFiles) {
-    if (!knownPaths.has(file.path)) {
-      await plugin.source_collection.import_source(file);
-      discovered++;
+  const newFiles = vaultFiles.filter(f => !knownPaths.has(f.path));
+
+  if (newFiles.length === 0) return;
+
+  const CHUNK_SIZE = plugin.settings.discovery_chunk_size || 50;
+  const total = newFiles.length;
+
+  for (let i = 0; i < total; i += CHUNK_SIZE) {
+    if (plugin._unloading) return;
+    const chunk = newFiles.slice(i, i + CHUNK_SIZE);
+
+    for (const file of chunk) {
+      if (plugin._unloading) return;
+      try {
+        await plugin.source_collection.import_source(file);
+      } catch (err) {
+        console.warn(`[SC] Discovery: failed to import ${file.path}:`, err);
+      }
     }
+
+    // Save to in-memory DB (flushed to disk by autosave timer)
+    await plugin.source_collection.data_adapter.save();
+    if (plugin.block_collection) {
+      await plugin.block_collection.data_adapter.save();
+    }
+
+    const processed = Math.min(i + CHUNK_SIZE, total);
+    console.log(`[SC] Discovery: ${processed}/${total} files`);
+    plugin.refreshStatus?.();
+
+    // Yield to event loop
+    await new Promise(r => setTimeout(r, 0));
   }
-  if (discovered > 0) {
-    console.log(`[SC][Init] Discovered ${discovered} new files`);
-  }
+
+  console.log(`[SC] Discovery complete: ${total} new files`);
 }
 
 export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number {

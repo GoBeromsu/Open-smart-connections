@@ -149,6 +149,9 @@ export interface PluginSettings {
   /** Number of batches sent to the API simultaneously (1-10, default 5) */
   embed_concurrency: number;
 
+  /** Files per discovery chunk (10-200, default 50). Lower = smoother UI, higher = faster discovery */
+  discovery_chunk_size: number;
+
   /** Whether this is an Obsidian vault */
   is_obsidian_vault: boolean;
 

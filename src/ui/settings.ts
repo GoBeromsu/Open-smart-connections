@@ -354,6 +354,19 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
             this.setConfig('embed_concurrency', value);
           });
       });
+
+    new Setting(containerEl)
+      .setName('Discovery chunk size')
+      .setDesc('Files processed per chunk during vault discovery. Lower = smoother UI, higher = faster.')
+      .addSlider((slider) => {
+        slider
+          .setLimits(100, 5000, 100)
+          .setValue(this.getConfig('discovery_chunk_size', 1000))
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.setConfig('discovery_chunk_size', value);
+          });
+      });
   }
 
   private renderViewSettings(containerEl: HTMLElement): void {

@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   re_import_wait_time: 13,
   embed_save_interval: 5,
   embed_concurrency: 5,
+  discovery_chunk_size: 1000,
   is_obsidian_vault: true,
 
   smart_sources: {
