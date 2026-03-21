@@ -605,10 +605,10 @@ function handleRunCompleted(
   plugin.current_embed_context = null;
   plugin.dispatchKernelEvent({ type: 'RUN_FINISHED' });
   plugin.notices.show('embedding_complete', { success: stats.success });
-  // Clear the orchestration queue before re-scanning; queueUnembeddedEntities
-  // will re-populate it with any entities that still need embedding.
   plugin.embed_job_queue?.clear();
-  const unresolvedAfterRun = plugin.queueUnembeddedEntities();
+  // Skip full re-scan if called from chunked pipeline — the chunked loop manages its own queueing.
+  const isChunkedRun = ctx.reason.includes('Chunk');
+  const unresolvedAfterRun = isChunkedRun ? 0 : plugin.queueUnembeddedEntities();
   dispatchQueueSnapshot(plugin);
   if (unresolvedAfterRun > 0) {
     plugin.logEmbed('run-stale-remaining', {
