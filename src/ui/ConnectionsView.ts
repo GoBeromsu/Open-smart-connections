@@ -405,8 +405,8 @@ export class ConnectionsView extends ItemView {
       if (breadcrumb) {
         content.createSpan({ text: breadcrumb, cls: 'osc-result-breadcrumb' });
       }
-      if (lastHeading) {
-        content.createSpan({ text: `#${lastHeading}`, cls: 'osc-result-heading' });
+      if (lastHeading && !lastHeading.startsWith('paragraph-')) {
+        content.createSpan({ text: lastHeading, cls: 'osc-result-heading' });
       }
 
       // Pin indicator
