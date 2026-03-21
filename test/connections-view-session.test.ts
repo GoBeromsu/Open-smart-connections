@@ -21,9 +21,9 @@ function createPluginStub() {
         muted: {},
       },
     },
-    embed_model: {
+    embed_adapter: {
       model_key: 'text-embedding-3-small',
-      adapter: { dims: 1536 },
+      dims: 1536,
     },
     source_collection: {
       size: 2,

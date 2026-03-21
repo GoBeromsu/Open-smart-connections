@@ -13,7 +13,7 @@ function createPluginStub() {
   };
   return {
     embed_ready: true,
-    embed_model: { adapter },
+    embed_adapter: adapter,
     search_embed_model: adapter,
     source_collection: {
       all: [],
@@ -52,7 +52,7 @@ describe('LookupView model-switch safety', () => {
 
     await view.performSearch('query');
 
-    expect(plugin.embed_model.adapter.embed_batch).toHaveBeenCalledTimes(1);
+    expect(plugin.embed_adapter.embed_batch).toHaveBeenCalledTimes(1);
     expect(plugin.source_collection.nearest).toHaveBeenCalledWith([1, 0], { limit: 20 });
     expect(plugin.block_collection.nearest).toHaveBeenCalledWith([1, 0], { limit: 20 });
   });

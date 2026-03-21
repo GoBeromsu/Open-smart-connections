@@ -76,11 +76,10 @@ describe('runReImport during chunked pipeline', () => {
 
     await runReImport(plugin);
 
-    // Queue is preserved (not dropped)
+    // Queue is preserved (not dropped) — runReImport returns early without clearing the queue
     expect(plugin.embed_job_queue.size()).toBe(1);
-    expect(plugin.dispatchKernelEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'REIMPORT_REQUESTED' }),
-    );
+    // source_collection.import_source should NOT have been called
+    expect(plugin.source_collection.import_source).not.toHaveBeenCalled();
   });
 
   it('does NOT enter defer loop when chunked pipeline is active', async () => {

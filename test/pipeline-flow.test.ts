@@ -496,9 +496,10 @@ describe('handleRunCompleted via runEmbeddingJobImmediate', () => {
       data_dir: '/tmp/blocks',
     } as any;
 
-    plugin.embed_model = {
+    plugin.embed_adapter = {
       model_key: 'text-embedding-3-small',
-      adapter: { dims: 1536, adapter: 'openai' },
+      dims: 1536,
+      adapter: 'openai',
       unload: vi.fn(async () => {}),
     } as any;
 

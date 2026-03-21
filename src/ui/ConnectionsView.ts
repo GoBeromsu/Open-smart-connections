@@ -101,8 +101,8 @@ export class ConnectionsView extends ItemView {
     this.registerEvent(
       this.app.workspace.on('smart-connections:embed-state-changed' as any, (payload: any) => {
         this.updateProgressBanner();
-        // Auto-refresh when embedding finishes and we have a stale view
-        if (payload?.event?.type === 'RUN_FINISHED' && this.lastRenderedPath) {
+        // Auto-refresh when embedding finishes (running → idle) and we have a stale view
+        if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
           invalidateConnectionsCache(); // Clear all — embeddings changed
           this.autoEmbedRequestedForPath = null;
           void this.renderView(this.lastRenderedPath);

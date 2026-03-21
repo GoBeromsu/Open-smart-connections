@@ -1,13 +1,11 @@
 /**
  * @file embedding-kernel-effects.test.ts
- * @description Kernel effect helper tests (updated for 3-state FSM)
+ * @description Kernel effect helper tests
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildKernelModel,
-  logKernelTransition,
-  createInitialKernelState,
 } from '../src/domain/embedding/kernel';
 
 describe('kernel effects', () => {
@@ -17,22 +15,5 @@ describe('kernel effects', () => {
     expect(model.modelKey).toBe('text-embedding-3-small');
     expect(model.host).toBe('http://localhost');
     expect(model.fingerprint).toBe('openai|text-embedding-3-small|http://localhost');
-  });
-
-  it('logs transition line with context', () => {
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const prev = createInitialKernelState();
-    // In 3-state FSM, initial phase is 'idle', and QUEUE_HAS_ITEMS transitions to 'running'
-    const next = {
-      ...prev,
-      phase: 'running' as const,
-      queue: {
-        ...prev.queue,
-        pendingJobs: 1,
-      },
-    };
-    logKernelTransition(prev, { type: 'QUEUE_HAS_ITEMS' }, next);
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('idle → running'));
-    spy.mockRestore();
   });
 });
