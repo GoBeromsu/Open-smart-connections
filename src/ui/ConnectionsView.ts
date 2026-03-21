@@ -10,7 +10,7 @@ import type SmartConnectionsPlugin from '../main';
 import type { ConnectionResult } from '../types/entities';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { showResultContextMenu } from './result-context-menu';
-import { getBlockConnections } from './block-connections';
+import { getBlockConnections, invalidateConnectionsCache } from './block-connections';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 
@@ -36,6 +36,7 @@ export class ConnectionsView extends ItemView {
   private progressEl: HTMLElement | null = null;
   private lastRenderedPath: string | null = null;
   private autoEmbedRequestedForPath: string | null = null;
+  private _renderGen: number = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -102,6 +103,7 @@ export class ConnectionsView extends ItemView {
         this.updateProgressBanner();
         // Auto-refresh when embedding finishes and we have a stale view
         if (payload?.event?.type === 'RUN_FINISHED' && this.lastRenderedPath) {
+          invalidateConnectionsCache(); // Clear all — embeddings changed
           this.autoEmbedRequestedForPath = null;
           void this.renderView(this.lastRenderedPath);
         }
@@ -119,6 +121,7 @@ export class ConnectionsView extends ItemView {
   }
 
   async renderView(targetPath?: string): Promise<void> {
+    const gen = ++this._renderGen;
     if (!this.container) return;
     if (
       typeof this.container.checkVisibility === 'function' &&
@@ -172,6 +175,7 @@ export class ConnectionsView extends ItemView {
 
     try {
       const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
+      if (gen !== this._renderGen) return; // superseded by a newer renderView call
       this.renderResults(targetPath, results);
     } catch (e) {
       this.showError('Failed to find connections: ' + (e as Error).message);

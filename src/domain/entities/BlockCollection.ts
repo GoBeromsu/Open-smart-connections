@@ -17,6 +17,8 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   /** Reference to source collection */
   source_collection?: SourceCollection;
 
+  private _sourceIndex: Map<string, Set<string>> = new Map();
+
   constructor(
     data_dir: string,
     settings: any = {},
@@ -26,6 +28,25 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   ) {
     super(data_dir, settings, embed_model_key, 'smart_blocks', storage_namespace);
     this.source_collection = source_collection;
+  }
+
+  protected onItemAdded(block: EmbeddingBlock): void {
+    const sourceKey = block.source_key;
+    let set = this._sourceIndex.get(sourceKey);
+    if (!set) {
+      set = new Set();
+      this._sourceIndex.set(sourceKey, set);
+    }
+    set.add(block.key);
+  }
+
+  protected onItemRemoved(key: string): void {
+    const sourceKey = key.split('#')[0];
+    const set = this._sourceIndex.get(sourceKey);
+    if (set) {
+      set.delete(key);
+      if (set.size === 0) this._sourceIndex.delete(sourceKey);
+    }
   }
 
   /**
@@ -83,17 +104,24 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   }
 
   /**
-   * Get all blocks for a source
+   * Get all blocks for a source using the reverse index.
    */
-  private get_source_blocks(source_key: string): EmbeddingBlock[] {
-    return this.all.filter(block => block.source_key === source_key);
+  for_source(path: string): EmbeddingBlock[] {
+    const keys = this._sourceIndex.get(path);
+    if (!keys || keys.size === 0) return [];
+    const result: EmbeddingBlock[] = [];
+    for (const k of keys) {
+      const block = this.items[k];
+      if (block) result.push(block);
+    }
+    return result;
   }
 
   /**
-   * Get all blocks whose source_key matches the given path.
+   * Get all blocks for a source (alias used internally).
    */
-  for_source(path: string): EmbeddingBlock[] {
-    return this.all.filter(block => block.source_key === path);
+  private get_source_blocks(source_key: string): EmbeddingBlock[] {
+    return this.for_source(source_key);
   }
 
   /**

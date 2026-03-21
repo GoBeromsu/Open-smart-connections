@@ -66,6 +66,9 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
    */
   abstract get_item_type(): new (collection: EntityCollection<T>, data?: Partial<EntityData>) => T;
 
+  protected onItemAdded(_item: T): void { /* override in subclass */ }
+  protected onItemRemoved(_key: string): void { /* override in subclass */ }
+
   /**
    * Initialize collection
    */
@@ -85,6 +88,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
    */
   set(item: T): void {
     this.items[item.key] = item;
+    this.onItemAdded(item);
   }
 
   /**
@@ -100,6 +104,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
       item = new ItemType(this, data as EntityData);
       this.items[item.key] = item;
       item._queue_save = true;
+      this.onItemAdded(item);
     } else {
       // Update existing item
       Object.assign(item.data, data);
@@ -116,6 +121,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
    */
   delete(key: string): void {
     this.deleted_keys.add(key);
+    this.onItemRemoved(key);
     delete this.items[key];
   }
 

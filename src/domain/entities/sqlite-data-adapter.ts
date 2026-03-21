@@ -8,7 +8,7 @@ import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
 import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
-import { cos_sim } from '../../utils';
+import { cos_sim_f32 } from '../../utils';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -47,6 +47,15 @@ function blobToVec(blob: Uint8Array | ArrayBuffer | null): number[] | null {
   const buf = blob instanceof Uint8Array ? blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength) : blob;
   if (buf.byteLength === 0 || buf.byteLength % 4 !== 0) return null;
   return Array.from(new Float32Array(buf));
+}
+
+function blobToF32(blob: Uint8Array | ArrayBuffer | null): Float32Array | null {
+  if (!blob) return null;
+  const buf = blob instanceof Uint8Array
+    ? blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength)
+    : blob;
+  if (buf.byteLength === 0 || buf.byteLength % 4 !== 0) return null;
+  return new Float32Array(buf);
 }
 
 function parseExtra(extra: unknown): Record<string, any> {
@@ -566,14 +575,15 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
     const stmt = db.prepare(sql);
     stmt.bind(params);
 
-    // Compute cosine similarity in JS
+    // Compute cosine similarity in JS using Float32Array to skip Array.from() conversion
+    const queryF32 = new Float32Array(vec);
     const scored: QueryMatch[] = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      const candidateVec = blobToVec(row.vec as Uint8Array | null);
-      if (!candidateVec || candidateVec.length !== vec.length) continue;
+      const candidateVec = blobToF32(row.vec as Uint8Array | null);
+      if (!candidateVec || candidateVec.length !== queryF32.length) continue;
 
-      const score = cos_sim(vec, candidateVec);
+      const score = cos_sim_f32(queryF32, candidateVec);
 
       if (filter.min_score !== undefined && score < filter.min_score) continue;
 
