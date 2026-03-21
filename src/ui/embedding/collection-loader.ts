@@ -97,11 +97,8 @@ export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number 
     queued++;
   };
 
-  if (plugin.source_collection) {
-    for (const source of plugin.source_collection.all) {
-      enqueueEntity(source);
-    }
-  }
+  // Source-level embedding is disabled — blocks only.
+  // Sources return should_embed=false so skipping them avoids unnecessary iteration.
   if (plugin.block_collection) {
     for (const block of plugin.block_collection.all) {
       enqueueEntity(block);

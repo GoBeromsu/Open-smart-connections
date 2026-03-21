@@ -23,12 +23,14 @@ interface BlockRange {
  * @param content Markdown content
  * @param source_path Source file path
  * @param metadata MetadataCache metadata (optional)
+ * @param max_depth Maximum heading level to split on (1-6, default 3). Headings deeper than this merge into parent block.
  * @returns Array of block data objects
  */
 export async function parse_markdown_blocks(
   content: string,
   source_path: string,
   metadata?: CachedMetadata,
+  max_depth: number = 3,
 ): Promise<BlockData[]> {
   const lines = content.split('\n');
   const blocks: BlockData[] = [];
@@ -41,8 +43,8 @@ export async function parse_markdown_blocks(
     const paragraph_blocks = await split_by_paragraphs(content, source_path, lines);
     blocks.push(...paragraph_blocks);
   } else {
-    // Split by headings
-    const heading_blocks = await split_by_headings(content, source_path, lines, headings);
+    // Split by headings up to max_depth
+    const heading_blocks = await split_by_headings(content, source_path, lines, headings, max_depth);
     blocks.push(...heading_blocks);
   }
 
@@ -57,11 +59,12 @@ async function split_by_headings(
   source_path: string,
   lines: string[],
   headings: HeadingCache[],
+  max_depth: number,
 ): Promise<BlockData[]> {
   const blocks: BlockData[] = [];
 
   // Build heading hierarchy
-  const heading_ranges = build_heading_ranges(headings, lines.length);
+  const heading_ranges = build_heading_ranges(headings, lines.length, max_depth);
 
   // Create blocks for each heading range
   for (const range of heading_ranges) {
@@ -107,31 +110,39 @@ async function split_by_headings(
 /**
  * Build heading ranges with hierarchy
  * Preserves #heading1#heading2 format for block keys
+ * Headings deeper than max_depth are merged into their parent block's range.
  */
-function build_heading_ranges(headings: HeadingCache[], total_lines: number): BlockRange[] {
+function build_heading_ranges(headings: HeadingCache[], total_lines: number, max_depth: number): BlockRange[] {
   const ranges: BlockRange[] = [];
 
-  // Stack to track current heading path
+  // Stack to track current heading path (all levels, including deep ones)
   const heading_stack: Array<{ heading: string; level: number }> = [];
 
   for (let i = 0; i < headings.length; i++) {
     const current = headings[i];
-    const next = headings[i + 1];
 
     // Update heading stack based on level
     while (heading_stack.length > 0 && heading_stack[heading_stack.length - 1].level >= current.level) {
       heading_stack.pop();
     }
-
-    // Add current heading to stack
     heading_stack.push({ heading: current.heading, level: current.level });
 
-    // Build heading path for key
-    const heading_path = heading_stack.map(h => h.heading);
-    const key = heading_path.map(h => `#${h}`).join('');
+    if (current.level > max_depth) continue;
 
-    // Determine end line
-    const end_line = next ? next.position.start.line - 1 : total_lines - 1;
+    // Block ends before the next heading at the same or shallower level
+    let end_line = total_lines - 1;
+    for (let j = i + 1; j < headings.length; j++) {
+      if (headings[j].level <= current.level) {
+        end_line = headings[j].position.start.line - 1;
+        break;
+      }
+    }
+
+    // Build heading path for key (only the stack entries up to max_depth)
+    const heading_path = heading_stack
+      .filter(h => h.level <= max_depth)
+      .map(h => h.heading);
+    const key = heading_path.map(h => `#${h}`).join('');
 
     ranges.push({
       key,

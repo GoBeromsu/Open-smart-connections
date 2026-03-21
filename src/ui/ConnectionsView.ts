@@ -7,7 +7,10 @@ import {
   setIcon,
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
+import type { ConnectionResult } from '../types/entities';
+import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { showResultContextMenu } from './result-context-menu';
+import { getBlockConnections } from './block-connections';
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 
@@ -128,7 +131,7 @@ export class ConnectionsView extends ItemView {
 
     this.lastRenderedPath = targetPath;
 
-    if (!this.plugin.ready || !this.plugin.source_collection) {
+    if (!this.plugin.ready || !this.plugin.block_collection) {
       this.showLoading('Smart Connections is initializing...');
       return;
     }
@@ -138,72 +141,66 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
-    const source = this.plugin.source_collection.get(targetPath);
-
-    if (!source) {
-      if (!this.plugin.embed_ready) {
-        this.showLoading(
-          'Smart Connections is loading... Connections will appear when embedding is complete.',
-        );
-      } else {
-        this.showEmpty('Source not found. Check exclusion settings.');
-      }
-      return;
-    }
-
-    const is_source_stale = !!source.is_unembedded;
-    const has_vec = !!source.vec;
-
-    // Try to show results (even if stale — old vectors still produce useful connections)
-    if (has_vec) {
-      try {
-        const results = this.plugin.source_collection.nearest_to
-          ? await this.plugin.source_collection.nearest_to(source, {})
-          : [];
-        this.renderResults(targetPath, results);
-      } catch (e) {
-        this.showError('Failed to find connections: ' + (e as Error).message);
-        return;
-      }
-
-      // If stale, show banner and auto-queue re-embedding
-      if (is_source_stale) {
-        this.addBanner('Re-embedding in progress. Results may be from a previous model.');
-        this.autoQueueEmbedding(source);
-      }
-      return;
-    }
-
-    // No vector at all — auto-queue and show appropriate state
-    if (is_source_stale) {
-      this.autoQueueEmbedding(source);
-      this.showLoading('Embedding this note... Results will appear when ready.');
-    } else if (!this.plugin.embed_ready) {
+    if (!this.plugin.embed_ready) {
       this.showLoading(
         'Smart Connections is loading... Connections will appear when embedding is complete.',
       );
-    } else {
-      this.showEmpty('No embedding available. The note may be too short or excluded.');
+      return;
+    }
+
+    // Find blocks belonging to this file
+    const allFileBlocks = this.plugin.block_collection.for_source(targetPath);
+    const embedded = allFileBlocks.filter(b => b.vec);
+
+    if (embedded.length === 0) {
+      if (allFileBlocks.length > 0) {
+        // Blocks exist but not yet embedded
+        this.autoQueueBlockEmbedding(allFileBlocks);
+        this.showLoading('Embedding this note... Results will appear when ready.');
+      } else {
+        this.showEmpty('No blocks found. The note may be too short or excluded.');
+      }
+      return;
+    }
+
+    try {
+      const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
+      this.renderResults(targetPath, results);
+    } catch (e) {
+      this.showError('Failed to find connections: ' + (e as Error).message);
     }
   }
 
   /**
-   * Auto-queue the given source for re-embedding without waiting.
+   * Queue a list of blocks for embedding via the job queue.
+   */
+  private enqueueBlocksForEmbedding(blocks: EmbeddingBlock[]): void {
+    const now = Date.now();
+    for (const block of blocks) {
+      block.queue_embed();
+      if (!block._queue_embed) continue;
+      this.plugin.embed_job_queue?.enqueue({
+        entityKey: block.key,
+        contentHash: block.read_hash || '',
+        sourcePath: block.source_key,
+        enqueuedAt: now,
+      });
+    }
+  }
+
+  /**
+   * Auto-queue unembedded blocks for a file.
    * Fire-and-forget — the view will auto-refresh on RUN_FINISHED.
    */
-  private autoQueueEmbedding(source: any): void {
+  private autoQueueBlockEmbedding(blocks: EmbeddingBlock[]): void {
     if (!this.plugin.embed_ready) return;
-    if (this.autoEmbedRequestedForPath === source.key) return;
-    this.autoEmbedRequestedForPath = source.key;
+    const firstKey = blocks[0]?.key;
+    if (!firstKey) return;
+    if (this.autoEmbedRequestedForPath === firstKey.split('#')[0]) return;
+    this.autoEmbedRequestedForPath = firstKey.split('#')[0];
     try {
-      source.queue_embed();
-      this.plugin.embed_job_queue?.enqueue({
-        entityKey: source.key,
-        contentHash: source.read_hash || '',
-        sourcePath: source.key.split('#')[0],
-        enqueuedAt: Date.now(),
-      });
-      void this.plugin.runEmbeddingJob('Auto re-embed for connections view');
+      this.enqueueBlocksForEmbedding(blocks);
+      void this.plugin.runEmbeddingJob('Auto embed blocks for connections view');
     } catch {
       // Non-critical — embedding will happen via normal pipeline eventually
     }
@@ -298,8 +295,8 @@ export class ConnectionsView extends ItemView {
       // Get unique top-level folders from results
       const folders = new Set<string>();
       for (const r of results || []) {
-        const path = r.item?.path ?? '';
-        const parts = path.split('/');
+        const sourcePath = (r.item as EmbeddingBlock).source_key ?? r.item.key.split('#')[0] ?? '';
+        const parts = sourcePath.split('/');
         if (parts.length > 1) folders.add(parts[0]);
       }
       for (const folder of Array.from(folders).sort()) {
@@ -325,15 +322,9 @@ export class ConnectionsView extends ItemView {
 
     this.registerDomEvent(refreshBtn, 'click', async () => {
       try {
-        const source = this.plugin.source_collection?.get(targetPath);
-        if (source && !source.vec) {
-          source.queue_embed();
-          this.plugin.embed_job_queue?.enqueue({
-            entityKey: source.key,
-            contentHash: source.read_hash || '',
-            sourcePath: source.key.split('#')[0],
-            enqueuedAt: Date.now(),
-          });
+        const fileBlocks = this.plugin.block_collection?.for_source(targetPath) ?? [];
+        if (fileBlocks.length > 0) {
+          this.enqueueBlocksForEmbedding(fileBlocks);
           await this.plugin.runEmbeddingJob('Connections view refresh');
         }
       } catch (e) {
@@ -342,11 +333,15 @@ export class ConnectionsView extends ItemView {
       void this.renderView(targetPath);
     });
 
+    // Results are block results; extract source path for filtering/pinning
+    // result.item is a block with source_key = file path
+    const getSourcePath = (r: ConnectionResult): string => (r.item as EmbeddingBlock).source_key ?? r.item.key.split('#')[0] ?? '';
+
     // Filter hidden and by folder
     const filtered = (results || []).filter(r => {
-      const key = r.item?.path ?? '';
-      if (this.session.hiddenKeys.includes(key)) return false;
-      if (this.folderFilter && !key.startsWith(this.folderFilter + '/')) return false;
+      const sourcePath = getSourcePath(r);
+      if (this.session.hiddenKeys.includes(sourcePath)) return false;
+      if (this.folderFilter && !sourcePath.startsWith(this.folderFilter + '/')) return false;
       return true;
     });
 
@@ -358,8 +353,8 @@ export class ConnectionsView extends ItemView {
     // Sort: pinned first, then by score
     const pinnedSet = new Set(this.session.pinnedKeys);
     filtered.sort((a, b) => {
-      const aPinned = pinnedSet.has(a.item?.path ?? '') ? 1 : 0;
-      const bPinned = pinnedSet.has(b.item?.path ?? '') ? 1 : 0;
+      const aPinned = pinnedSet.has(getSourcePath(a)) ? 1 : 0;
+      const bPinned = pinnedSet.has(getSourcePath(b)) ? 1 : 0;
       if (aPinned !== bPinned) return bPinned - aPinned;
       return (b.score ?? 0) - (a.score ?? 0);
     });
@@ -368,12 +363,17 @@ export class ConnectionsView extends ItemView {
 
     for (const [idx, result] of filtered.entries()) {
       const score = result.score ?? result.sim ?? 0;
-      const fullPath = result.item?.path ?? '';
-      const parts = fullPath.replace(/\.md$/, '').split('/');
-      const name = parts.pop() ?? 'Unknown';
-      const breadcrumb = parts.length > 0 ? parts.join(' / ') : '';
+      const blockKey: string = (result.item as EmbeddingBlock).key ?? '';
+      const fullPath = getSourcePath(result);
+      const nameParts = fullPath.replace(/\.md$/, '').split('/');
+      const name = nameParts.pop() ?? 'Unknown';
+      const breadcrumb = nameParts.length > 0 ? nameParts.join(' / ') : '';
       const isPinned = pinnedSet.has(fullPath);
       const scorePercent = Math.round(score * 100);
+
+      // Extract last heading from block key for subtitle
+      const blockParts = blockKey.split('#');
+      const lastHeading = blockParts.length > 1 ? blockParts[blockParts.length - 1] : '';
 
       const item = list.createDiv({
         cls: `osc-result-item${isPinned ? ' osc-result-item--pinned' : ''}`,
@@ -392,11 +392,14 @@ export class ConnectionsView extends ItemView {
       else if (score >= 0.7) scoreBadge.addClass('osc-score--medium');
       else scoreBadge.addClass('osc-score--low');
 
-      // Content: title + breadcrumb
+      // Content: title + breadcrumb + heading indicator
       const content = item.createDiv({ cls: 'osc-result-content' });
       content.createSpan({ text: name, cls: 'osc-result-title' });
       if (breadcrumb) {
         content.createSpan({ text: breadcrumb, cls: 'osc-result-breadcrumb' });
+      }
+      if (lastHeading) {
+        content.createSpan({ text: `#${lastHeading}`, cls: 'osc-result-heading' });
       }
 
       // Pin indicator
@@ -405,13 +408,13 @@ export class ConnectionsView extends ItemView {
         setIcon(pinIcon, 'pin');
       }
 
-      this.registerDomEvent(item, 'click', (e) => {
-        this.plugin.open_note(fullPath, e);
+      this.registerDomEvent(item, 'click', async (e) => {
+        await this.openBlockResult(fullPath, lastHeading, e);
       });
 
       this.registerDomEvent(item, 'keydown', (e) => {
         if (e.key === 'Enter') {
-          this.plugin.open_note(fullPath);
+          void this.openBlockResult(fullPath, lastHeading);
         } else if (e.key === 'ArrowDown') {
           e.preventDefault();
           (item.nextElementSibling as HTMLElement)?.focus();
@@ -460,6 +463,15 @@ export class ConnectionsView extends ItemView {
 
     // Show progress banner if embedding is active
     this.updateProgressBanner();
+  }
+
+  private async openBlockResult(sourcePath: string, heading: string, event?: MouseEvent): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(sourcePath);
+    if (!(file instanceof TFile)) return;
+    const leaf = (event?.ctrlKey || event?.metaKey)
+      ? this.app.workspace.getLeaf('tab')
+      : this.app.workspace.getMostRecentLeaf() ?? this.app.workspace.getLeaf(false);
+    await leaf.openFile(file, heading ? { eState: { subpath: `#${heading}` } } : undefined);
   }
 
   showLoading(message = 'Loading...'): void {

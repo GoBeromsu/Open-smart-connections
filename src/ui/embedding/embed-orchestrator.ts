@@ -772,6 +772,7 @@ async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string
     const stats = await plugin.embedding_pipeline.process(entitiesToEmbed, {
       batch_size: 10,
       max_retries: 3,
+      concurrency: plugin.settings.embed_concurrency || 5,
       on_progress: createProgressCallback(plugin, runId, ctx),
       on_save: createSaveCallback(plugin, runId, ctx),
       save_interval: plugin.settings.embed_save_interval || 5,

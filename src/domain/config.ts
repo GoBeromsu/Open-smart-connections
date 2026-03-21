@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   new_user: true,
   re_import_wait_time: 13,
   embed_save_interval: 5,
+  embed_concurrency: 5,
   is_obsidian_vault: true,
 
   smart_sources: {
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   smart_blocks: {
     embed_blocks: true,
     min_chars: 200,
+    block_heading_depth: 3,
   },
 
   smart_view_filter: {

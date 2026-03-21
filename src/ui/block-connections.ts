@@ -1,0 +1,48 @@
+/**
+ * @file block-connections.ts
+ * @description Shared helper: average block vectors → nearest search → dedupe by source path.
+ * Used by ConnectionsView, commands.ts, and main.ts markdown code block processor.
+ */
+
+import type { BlockCollection } from '../domain/entities';
+import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
+import type { ConnectionResult } from '../types/entities';
+import { average_vectors } from '../utils';
+
+/**
+ * Find connections for a file using its embedded blocks.
+ *
+ * 1. Average the vectors of all embedded blocks for `filePath`.
+ * 2. Search for nearest neighbours, excluding all blocks that belong to `filePath`.
+ * 3. Dedupe by source path, keeping the highest-scoring block per file.
+ * 4. Return results sorted descending by score, capped at `limit`.
+ */
+export async function getBlockConnections(
+  blockCollection: BlockCollection,
+  filePath: string,
+  opts?: { limit?: number },
+): Promise<ConnectionResult[]> {
+  const limit = opts?.limit ?? 50;
+  const fileBlocks = blockCollection.for_source(filePath);
+  const embedded = fileBlocks.filter(b => b.vec);
+  if (embedded.length === 0) return [];
+
+  const avgVec = average_vectors(embedded.map(b => b.vec!));
+  const excludeKeys = new Set(fileBlocks.map(b => b.key));
+  const results = await blockCollection.nearest(avgVec, { limit: limit * 3, exclude: excludeKeys });
+
+  // Dedupe by source path, keep highest score
+  const seen = new Map<string, ConnectionResult>();
+  for (const r of results) {
+    const sourcePath = (r.item as EmbeddingBlock).source_key ?? r.item.key.split('#')[0];
+    if (!sourcePath || sourcePath === filePath) continue;
+    const existing = seen.get(sourcePath);
+    if (!existing || (r.score ?? 0) > (existing.score ?? 0)) {
+      seen.set(sourcePath, r);
+    }
+  }
+
+  return [...seen.values()]
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, limit);
+}

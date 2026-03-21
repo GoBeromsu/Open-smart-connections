@@ -138,15 +138,19 @@ export class EmbeddingPipeline {
       const effective_concurrency = Math.max(1, concurrency);
       let batch_index = 0;
 
-      const process_next_batch = async (): Promise<void> => {
+      interface WorkerCounts { success: number; failed: number; skipped: number; batches: number }
+
+      const process_next_batch = async (): Promise<WorkerCounts> => {
+        const local: WorkerCounts = { success: 0, failed: 0, skipped: 0, batches: 0 };
+
         while (batch_index < batches.length) {
           if (this.should_halt) {
             // Count remaining unprocessed entities as skipped
             for (let i = batch_index; i < batches.length; i++) {
-              this.stats.skipped += batches[i].length;
+              local.skipped += batches[i].length;
             }
             batch_index = batches.length;
-            return;
+            return local;
           }
 
           const current_batch_index = batch_index++;
@@ -159,13 +163,13 @@ export class EmbeddingPipeline {
           // Hash re-verification: skip entities whose content changed since queuing
           const { passed: hash_filtered, skipped_count: hash_skipped } =
             this.filter_by_hash(batch, expected_hashes);
-          this.stats.skipped += hash_skipped;
+          local.skipped += hash_skipped;
 
           const ready = hash_filtered.filter(e => e._embed_input && e._embed_input.length > 0);
           const skipped_in_batch = hash_filtered.filter(e => !ready.includes(e));
 
           if (ready.length === 0) {
-            this.stats.skipped += skipped_in_batch.length;
+            local.skipped += skipped_in_batch.length;
             this.clear_queue_flags(skipped_in_batch);
             entities_processed += batch.length;
             if (on_progress) {
@@ -180,16 +184,16 @@ export class EmbeddingPipeline {
 
           try {
             const { succeeded, failed_count } = await this.process_batch(ready, max_retries);
-            this.stats.success += succeeded;
-            this.stats.failed += failed_count;
-            this.stats.skipped += skipped_in_batch.length;
+            local.success += succeeded;
+            local.failed += failed_count;
+            local.skipped += skipped_in_batch.length;
             this.clear_queue_flags(skipped_in_batch);
 
             if (on_batch_complete) {
               on_batch_complete(batch_num, ready.length);
             }
           } catch (error) {
-            this.stats.failed += batch.length;
+            local.failed += batch.length;
             this.clear_queue_flags(batch);
 
             if (halt_on_error) {
@@ -207,20 +211,28 @@ export class EmbeddingPipeline {
           }
 
           // Periodic save
+          local.batches++;
           batches_since_save++;
           if (on_save && batches_since_save >= save_interval) {
             await on_save();
             batches_since_save = 0;
           }
         }
+
+        return local;
       };
 
-      // Launch concurrent workers
-      const workers: Promise<void>[] = [];
+      // Launch concurrent workers and merge counts after all complete
+      const workers: Promise<WorkerCounts>[] = [];
       for (let w = 0; w < effective_concurrency; w++) {
         workers.push(process_next_batch());
       }
-      await Promise.all(workers);
+      const workerResults = await Promise.all(workers);
+      for (const r of workerResults) {
+        this.stats.success += r.success;
+        this.stats.failed += r.failed;
+        this.stats.skipped += r.skipped;
+      }
 
       // Final save
       if (on_save && batches_since_save > 0) {

@@ -317,6 +317,19 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName('Block heading depth')
+      .setDesc('Split blocks at heading levels up to this depth (1=H1 only, 6=all headings). H4+ headings merge into their parent block at the default of 3.')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 6, 1)
+          .setValue(this.getConfig('smart_blocks.block_heading_depth', 3))
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.setConfig('smart_blocks.block_heading_depth', value);
+          });
+      });
+
+    new Setting(containerEl)
       .setName('Save frequency')
       .setDesc('Save progress every N batches. Lower = safer on crash, higher = less disk I/O')
       .addSlider((slider) => {
@@ -326,6 +339,19 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             this.setConfig('embed_save_interval', value);
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('Embedding concurrency')
+      .setDesc('Number of batches sent to the API simultaneously. Lower if hitting rate limits.')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 10, 1)
+          .setValue(this.getConfig('embed_concurrency', 5))
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.setConfig('embed_concurrency', value);
           });
       });
   }
