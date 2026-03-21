@@ -14,6 +14,16 @@ import { getBlockConnections, invalidateConnectionsCache } from './block-connect
 
 export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
 
+type ViewState =
+  | { type: 'idle' }
+  | { type: 'plugin_loading' }
+  | { type: 'model_error' }
+  | { type: 'embed_loading' }
+  | { type: 'note_too_short' }
+  | { type: 'embedding_in_progress'; path: string }
+  | { type: 'no_connections' }
+  | { type: 'results'; path: string; results: ConnectionResult[] };
+
 /** Persistent pin/hide state stored in plugin data */
 interface ConnectionsSessionState {
   pinnedKeys: string[];
@@ -37,6 +47,7 @@ export class ConnectionsView extends ItemView {
   private lastRenderedPath: string | null = null;
   private autoEmbedRequestedForPath: string | null = null;
   private _renderGen: number = 0;
+  private _lastResultKeys: string[] = [];
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -120,64 +131,85 @@ export class ConnectionsView extends ItemView {
     this.container?.empty();
   }
 
+  private async deriveViewState(targetPath: string): Promise<ViewState> {
+    if (!this.plugin.ready || !this.plugin.block_collection) {
+      return { type: 'plugin_loading' };
+    }
+    if (this.plugin.status_state === 'error') {
+      return { type: 'model_error' };
+    }
+    if (!this.plugin.embed_ready) {
+      return { type: 'embed_loading' };
+    }
+
+    const allFileBlocks = this.plugin.block_collection.for_source(targetPath);
+    if (allFileBlocks.length === 0) {
+      return { type: 'note_too_short' };
+    }
+
+    const embedded = allFileBlocks.filter(b => b.vec);
+    if (embedded.length === 0) {
+      this.autoQueueBlockEmbedding(allFileBlocks);
+      return { type: 'embedding_in_progress', path: targetPath };
+    }
+
+    const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
+    if (results.length === 0) {
+      return { type: 'no_connections' };
+    }
+    return { type: 'results', path: targetPath, results };
+  }
+
+  private applyViewState(state: ViewState): void {
+    switch (state.type) {
+      case 'idle':
+        this.showEmpty('No active file');
+        break;
+      case 'plugin_loading':
+        this.showLoading('Smart Connections is initializing...');
+        break;
+      case 'model_error':
+        this.showError(EMBED_ERROR_MSG);
+        break;
+      case 'embed_loading':
+        this.showLoading('Smart Connections is loading... Connections will appear when embedding is complete.');
+        break;
+      case 'note_too_short':
+        this.showEmpty('Note is too short to find connections.');
+        break;
+      case 'embedding_in_progress':
+        this.showLoading('Embedding this note... Results will appear when ready.');
+        break;
+      case 'no_connections':
+        this.showEmpty('No related notes found.');
+        break;
+      case 'results':
+        this.renderResults(state.path, state.results);
+        break;
+    }
+  }
+
   async renderView(targetPath?: string): Promise<void> {
     const gen = ++this._renderGen;
     if (!this.container) return;
-    if (
-      typeof this.container.checkVisibility === 'function' &&
-      !this.container.checkVisibility()
-    ) {
-      return;
-    }
+    if (typeof this.container.checkVisibility === 'function' && !this.container.checkVisibility()) return;
 
     if (!targetPath) {
       targetPath = this.app.workspace.getActiveFile()?.path;
     }
-
     if (!targetPath) {
-      this.showEmpty('No active file');
+      this.applyViewState({ type: 'idle' });
       return;
     }
 
     this.lastRenderedPath = targetPath;
 
-    if (!this.plugin.ready || !this.plugin.block_collection) {
-      this.showLoading('Smart Connections is initializing...');
-      return;
-    }
-
-    if (this.plugin.status_state === 'error') {
-      this.showError(EMBED_ERROR_MSG);
-      return;
-    }
-
-    if (!this.plugin.embed_ready) {
-      this.showLoading(
-        'Smart Connections is loading... Connections will appear when embedding is complete.',
-      );
-      return;
-    }
-
-    // Find blocks belonging to this file
-    const allFileBlocks = this.plugin.block_collection.for_source(targetPath);
-    const embedded = allFileBlocks.filter(b => b.vec);
-
-    if (embedded.length === 0) {
-      if (allFileBlocks.length > 0) {
-        // Blocks exist but not yet embedded
-        this.autoQueueBlockEmbedding(allFileBlocks);
-        this.showLoading('Embedding this note... Results will appear when ready.');
-      } else {
-        this.showEmpty('No blocks found. The note may be too short or excluded.');
-      }
-      return;
-    }
-
     try {
-      const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
-      if (gen !== this._renderGen) return; // superseded by a newer renderView call
-      this.renderResults(targetPath, results);
+      const state = await this.deriveViewState(targetPath);
+      if (gen !== this._renderGen) return;
+      this.applyViewState(state);
     } catch (e) {
+      if (gen !== this._renderGen) return;
       this.showError('Failed to find connections: ' + (e as Error).message);
     }
   }
@@ -254,7 +286,17 @@ export class ConnectionsView extends ItemView {
     if (fillEl) fillEl.style.width = `${percent}%`;
   }
 
-  renderResults(targetPath: string, results: any[]): void {
+  renderResults(targetPath: string, results: ConnectionResult[]): void {
+    const newKeys = results.map(r => r.item.key + ':' + Math.round((r.score ?? 0) * 100));
+    if (
+      targetPath === this.lastRenderedPath &&
+      newKeys.length === this._lastResultKeys.length &&
+      newKeys.every((k, i) => k === this._lastResultKeys[i])
+    ) {
+      return; // identical results, skip DOM rebuild
+    }
+    this._lastResultKeys = newKeys;
+
     this.container.empty();
     this.progressEl = null; // reset reference since container was emptied
     const fileName = targetPath.split('/').pop()?.replace(/\.md$/, '') || 'Unknown';
@@ -485,6 +527,7 @@ export class ConnectionsView extends ItemView {
   }
 
   showLoading(message = 'Loading...'): void {
+    this._lastResultKeys = [];
     this.container.empty();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state' });
@@ -503,6 +546,7 @@ export class ConnectionsView extends ItemView {
   }
 
   showEmpty(message = 'No similar notes found', clear = true): void {
+    if (clear) this._lastResultKeys = [];
     if (clear) this.container.empty();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state' });
@@ -526,6 +570,7 @@ export class ConnectionsView extends ItemView {
   }
 
   showError(message = 'An error occurred'): void {
+    this._lastResultKeys = [];
     this.container.empty();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state osc-state--error' });
