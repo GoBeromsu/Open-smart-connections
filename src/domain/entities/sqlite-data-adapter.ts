@@ -107,13 +107,31 @@ function getEntityType(collectionKey: string): 'source' | 'block' {
 // ---------------------------------------------------------------------------
 
 interface DbContext {
+  key: string;
   db: SqlJsDatabase;
   dbPath: string;
   vaultAdapter: any; // Obsidian DataAdapter
+  configDir: string;
+  pluginId: string;
   autosaveTimer: ReturnType<typeof setInterval> | null;
+  operationChain: Promise<void>;
 }
 
 const dbContexts = new Map<string, DbContext>();
+
+function detachDbContexts(): DbContext[] {
+  const contexts = Array.from(dbContexts.values());
+  for (const ctx of contexts) {
+    if (ctx.autosaveTimer) {
+      clearInterval(ctx.autosaveTimer);
+      ctx.autosaveTimer = null;
+    }
+  }
+  dbContexts.clear();
+  dbInstances.clear();
+  sqlJsPromise = null;
+  return contexts;
+}
 
 async function loadSqlJs(wasmBinary?: ArrayBuffer): Promise<typeof import('sql.js').default> {
   if (!sqlJsPromise) {
@@ -162,13 +180,81 @@ function ensureSchema(db: SqlJsDatabase): void {
 }
 
 async function persistDb(ctx: DbContext): Promise<void> {
-  try {
-    const data = ctx.db.export();
-    const buffer = Buffer.from(data);
-    await ctx.vaultAdapter.writeBinary(ctx.dbPath, buffer);
-  } catch (err) {
-    console.error('[SQLite] Failed to persist database:', err);
+  await queueDbOperation(ctx, async () => {
+    try {
+      await persistDbNow(ctx);
+    } catch (err) {
+      console.error('[SQLite] Failed to persist database:', err);
+    }
+  });
+}
+
+function isSqliteMisuseError(error: unknown): boolean {
+  return error instanceof Error
+    && /bad parameter or other API misuse/i.test(error.message);
+}
+
+function getDbContext(storageNamespace: string): DbContext {
+  const ctx = dbContexts.get(toDbKey(storageNamespace));
+  if (!ctx) {
+    throw new Error('[SQLite] Database context is unavailable');
   }
+  return ctx;
+}
+
+function queueDbOperation<T>(
+  ctx: DbContext,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  const previous = ctx.operationChain ?? Promise.resolve();
+  const run = previous
+    .catch(() => undefined)
+    .then(() => operation());
+
+  ctx.operationChain = run
+    .then(() => undefined)
+    .catch(() => undefined);
+
+  return run;
+}
+
+async function persistDbNow(ctx: DbContext): Promise<void> {
+  const data = ctx.db.export();
+  const buffer = Buffer.from(data);
+  await ctx.vaultAdapter.writeBinary(ctx.dbPath, buffer);
+}
+
+async function recreateDb(
+  storageNamespace: string,
+  vaultAdapter: any,
+  configDir: string,
+  pluginId: string,
+): Promise<SqlJsDatabase> {
+  const key = toDbKey(storageNamespace);
+  const existingCtx = dbContexts.get(key);
+
+  if (existingCtx?.autosaveTimer) {
+    clearInterval(existingCtx.autosaveTimer);
+  }
+
+  if (existingCtx) {
+    try {
+      await persistDbNow(existingCtx);
+    } catch (error) {
+      console.warn('[SQLite] Failed to persist database before recreating handle:', error);
+    }
+
+    try {
+      existingCtx.db.close();
+    } catch (error) {
+      console.warn('[SQLite] Failed to close broken database handle:', error);
+    }
+  }
+
+  dbContexts.delete(key);
+  dbInstances.delete(key);
+
+  return getDb(storageNamespace, vaultAdapter, configDir, pluginId);
 }
 
 async function createDb(
@@ -206,10 +292,14 @@ async function createDb(
 
   // Set up autosave and context
   const ctx: DbContext = {
+    key: dbKey,
     db,
     dbPath,
     vaultAdapter,
+    configDir,
+    pluginId,
     autosaveTimer: setInterval(() => persistDb(ctx), AUTOSAVE_INTERVAL_MS),
+    operationChain: Promise.resolve(),
   };
   dbContexts.set(dbKey, ctx);
 
@@ -237,14 +327,22 @@ async function getDb(
  * Call this on plugin unload.
  */
 export async function closeSqliteDatabases(): Promise<void> {
-  for (const [_key, ctx] of dbContexts) {
-    if (ctx.autosaveTimer) clearInterval(ctx.autosaveTimer);
-    await persistDb(ctx);
-    ctx.db.close();
+  const contexts = detachDbContexts();
+  for (const ctx of contexts) {
+    await queueDbOperation(ctx, async () => {
+      try {
+        await persistDbNow(ctx);
+      } catch (error) {
+        console.error('[SQLite] Failed to persist database during close:', error);
+      }
+
+      try {
+        ctx.db.close();
+      } catch (error) {
+        console.warn('[SQLite] Failed to close database handle:', error);
+      }
+    });
   }
-  dbContexts.clear();
-  dbInstances.clear();
-  sqlJsPromise = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,81 +387,112 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
     return getDb(this.storage_namespace, this.vaultAdapter, this.configDir, this.pluginId);
   }
 
+  private async withDb<T>(
+    operation: (db: SqlJsDatabase) => Promise<T> | T,
+    retryOnMisuse: boolean = true,
+  ): Promise<T> {
+    const db = await this.db();
+    const ctx = getDbContext(this.storage_namespace);
+
+    return queueDbOperation(ctx, async () => {
+      try {
+        return await operation(db);
+      } catch (error) {
+        if (!retryOnMisuse || !isSqliteMisuseError(error)) {
+          throw error;
+        }
+
+        console.warn('[SQLite] Recreating unusable database handle after SQLITE_MISUSE');
+        const freshDb = await recreateDb(
+          this.storage_namespace,
+          this.vaultAdapter,
+          this.configDir,
+          this.pluginId,
+        );
+
+        return operation(freshDb);
+      }
+    });
+  }
+
   // -----------------------------------------------------------------------
   // load
   // -----------------------------------------------------------------------
 
   async load(): Promise<void> {
-    const db = await this.db();
-    const modelKey = this.collection.embed_model_key;
+    await this.withDb((db) => {
+      const modelKey = this.collection.embed_model_key;
+      const stmt = db.prepare(`
+        SELECT
+          e.entity_key,
+          e.path,
+          e.source_path,
+          e.last_read_hash,
+          e.last_read_size,
+          e.last_read_mtime,
+          e.text_len,
+          e.extra,
+          em.tokens,
+          em.embed_hash,
+          em.dims,
+          em.updated_at
+        FROM entities e
+        LEFT JOIN entity_embeddings em
+          ON em.entity_key = e.entity_key
+          AND em.model_key = ?
+        WHERE e.entity_type = ?
+        ORDER BY e.entity_key ASC
+      `);
+      stmt.bind([modelKey, this.entity_type]);
 
-    const stmt = db.prepare(`
-      SELECT
-        e.entity_key,
-        e.path,
-        e.source_path,
-        e.last_read_hash,
-        e.last_read_size,
-        e.last_read_mtime,
-        e.text_len,
-        e.extra,
-        em.tokens,
-        em.embed_hash,
-        em.dims,
-        em.updated_at
-      FROM entities e
-      LEFT JOIN entity_embeddings em
-        ON em.entity_key = e.entity_key
-        AND em.model_key = ?
-      WHERE e.entity_type = ?
-      ORDER BY e.entity_key ASC
-    `);
-    stmt.bind([modelKey, this.entity_type]);
+      try {
+        while (stmt.step()) {
+          const row = stmt.getAsObject();
+          const extra = parseExtra(row.extra);
+          const data: Partial<EntityData> = {
+            ...extra,
+            path: row.path as string,
+            embeddings: {},
+          };
 
-    while (stmt.step()) {
-      const row = stmt.getAsObject({ ':modelKey': modelKey });
-      const extra = parseExtra(row.extra);
-      const data: Partial<EntityData> = {
-        ...extra,
-        path: row.path as string,
-        embeddings: {},
-      };
+          if (row.last_read_hash) {
+            data.last_read = {
+              hash: row.last_read_hash as string,
+              size: row.last_read_size as number ?? undefined,
+              mtime: row.last_read_mtime as number ?? undefined,
+            };
+          }
 
-      if (row.last_read_hash) {
-        data.last_read = {
-          hash: row.last_read_hash as string,
-          size: row.last_read_size as number ?? undefined,
-          mtime: row.last_read_mtime as number ?? undefined,
-        };
+          if (row.embed_hash && modelKey && modelKey !== 'None') {
+            data.last_embed = {
+              hash: row.embed_hash as string,
+              size: row.last_read_size as number ?? undefined,
+              mtime: row.last_read_mtime as number ?? undefined,
+            };
+            data.embeddings = {
+              [modelKey]: { vec: [], tokens: row.tokens as number ?? undefined },
+            };
+            data.embedding_meta = {
+              [modelKey]: {
+                hash: row.embed_hash as string,
+                size: row.last_read_size as number ?? undefined,
+                mtime: row.last_read_mtime as number ?? undefined,
+                dims: row.dims as number ?? undefined,
+                updated_at: row.updated_at as number ?? undefined,
+              },
+            };
+          }
+
+          const entity = this.collection.create_or_update(data);
+          entity._queue_save = false;
+          if (!entity.is_unembedded) {
+            entity._queue_embed = false;
+          }
+        }
+      } finally {
+        stmt.free();
       }
-
-      if (row.embed_hash && modelKey && modelKey !== 'None') {
-        data.last_embed = {
-          hash: row.embed_hash as string,
-          size: row.last_read_size as number ?? undefined,
-          mtime: row.last_read_mtime as number ?? undefined,
-        };
-        data.embeddings = {
-          [modelKey]: { vec: [], tokens: row.tokens as number ?? undefined },
-        };
-        data.embedding_meta = {
-          [modelKey]: {
-            hash: row.embed_hash as string,
-            size: row.last_read_size as number ?? undefined,
-            mtime: row.last_read_mtime as number ?? undefined,
-            dims: row.dims as number ?? undefined,
-            updated_at: row.updated_at as number ?? undefined,
-          },
-        };
-      }
-
-      const entity = this.collection.create_or_update(data);
-      entity._queue_save = false;
-      if (!entity.is_unembedded) {
-        entity._queue_embed = false;
-      }
-    }
-    stmt.free();
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -371,17 +500,36 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
   // -----------------------------------------------------------------------
 
   async save(): Promise<void> {
-    const queue = this.collection.save_queue;
-    const deletedKeys = this.collection.consume_deleted_keys();
-    if (queue.length === 0 && deletedKeys.length === 0) return;
-    await this.save_batch(queue, deletedKeys);
+    await this.withDb((db) => {
+      const queue = [...this.collection.save_queue];
+      const deletedKeys = this.collection.consume_deleted_keys();
+      if (queue.length === 0 && deletedKeys.length === 0) return;
+      this.executeSaveBatch(db, queue, deletedKeys, true);
+    });
   }
 
   async save_batch(entities: T[], deletedKeys: string[] = []): Promise<void> {
-    const db = await this.db();
+    const queue = [...entities];
+    const pendingDeletedKeys = [...deletedKeys];
+    await this.withDb((db) => {
+      if (queue.length === 0 && pendingDeletedKeys.length === 0) return;
+      this.executeSaveBatch(db, queue, pendingDeletedKeys, false);
+    });
+  }
 
-    db.run('BEGIN TRANSACTION');
+  private executeSaveBatch(
+    db: SqlJsDatabase,
+    entities: T[],
+    deletedKeys: string[],
+    restoreDeletedKeys: boolean,
+  ): void {
+    const savedEntities: T[] = [];
+    let transactionOpen = false;
+
     try {
+      db.run('BEGIN TRANSACTION');
+      transactionOpen = true;
+
       for (const key of deletedKeys) {
         db.run('DELETE FROM entity_embeddings WHERE entity_key = ?', [key]);
         db.run('DELETE FROM entities WHERE entity_key = ?', [key]);
@@ -394,13 +542,29 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
         }
         this.upsertEntity(db, entity);
         this.upsertEmbedding(db, entity);
-        entity._queue_save = false;
+        savedEntities.push(entity);
       }
 
       db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
+      transactionOpen = false;
+
+      for (const entity of savedEntities) {
+        entity._queue_save = false;
+      }
+    } catch (error) {
+      if (transactionOpen) {
+        try {
+          db.run('ROLLBACK');
+        } catch (rollbackError) {
+          console.warn('[SQLite] Failed to roll back transaction:', rollbackError);
+        }
+      }
+
+      if (restoreDeletedKeys && deletedKeys.length > 0) {
+        this.collection.restore_deleted_keys(deletedKeys);
+      }
+
+      throw error;
     }
   }
 
@@ -477,37 +641,39 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
     tokens?: number;
     meta?: EmbeddingModelMeta;
   }> {
-    const db = await this.db();
-    const stmt = db.prepare(`
-      SELECT vec, tokens, embed_hash, dims, updated_at
-      FROM entity_embeddings
-      WHERE entity_key = ? AND model_key = ?
-      LIMIT 1
-    `);
-    stmt.bind([entityKey, modelKey]);
+    return this.withDb((db) => {
+      const stmt = db.prepare(`
+        SELECT vec, tokens, embed_hash, dims, updated_at
+        FROM entity_embeddings
+        WHERE entity_key = ? AND model_key = ?
+        LIMIT 1
+      `);
+      stmt.bind([entityKey, modelKey]);
 
-    if (!stmt.step()) {
-      stmt.free();
-      return { vec: null };
-    }
+      try {
+        if (!stmt.step()) {
+          return { vec: null };
+        }
 
-    const row = stmt.getAsObject();
-    stmt.free();
+        const row = stmt.getAsObject();
+        const vec = blobToVec(row.vec as Uint8Array | null);
+        const meta = row.embed_hash
+          ? {
+            hash: row.embed_hash as string,
+            dims: row.dims as number ?? undefined,
+            updated_at: row.updated_at as number ?? undefined,
+          }
+          : undefined;
 
-    const vec = blobToVec(row.vec as Uint8Array | null);
-    const meta = row.embed_hash
-      ? {
-        hash: row.embed_hash as string,
-        dims: row.dims as number ?? undefined,
-        updated_at: row.updated_at as number ?? undefined,
+        return {
+          vec,
+          tokens: row.tokens as number ?? undefined,
+          meta,
+        };
+      } finally {
+        stmt.free();
       }
-      : undefined;
-
-    return {
-      vec,
-      tokens: row.tokens as number ?? undefined,
-      meta,
-    };
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -521,7 +687,6 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
   ): Promise<QueryMatch[]> {
     if (!vec || !Array.isArray(vec) || vec.length === 0) return [];
 
-    const db = await this.db();
     const modelKey = this.collection.embed_model_key;
     if (!modelKey || modelKey === 'None') return [];
 
@@ -572,27 +737,32 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
       WHERE ${conditions.join(' AND ')}
     `;
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
+    return this.withDb((db) => {
+      const stmt = db.prepare(sql);
+      stmt.bind(params);
 
-    // Compute cosine similarity in JS using Float32Array to skip Array.from() conversion
-    const queryF32 = new Float32Array(vec);
-    const scored: QueryMatch[] = [];
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
-      const candidateVec = blobToF32(row.vec as Uint8Array | null);
-      if (!candidateVec || candidateVec.length !== queryF32.length) continue;
+      try {
+        // Compute cosine similarity in JS using Float32Array to skip Array.from() conversion
+        const queryF32 = new Float32Array(vec);
+        const scored: QueryMatch[] = [];
+        while (stmt.step()) {
+          const row = stmt.getAsObject();
+          const candidateVec = blobToF32(row.vec as Uint8Array | null);
+          if (!candidateVec || candidateVec.length !== queryF32.length) continue;
 
-      const score = cos_sim_f32(queryF32, candidateVec);
+          const score = cos_sim_f32(queryF32, candidateVec);
 
-      if (filter.min_score !== undefined && score < filter.min_score) continue;
+          if (filter.min_score !== undefined && score < filter.min_score) continue;
 
-      scored.push({ entity_key: row.entity_key as string, score });
-    }
-    stmt.free();
+          scored.push({ entity_key: row.entity_key as string, score });
+        }
 
-    // Sort descending by score and take top N
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, fetchLimit);
+        // Sort descending by score and take top N
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, fetchLimit);
+      } finally {
+        stmt.free();
+      }
+    });
   }
 }

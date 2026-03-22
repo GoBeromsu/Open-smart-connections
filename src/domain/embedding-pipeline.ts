@@ -133,6 +133,14 @@ export class EmbeddingPipeline {
 
       let batches_since_save = 0;
       let entities_processed = 0;
+      let save_chain: Promise<void> = Promise.resolve();
+
+      const flush_save = async (): Promise<void> => {
+        if (!on_save) return;
+        const run = save_chain.then(() => on_save());
+        save_chain = run.catch(() => undefined);
+        await run;
+      };
 
       // Concurrent batch dispatcher
       const effective_concurrency = Math.max(1, concurrency);
@@ -214,8 +222,8 @@ export class EmbeddingPipeline {
           local.batches++;
           batches_since_save++;
           if (on_save && batches_since_save >= save_interval) {
-            await on_save();
             batches_since_save = 0;
+            await flush_save();
           }
         }
 
@@ -236,7 +244,12 @@ export class EmbeddingPipeline {
 
       // Final save
       if (on_save && batches_since_save > 0) {
-        await on_save();
+        batches_since_save = 0;
+        await flush_save();
+      }
+
+      if (on_save) {
+        await save_chain;
       }
 
       this.stats.duration_ms = Date.now() - start_time;

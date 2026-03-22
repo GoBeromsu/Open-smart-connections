@@ -752,4 +752,35 @@ describe('Periodic save with concurrency', () => {
     // 4 batches: save at batch 3, then final save at end for remaining 1 batch
     expect(onSave).toHaveBeenCalled();
   });
+
+  it('does not overlap on_save callbacks when concurrent workers reach the threshold', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const onSave = vi.fn(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      inFlight--;
+    });
+
+    const model = makeModel({
+      embed_batch: vi.fn(async (inputs: any[]) => {
+        await new Promise(resolve => setTimeout(resolve, 1));
+        return inputs.map(() => ({ vec: [0.1], tokens: 5 }));
+      }),
+    });
+
+    const pipeline = new EmbeddingPipeline(model);
+    const entities = Array.from({ length: 6 }, (_, i) => makeEntity(`note-${i}.md`));
+
+    await pipeline.process(entities, {
+      batch_size: 1,
+      concurrency: 3,
+      save_interval: 1,
+      on_save: onSave,
+    });
+
+    expect(onSave).toHaveBeenCalled();
+    expect(maxInFlight).toBe(1);
+  });
 });

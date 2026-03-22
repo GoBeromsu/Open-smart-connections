@@ -156,6 +156,15 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   }
 
   /**
+   * Re-queue deletion keys after a failed persistence attempt.
+   */
+  restore_deleted_keys(keys: string[]): void {
+    for (const key of keys) {
+      this.deleted_keys.add(key);
+    }
+  }
+
+  /**
    * Load collection from disk
    */
   async load(): Promise<void> {

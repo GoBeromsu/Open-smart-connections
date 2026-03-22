@@ -60,6 +60,7 @@ import {
 import {
   EmbeddingKernelJobQueue,
 } from './domain/embedding/kernel';
+import { closeSqliteDatabases } from './domain/entities';
 import type {
   EmbeddingKernelJob,
 } from './domain/embedding/kernel/types';
@@ -558,11 +559,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Unload environment
     this.env?.unload?.();
 
-    // Persist and close SQLite databases
-    import('./domain/entities').then(({ closeSqliteDatabases }) => {
-      closeSqliteDatabases().catch((err: unknown) => {
-        console.warn('Failed to close SQLite databases:', err);
-      });
+    // Start SQLite cleanup immediately so hot reload cannot grab a DB that
+    // the previous plugin instance is still about to close.
+    closeSqliteDatabases().catch((err: unknown) => {
+      console.warn('Failed to close SQLite databases:', err);
     });
   }
 }
