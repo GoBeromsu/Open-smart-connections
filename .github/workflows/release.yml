@@ -18,6 +18,7 @@ jobs:
 
     env:
       HUSKY: 0
+      NODE_OPTIONS: '--max-old-space-size=4096'
     steps:
       - uses: actions/checkout@v4
       - name: Install pnpm
