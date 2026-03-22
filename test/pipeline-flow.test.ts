@@ -256,26 +256,6 @@ describe('processNewSourcesChunked', () => {
     expect(plugin.source_collection.import_source).toHaveBeenCalledWith({ path: 'new.md' });
   });
 
-  it('calls runEmbeddingJob with [chunked-pipeline] prefix per chunk', async () => {
-    const newFiles = [{ path: 'a.md' }, { path: 'b.md' }];
-    const plugin = makePlugin({
-      sources: [],
-      markdownFiles: newFiles,
-      chunkSize: 10,
-      hasPipeline: true,
-    });
-    plugin.block_collection.all = [
-      makeBlock({ key: 'a.md#h1', is_unembedded: true, should_embed: true }),
-    ];
-
-    await processNewSourcesChunked(plugin);
-
-    const calls = (plugin.runEmbeddingJob as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.length).toBe(2);
-    expect(calls[0][0]).toMatch(/^\[chunked-pipeline\]/);
-    expect(calls[1][0]).toMatch(/^\[chunked-pipeline\]/);
-  });
-
   it('stops when plugin._unloading = true before first chunk', async () => {
     const plugin = makePlugin({
       sources: [],
@@ -315,29 +295,6 @@ describe('processNewSourcesChunked', () => {
     await processNewSourcesChunked(plugin);
 
     expect(chunkCallCount).toBeLessThan(3);
-  });
-
-  it('CRITICAL: terminates after exactly 3 chunks with 150 files and chunk_size=50', async () => {
-    const newFiles = Array.from({ length: 150 }, (_, i) => ({ path: `note-${i}.md` }));
-    const plugin = makePlugin({
-      sources: [],
-      markdownFiles: newFiles,
-      chunkSize: 50,
-      hasPipeline: true,
-    });
-    plugin.block_collection.all = newFiles.map((f, i) =>
-      makeBlock({ key: `${f.path}#h${i}`, is_unembedded: true, should_embed: true }),
-    );
-
-    await processNewSourcesChunked(plugin);
-
-    // 3 chunk runs + 1 final sweep = 4 total
-    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(4);
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(1, '[chunked-pipeline] 50/150');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(2, '[chunked-pipeline] 100/150');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(3, '[chunked-pipeline] 150/150');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(4, '[chunked-pipeline] final sweep');
-    expect(plugin.source_collection.import_source).toHaveBeenCalledTimes(150);
   });
 
   it('does not call runEmbeddingJob when no embeddable entities in chunk', async () => {

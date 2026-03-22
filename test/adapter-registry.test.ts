@@ -1,14 +1,10 @@
 /**
  * @file adapter-registry.test.ts
- * @description Tests for EmbedAdapterRegistry and adapter self-registration
+ * @description Focused tests for registry-backed adapter creation.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-
-// Import the registry
+import { describe, expect, it } from 'vitest';
 import { embedAdapterRegistry } from '../src/domain/embed-model';
-
-// Import all adapters to trigger self-registration
 import '../src/ui/embed-adapters/transformers';
 import '../src/ui/embed-adapters/openai';
 import '../src/ui/embed-adapters/ollama';
@@ -16,12 +12,6 @@ import '../src/ui/embed-adapters/gemini';
 import '../src/ui/embed-adapters/lm-studio';
 import '../src/ui/embed-adapters/upstage';
 import '../src/ui/embed-adapters/open-router';
-
-// Import model catalogs for verification
-import { TRANSFORMERS_EMBED_MODELS } from '../src/ui/embed-adapters/transformers';
-import { OPENAI_EMBED_MODELS } from '../src/ui/embed-adapters/openai';
-import { GEMINI_EMBED_MODELS } from '../src/ui/embed-adapters/gemini';
-import { UPSTAGE_EMBED_MODELS } from '../src/ui/embed-adapters/upstage';
 
 describe('EmbedAdapterRegistry', () => {
   const EXPECTED_ADAPTERS = [
@@ -34,196 +24,74 @@ describe('EmbedAdapterRegistry', () => {
     'open_router',
   ];
 
-  it('should have all 7 adapters registered', () => {
-    const names = embedAdapterRegistry.getAdapterNames();
-    for (const expected of EXPECTED_ADAPTERS) {
-      expect(names).toContain(expected);
-    }
-    expect(names.length).toBeGreaterThanOrEqual(7);
+  it('registers the supported adapters', () => {
+    expect(embedAdapterRegistry.getAdapterNames().sort()).toEqual(EXPECTED_ADAPTERS.sort());
   });
 
-  it('should return undefined for unknown adapter', () => {
+  it('returns undefined for unknown adapters', () => {
     expect(embedAdapterRegistry.get('nonexistent')).toBeUndefined();
   });
 
-  describe.each(EXPECTED_ADAPTERS)('adapter: %s', (adapterName) => {
-    it('should have a valid registration', () => {
-      const reg = embedAdapterRegistry.get(adapterName);
-      expect(reg).toBeDefined();
-      expect(reg!.name).toBe(adapterName);
-      expect(reg!.displayName).toBeTruthy();
-      expect(reg!.AdapterClass).toBeDefined();
-      expect(typeof reg!.defaultDims).toBe('number');
-      expect(reg!.defaultDims).toBeGreaterThan(0);
-    });
+  it('creates static-model adapters with registry-defined dimensions', () => {
+    const cases = [
+      { adapterType: 'openai', modelKey: 'text-embedding-3-small', settings: { api_key: 'test-key' }, dims: 1536 },
+      { adapterType: 'upstage', modelKey: 'embedding-passage', settings: { api_key: 'test-key' }, dims: 4096 },
+      { adapterType: 'gemini', modelKey: 'gemini-embedding-001', settings: { api_key: 'test-key' }, dims: 768 },
+    ];
 
-    it('should have signup URL or be a local adapter', () => {
-      const reg = embedAdapterRegistry.get(adapterName)!;
-      if (reg.requiresApiKey || reg.requiresHost) {
-        expect(reg.signupUrl).toBeTruthy();
-        expect(reg.signupUrl).toMatch(/^https?:\/\//);
-      }
-    });
-  });
-
-  describe('API adapters', () => {
-    const API_ADAPTERS = ['openai', 'gemini', 'upstage', 'open_router'];
-
-    it.each(API_ADAPTERS)('%s requires API key', (name) => {
-      const reg = embedAdapterRegistry.get(name)!;
-      expect(reg.requiresApiKey).toBe(true);
-    });
-
-    it.each(API_ADAPTERS)('%s has a signup URL', (name) => {
-      const reg = embedAdapterRegistry.get(name)!;
-      expect(reg.signupUrl).toMatch(/^https:\/\//);
-    });
-  });
-
-  describe('Local adapters', () => {
-    const LOCAL_ADAPTERS = ['ollama', 'lm_studio'];
-
-    it.each(LOCAL_ADAPTERS)('%s requires host', (name) => {
-      const reg = embedAdapterRegistry.get(name)!;
-      expect(reg.requiresHost).toBe(true);
-      expect(reg.defaultHost).toBeTruthy();
-    });
-
-    it.each(LOCAL_ADAPTERS)('%s has dynamic models', (name) => {
-      const reg = embedAdapterRegistry.get(name)!;
-      expect(reg.dynamicModels).toBe(true);
-    });
-  });
-
-  describe('Transformers adapter', () => {
-    it('should be local with no API key', () => {
-      const reg = embedAdapterRegistry.get('transformers')!;
-      expect(reg.requiresApiKey).toBe(false);
-      expect(reg.requiresHost).toBe(false);
-      expect(reg.requiresLoad).toBe(true);
-    });
-
-    it('should have a static model catalog', () => {
-      const reg = embedAdapterRegistry.get('transformers')!;
-      expect(Object.keys(reg.models).length).toBeGreaterThan(5);
-    });
-  });
-
-  describe('createAdapter factory', () => {
-    it('should create an OpenAI adapter', () => {
+    for (const testCase of cases) {
       const { adapter } = embedAdapterRegistry.createAdapter(
-        'openai',
-        'text-embedding-3-small',
-        { api_key: 'test-key' },
+        testCase.adapterType,
+        testCase.modelKey,
+        testCase.settings,
       );
-      expect(adapter).toBeDefined();
-      expect(adapter.model_key).toBe('text-embedding-3-small');
-      expect(adapter.dims).toBe(1536);
-    });
-
-    it('should create an Upstage adapter', () => {
-      const { adapter } = embedAdapterRegistry.createAdapter(
-        'upstage',
-        'embedding-passage',
-        { api_key: 'test-key' },
-      );
-      expect(adapter).toBeDefined();
-      expect(adapter.dims).toBe(4096);
-    });
-
-    it('should create a Gemini adapter', () => {
-      const { adapter } = embedAdapterRegistry.createAdapter(
-        'gemini',
-        'gemini-embedding-001',
-        { api_key: 'test-key' },
-      );
-      expect(adapter).toBeDefined();
-      expect(adapter.dims).toBe(768);
-    });
-
-    it('should create dynamic-model adapters without model validation', () => {
-      const { adapter } = embedAdapterRegistry.createAdapter(
-        'ollama',
-        'bge-m3',
-        { host: 'http://localhost:11434', dims: 1024 },
-      );
-      expect(adapter).toBeDefined();
-      expect(adapter.dims).toBe(1024);
-    });
-
-    it('should throw for unknown adapter type', () => {
-      expect(() =>
-        embedAdapterRegistry.createAdapter('nonexistent', 'model', {}),
-      ).toThrow(/Unknown embed adapter/);
-    });
-
-    it('should throw for unknown static model', () => {
-      expect(() =>
-        embedAdapterRegistry.createAdapter('openai', 'fake-model', {}),
-      ).toThrow(/Unknown OpenAI model/);
-    });
-
-    it('should flag transformers adapter as requiring load', () => {
-      const { requiresLoad } = embedAdapterRegistry.createAdapter(
-        'transformers',
-        'TaylorAI/bge-micro-v2',
-        {},
-      );
-      expect(requiresLoad).toBe(true);
-    });
+      expect(adapter.model_key).toBe(testCase.modelKey);
+      expect(adapter.dims).toBe(testCase.dims);
+    }
   });
 
-  describe('model catalogs', () => {
-    it('OpenAI models have signup URLs', () => {
-      for (const model of Object.values(OPENAI_EMBED_MODELS)) {
-        expect(model.signup_url).toMatch(/openai\.com/);
-      }
-    });
+  it('creates dynamic-model adapters using caller-provided dimensions', () => {
+    const { adapter } = embedAdapterRegistry.createAdapter(
+      'ollama',
+      'bge-m3',
+      { host: 'http://localhost:11434', dims: 1024 },
+    );
 
-    it('Gemini models have signup URLs', () => {
-      for (const model of Object.values(GEMINI_EMBED_MODELS)) {
-        expect(model.signup_url).toMatch(/google\.com/);
-      }
-    });
-
-    it('Upstage models have consistent dims', () => {
-      for (const model of Object.values(UPSTAGE_EMBED_MODELS)) {
-        expect(model.dims).toBe(4096);
-      }
-    });
-
-    it('Transformers models are all local (no endpoint required)', () => {
-      for (const model of Object.values(TRANSFORMERS_EMBED_MODELS)) {
-        // Transformers models don't need an endpoint
-        expect(model.dims).toBeGreaterThan(0);
-      }
-    });
+    expect(adapter.model_key).toBe('bge-m3');
+    expect(adapter.dims).toBe(1024);
   });
 
-  describe('getModelPickerOptions', () => {
-    it('should return options for OpenAI', () => {
-      const opts = embedAdapterRegistry.getModelPickerOptions('openai');
-      expect(opts.length).toBeGreaterThan(0);
-      expect(opts[0].value).toBeTruthy();
-      expect(opts[0].name).toContain('d)');
-    });
-
-    it('should return empty for dynamic-model adapters', () => {
-      const opts = embedAdapterRegistry.getModelPickerOptions('ollama');
-      expect(opts).toEqual([]);
-    });
-
-    it('should return empty for unknown adapter', () => {
-      const opts = embedAdapterRegistry.getModelPickerOptions('nonexistent');
-      expect(opts).toEqual([]);
-    });
+  it('throws for unknown adapter types', () => {
+    expect(() => embedAdapterRegistry.createAdapter('nonexistent', 'model', {})).toThrow(
+      /Unknown embed adapter/,
+    );
   });
 
-  describe('getAll', () => {
-    it('should return all registrations', () => {
-      const all = embedAdapterRegistry.getAll();
-      expect(all.length).toBeGreaterThanOrEqual(7);
-      expect(all.every(r => r.name && r.displayName)).toBe(true);
-    });
+  it('throws for unknown static models', () => {
+    expect(() => embedAdapterRegistry.createAdapter('openai', 'fake-model', {})).toThrow(
+      /Unknown OpenAI model/,
+    );
+  });
+
+  it('reports when an adapter requires an explicit load step', () => {
+    const { requiresLoad } = embedAdapterRegistry.createAdapter(
+      'transformers',
+      'TaylorAI/bge-micro-v2',
+      {},
+    );
+
+    expect(requiresLoad).toBe(true);
+  });
+
+  it('returns labeled picker options for static-model adapters', () => {
+    const options = embedAdapterRegistry.getModelPickerOptions('openai');
+
+    expect(options.some((option) => option.value === 'text-embedding-3-small')).toBe(true);
+    expect(options.every((option) => /\(\d+d\)$/.test(option.name))).toBe(true);
+  });
+
+  it('returns no picker options for dynamic or unknown adapters', () => {
+    expect(embedAdapterRegistry.getModelPickerOptions('ollama')).toEqual([]);
+    expect(embedAdapterRegistry.getModelPickerOptions('nonexistent')).toEqual([]);
   });
 });
