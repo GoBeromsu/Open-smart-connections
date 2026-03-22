@@ -236,6 +236,26 @@ describe('processNewSourcesChunked', () => {
     expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(4, '[chunked-pipeline] final sweep');
   });
 
+  it('handles exact chunk boundaries without skipping or adding extra chunks', async () => {
+    const newFiles = Array.from({ length: 6 }, (_, i) => ({ path: `note-${i}.md` }));
+    const plugin = makePlugin({
+      sources: [],
+      markdownFiles: newFiles,
+      chunkSize: 3,
+      hasPipeline: true,
+    });
+
+    plugin.block_collection.all = newFiles.map((f, i) =>
+      makeBlock({ key: `${f.path}#h${i}`, is_unembedded: true, should_embed: true }),
+    );
+
+    await processNewSourcesChunked(plugin);
+
+    expect(plugin.source_collection.import_source).toHaveBeenCalledTimes(6);
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(3);
+    expect((plugin.runEmbeddingJob as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]).toContain('final sweep');
+  });
+
   it('does NOT re-process files already in source_collection', async () => {
     const plugin = makePlugin({
       sources: [{ key: 'existing.md' }],

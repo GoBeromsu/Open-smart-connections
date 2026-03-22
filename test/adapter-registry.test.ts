@@ -61,6 +61,24 @@ describe('EmbedAdapterRegistry', () => {
     expect(adapter.dims).toBe(1024);
   });
 
+  it('exposes registration metadata needed by factory and settings flows', () => {
+    const hostAdapters = ['ollama', 'lm_studio'];
+    const apiAdapters = ['openai', 'gemini', 'upstage', 'open_router'];
+
+    for (const name of hostAdapters) {
+      const reg = embedAdapterRegistry.get(name);
+      expect(reg?.requiresHost).toBe(true);
+      expect(reg?.defaultHost).toBeTruthy();
+      expect(reg?.dynamicModels).toBe(true);
+    }
+
+    for (const name of apiAdapters) {
+      const reg = embedAdapterRegistry.get(name);
+      expect(reg?.requiresApiKey).toBe(true);
+      expect(reg?.signupUrl).toMatch(/^https?:\/\//);
+    }
+  });
+
   it('throws for unknown adapter types', () => {
     expect(() => embedAdapterRegistry.createAdapter('nonexistent', 'model', {})).toThrow(
       /Unknown embed adapter/,
