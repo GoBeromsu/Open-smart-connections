@@ -1,6 +1,6 @@
 {
   "name": "open-connections",
-  "version": "3.8.11",
+  "version": "3.8.12",
   "type": "module",
   "packageManager": "pnpm@10.28.2",
   "description": "Link and chat with your notes using ChatGPT and embedding artificial intelligence from OpenAI.",
