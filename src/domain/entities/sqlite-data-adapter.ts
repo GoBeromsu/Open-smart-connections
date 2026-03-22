@@ -25,6 +25,8 @@ let sqlJsPromise: Promise<typeof import('sql.js').default> | null = null;
 const dbInstances = new Map<string, Promise<SqlJsDatabase>>();
 const dbTeardowns = new Map<string, Promise<void>>();
 const dbOperationChains = new Map<string, Promise<void>>();
+const dbResetRequests = new Set<string>();
+const dbGenerationNumbers = new Map<string, number>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,11 +114,13 @@ interface DbContext {
   key: string;
   storageNamespace: string;
   db: SqlJsDatabase;
+  generation: number;
   dbPath: string;
   vaultAdapter: any; // Obsidian DataAdapter
   configDir: string;
   pluginId: string;
   autosaveTimer: ReturnType<typeof setInterval> | null;
+  hasPersistedToDisk: boolean;
 }
 
 const dbContexts = new Map<string, DbContext>();
@@ -133,6 +137,16 @@ function detachDbContexts(): DbContext[] {
   dbInstances.clear();
   sqlJsPromise = null;
   return contexts;
+}
+
+function nextDbGeneration(key: string): number {
+  const generation = (dbGenerationNumbers.get(key) ?? 0) + 1;
+  dbGenerationNumbers.set(key, generation);
+  return generation;
+}
+
+function hasNewerDbGeneration(ctx: DbContext): boolean {
+  return (dbGenerationNumbers.get(ctx.key) ?? ctx.generation) > ctx.generation;
 }
 
 async function loadSqlJs(wasmBinary?: ArrayBuffer): Promise<typeof import('sql.js').default> {
@@ -192,6 +206,11 @@ async function persistDb(ctx: DbContext): Promise<void> {
       throw error;
     }
 
+    const shouldPersist = await shouldPersistDb(ctx, 'autosave');
+    if (!shouldPersist) {
+      return;
+    }
+
     try {
       await persistDbNow(ctx);
     } catch (err) {
@@ -233,6 +252,58 @@ class StaleDbContextError extends Error {
   }
 }
 
+async function probeDbPathExists(vaultAdapter: any, dbPath: string): Promise<boolean | null> {
+  if (!vaultAdapter || typeof vaultAdapter.exists !== 'function') {
+    return null;
+  }
+
+  try {
+    return await vaultAdapter.exists(dbPath);
+  } catch (error) {
+    console.warn('[SQLite] Failed to check database file existence:', error);
+    return null;
+  }
+}
+
+async function shouldPersistDb(
+  ctx: DbContext,
+  reason: 'autosave' | 'recreate' | 'close',
+): Promise<boolean> {
+  if (hasNewerDbGeneration(ctx)) {
+    if (reason !== 'autosave') {
+      console.warn('[SQLite] Skipping stale database persist because a newer generation is active');
+    }
+    return false;
+  }
+
+  if (!ctx.hasPersistedToDisk) {
+    return true;
+  }
+
+  const exists = await probeDbPathExists(ctx.vaultAdapter, ctx.dbPath);
+  if (exists === false) {
+    dbResetRequests.add(ctx.key);
+    if (reason !== 'autosave') {
+      console.warn('[SQLite] Skipping stale database persist because the database file was deleted externally');
+    }
+    return false;
+  }
+
+  return true;
+}
+
+async function markDbResetIfMissing(
+  storageNamespace: string,
+  vaultAdapter: any,
+  dbPath: string,
+): Promise<void> {
+  const key = toDbKey(storageNamespace);
+  const exists = await probeDbPathExists(vaultAdapter, dbPath);
+  if (exists === false) {
+    dbResetRequests.add(key);
+  }
+}
+
 async function assertActiveDbContext(ctx: DbContext): Promise<void> {
   const activeCtx = dbContexts.get(ctx.key);
   if (activeCtx === ctx) return;
@@ -264,6 +335,11 @@ async function persistDbNow(ctx: DbContext): Promise<void> {
   const data = ctx.db.export();
   const buffer = Buffer.from(data);
   await ctx.vaultAdapter.writeBinary(ctx.dbPath, buffer);
+  ctx.hasPersistedToDisk = true;
+}
+
+async function shouldSkipPersistOnClose(ctx: DbContext): Promise<boolean> {
+  return !(await shouldPersistDb(ctx, 'close'));
 }
 
 async function awaitDbTeardown(key: string): Promise<void> {
@@ -287,7 +363,9 @@ async function recreateDb(
 
   if (existingCtx) {
     try {
-      await persistDbNow(existingCtx);
+      if (await shouldPersistDb(existingCtx, 'recreate')) {
+        await persistDbNow(existingCtx);
+      }
     } catch (error) {
       console.warn('[SQLite] Failed to persist database before recreating handle:', error);
     }
@@ -327,27 +405,43 @@ async function createDb(
 
   // Try loading existing database
   let db: SqlJsDatabase;
-  try {
-    const existing = await vaultAdapter.readBinary(dbPath);
-    db = new SQL.Database(new Uint8Array(existing));
-    console.log('[SQLite] Loaded existing database');
-  } catch {
+  let hasPersistedToDisk = false;
+  const shouldForceFresh =
+    dbResetRequests.has(dbKey) ||
+    (await probeDbPathExists(vaultAdapter, dbPath)) === false;
+
+  if (shouldForceFresh) {
     db = new SQL.Database();
     console.log('[SQLite] Created new database');
+  } else {
+    try {
+      const existing = await vaultAdapter.readBinary(dbPath);
+      db = new SQL.Database(new Uint8Array(existing));
+      hasPersistedToDisk = true;
+      console.log('[SQLite] Loaded existing database');
+    } catch {
+      db = new SQL.Database();
+      console.log('[SQLite] Created new database');
+    }
   }
 
+  dbResetRequests.delete(dbKey);
+
   ensureSchema(db);
+  const generation = nextDbGeneration(dbKey);
 
   // Set up autosave and context
   const ctx: DbContext = {
     key: dbKey,
     storageNamespace,
     db,
+    generation,
     dbPath,
     vaultAdapter,
     configDir,
     pluginId,
     autosaveTimer: setInterval(() => persistDb(ctx), AUTOSAVE_INTERVAL_MS),
+    hasPersistedToDisk,
   };
   dbContexts.set(dbKey, ctx);
 
@@ -366,6 +460,8 @@ async function getDb(
       throw new Error('[SQLite] Cannot create DB without vault adapter context');
     }
     dbInstances.set(key, (async () => {
+      const dbPath = `${configDir}/plugins/${pluginId}/${pluginId}.db`;
+      await markDbResetIfMissing(storageNamespace, vaultAdapter, dbPath);
       await awaitDbTeardown(key);
       return createDb(storageNamespace, vaultAdapter, configDir, pluginId);
     })());
@@ -388,7 +484,9 @@ export async function closeSqliteDatabases(): Promise<void> {
   for (const ctx of contexts) {
     const teardown = queueDbOperation(ctx.key, async () => {
       try {
-        await persistDbNow(ctx);
+        if (!await shouldSkipPersistOnClose(ctx)) {
+          await persistDbNow(ctx);
+        }
       } catch (error) {
         console.error('[SQLite] Failed to persist database during close:', error);
       }

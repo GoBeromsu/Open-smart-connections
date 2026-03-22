@@ -121,4 +121,60 @@ describe('SQLite adapter lifecycle', () => {
 
     expect(dbConstructCount).toBe(3);
   });
+
+  it('does not resurrect a deleted database file during unload and reopens fresh', async () => {
+    initSqlJs.mockResolvedValue({ Database: MockDatabase } as any);
+
+    let fileExists = true;
+    let dbReadCount = 0;
+    const vaultAdapter = {
+      exists: vi.fn(async () => fileExists),
+      readBinary: vi.fn(async (path: string) => {
+        if (path.endsWith('sql-wasm.wasm')) {
+          return new Uint8Array([9, 9, 9]);
+        }
+        dbReadCount += 1;
+        if (!fileExists) {
+          throw new Error('missing');
+        }
+        return new Uint8Array([1, 2, 3]);
+      }),
+      writeBinary: vi.fn(async () => {
+        fileExists = true;
+      }),
+    };
+
+    const { SqliteDataAdapter, closeSqliteDatabases } = await import('../src/domain/entities/sqlite-data-adapter');
+    const storageNamespace = 'open-connections:/tmp/ataraxia:.obsidian/plugins/open-connections/.smart-env';
+
+    const createAdapter = () => {
+      const collection = {
+        embed_model_key: 'test-model',
+        save_queue: [],
+        consume_deleted_keys: () => [],
+        create_or_update: vi.fn(),
+      } as any;
+      const adapter = new SqliteDataAdapter(collection, 'smart_sources', storageNamespace);
+      adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+      return adapter;
+    };
+
+    const firstAdapter = createAdapter();
+    await firstAdapter.save_batch([makeEntity('first-note.md') as any]);
+    expect(dbConstructCount).toBe(1);
+    expect(dbReadCount).toBe(1);
+
+    fileExists = false;
+    await closeSqliteDatabases();
+
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(0);
+
+    const secondAdapter = createAdapter();
+    await secondAdapter.save_batch([makeEntity('second-note.md') as any]);
+
+    expect(dbConstructCount).toBe(2);
+    expect(dbReadCount).toBe(1);
+
+    await closeSqliteDatabases();
+  });
 });

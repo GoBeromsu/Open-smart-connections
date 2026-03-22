@@ -21,6 +21,12 @@ function createVaultAdapter() {
       }
       return file;
     }),
+    exists: vi.fn(async (path: string) => {
+      if (path.endsWith('sql-wasm.wasm')) {
+        return true;
+      }
+      return files.has(path);
+    }),
     writeBinary: vi.fn(async (path: string, data: Uint8Array | Buffer) => {
       files.set(path, data instanceof Uint8Array ? data : new Uint8Array(data));
     }),
@@ -154,5 +160,36 @@ describe('SqliteDataAdapter real sql.js lifecycle', () => {
     expect(nearest).toHaveLength(1);
     expect(nearest[0].entity_key).toBe('note-a.md#h1');
     expect(nearest[0].score).toBeGreaterThan(0.99);
+  });
+
+  it('does not resurrect a deleted persisted database during close', async () => {
+    const { SqliteDataAdapter, closeSqliteDatabases } = await import('../src/domain/entities/sqlite-data-adapter');
+    const vaultAdapter = createVaultAdapter();
+    const storageNamespace = 'open-connections:/tmp/test-real-delete:.obsidian/plugins/open-connections/.smart-env';
+    const dbPath = '.obsidian/plugins/open-connections/open-connections.db';
+
+    const firstCollection = createSavingCollection([
+      makeEntity('note-a.md#h1', [1, 0]),
+    ]);
+    const firstAdapter = new SqliteDataAdapter(firstCollection, 'smart_blocks', storageNamespace);
+    firstAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await firstAdapter.save();
+    await closeSqliteDatabases();
+
+    expect(vaultAdapter.files.has(dbPath)).toBe(true);
+
+    const secondCollection = createLoadingCollection();
+    const secondAdapter = new SqliteDataAdapter(secondCollection, 'smart_blocks', storageNamespace);
+    secondAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+    await secondAdapter.load();
+
+    const writesBeforeDelete = vaultAdapter.writeBinary.mock.calls.length;
+    vaultAdapter.files.delete(dbPath);
+
+    await closeSqliteDatabases();
+
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(writesBeforeDelete);
+    expect(vaultAdapter.files.has(dbPath)).toBe(false);
   });
 });

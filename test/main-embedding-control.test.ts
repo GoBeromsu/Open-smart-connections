@@ -120,6 +120,16 @@ function createControlledPipeline() {
   };
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('SmartConnectionsPlugin embedding control', () => {
   it('transitions to idle after run completes normally', async () => {
     const { app, plugin } = createPlugin();
@@ -288,5 +298,65 @@ describe('SmartConnectionsPlugin embedding control', () => {
 
     expect(sourceSetMeta).not.toHaveBeenCalled();
     expect(blockSetMeta).not.toHaveBeenCalled();
+  });
+
+  it('clears transient runtime state and aborts stale initialization after unload', async () => {
+    const { plugin } = createPlugin();
+    const coreGate = createDeferred<void>();
+
+    plugin.ready = true;
+    plugin.current_embed_context = {
+      runId: 41,
+      phase: 'running',
+      reason: 'stale',
+      adapter: 'openai',
+      modelKey: 'text-embedding-3-small',
+      dims: 1536,
+      currentEntityKey: 's1#h1',
+      currentSourcePath: 's1.md',
+      startedAt: Date.now(),
+      current: 1,
+      total: 2,
+      blockTotal: 2,
+      saveCount: 1,
+      sourceDataDir: '/tmp/sources',
+      blockDataDir: '/tmp/blocks',
+      followupQueued: false,
+      error: null,
+    } as any;
+    plugin.pendingReImportPaths.add('stale.md');
+    plugin.init_errors = [{ phase: 'previous', error: new Error('stale failure') }];
+
+    const haltSpy = vi.fn();
+    plugin.embedding_pipeline = { halt: haltSpy, is_active: vi.fn(() => false) } as any;
+    plugin.embedding_job_queue = { clear: vi.fn() } as any;
+
+    const initializeEmbeddingSpy = vi.spyOn(plugin, 'initializeEmbedding').mockResolvedValue();
+    const handleNewUserSpy = vi.spyOn(plugin, 'handleNewUser').mockResolvedValue();
+    vi.spyOn(plugin, 'initializeCore').mockImplementation(async () => {
+      await coreGate.promise;
+    });
+
+    (plugin as any)._lifecycle_epoch = 1;
+    const initPromise = plugin.initialize(1);
+    await Promise.resolve();
+
+    plugin.onunload();
+    coreGate.resolve();
+    await initPromise;
+
+    expect(plugin.ready).toBe(false);
+    expect(plugin.current_embed_context).toBeNull();
+    expect(plugin.pendingReImportPaths.size).toBe(0);
+    expect(plugin.embedding_pipeline).toBeUndefined();
+    expect(plugin.embedding_job_queue).toBeUndefined();
+    expect(plugin.source_collection).toBeUndefined();
+    expect(plugin.block_collection).toBeUndefined();
+    expect(plugin.status_state).toBe('idle');
+    expect(plugin.embed_ready).toBe(false);
+    expect(plugin.init_errors).toHaveLength(0);
+    expect(haltSpy).toHaveBeenCalled();
+    expect(initializeEmbeddingSpy).not.toHaveBeenCalled();
+    expect(handleNewUserSpy).not.toHaveBeenCalled();
   });
 });

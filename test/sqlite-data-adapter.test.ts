@@ -220,6 +220,40 @@ describe('SqliteDataAdapter', () => {
     await closeSqliteDatabases();
   });
 
+  it('persists a fresh database on autosave before any file exists on disk', async () => {
+    vi.useFakeTimers();
+
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {},
+    ]);
+
+    let fileExists = false;
+    const vaultAdapter = {
+      exists: vi.fn(async () => fileExists),
+      readBinary: vi.fn(async () => {
+        throw new Error('missing');
+      }),
+      writeBinary: vi.fn(async () => {
+        fileExists = true;
+      }),
+    };
+
+    const entity = makeEntity();
+    const { collection } = createCollection([entity]);
+    const adapter = new SqliteDataAdapter(collection, 'smart_blocks', 'fresh-autosave-namespace');
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await adapter.save();
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(0);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(1);
+    expect(fileExists).toBe(true);
+
+    await closeSqliteDatabases();
+  });
+
   it('rebinds queued callers onto the fresh database after recreate', async () => {
     const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
       {
@@ -266,6 +300,67 @@ describe('SqliteDataAdapter', () => {
     await expect(adapter.load()).resolves.toBeUndefined();
     expect(MockDatabase.instances).toHaveLength(2);
     expect(MockDatabase.instances[0].closed).toBe(true);
+
+    await closeSqliteDatabases();
+  });
+
+  it('does not resurrect a deleted database during SQLITE_MISUSE recovery', async () => {
+    const misuse = new Error('bad parameter or other API misuse');
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {},
+      {
+        throwOnRunCall: 2,
+        throwError: misuse,
+      },
+      {},
+    ]);
+
+    let fileExists = true;
+    const vaultAdapter = {
+      exists: vi.fn(async (path: string) => {
+        if (path.endsWith('sql-wasm.wasm')) {
+          return false;
+        }
+        return fileExists;
+      }),
+      readBinary: vi.fn(async (path: string) => {
+        if (path.endsWith('sql-wasm.wasm')) {
+          throw new Error('missing wasm');
+        }
+        if (!fileExists) {
+          throw new Error('missing db');
+        }
+        return new Uint8Array([1, 2, 3]);
+      }),
+      writeBinary: vi.fn(async () => {
+        fileExists = true;
+      }),
+    };
+    const storageNamespace = 'misuse-delete-namespace';
+
+    const primedEntity = makeEntity('primed.md');
+    const { collection: primedCollection } = createCollection([primedEntity]);
+    const primedAdapter = new SqliteDataAdapter(primedCollection, 'smart_blocks', storageNamespace);
+    primedAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await primedAdapter.save();
+    await closeSqliteDatabases();
+
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(1);
+    expect(fileExists).toBe(true);
+
+    const nextEntity = makeEntity('after-delete.md');
+    const { collection: nextCollection } = createCollection([nextEntity]);
+    const adapter = new SqliteDataAdapter(nextCollection, 'smart_blocks', storageNamespace);
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await adapter.load();
+    fileExists = false;
+
+    await expect(adapter.save()).resolves.toBeUndefined();
+
+    expect(vaultAdapter.writeBinary).toHaveBeenCalledTimes(1);
+    expect(fileExists).toBe(false);
 
     await closeSqliteDatabases();
   });

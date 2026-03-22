@@ -148,6 +148,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   current_embed_context: EmbeddingRunContext | null = null;
   embedding_job_queue?: EmbeddingKernelJobQueue;
   pendingReImportPaths = new Set<string>();
+  private _lifecycle_epoch = 0;
   private _embed_state: { phase: 'idle' | 'running' | 'error'; modelFingerprint: string | null; lastError: string | null } = {
     phase: 'idle',
     modelFingerprint: null,
@@ -186,6 +187,38 @@ export default class SmartConnectionsPlugin extends Plugin {
     return this._embed_state.phase === 'running' ? 'embedding' : this._embed_state.phase;
   }
 
+  private beginLifecycle(): number {
+    this._lifecycle_epoch += 1;
+    return this._lifecycle_epoch;
+  }
+
+  private isCurrentLifecycle(epoch: number): boolean {
+    return !this._unloading && this._lifecycle_epoch === epoch;
+  }
+
+  private resetTransientRuntimeState(): void {
+    this.ready = false;
+    this.current_embed_context = null;
+    this.embed_notice_last_update = 0;
+    this.embed_notice_last_percent = 0;
+    this.init_errors = [];
+    this.pendingReImportPaths.clear();
+    this._embed_state = {
+      phase: 'idle',
+      modelFingerprint: null,
+      lastError: null,
+    };
+    this.embedding_job_queue?.clear('Plugin reset');
+    this.embedding_job_queue = undefined;
+    this.embedding_pipeline?.halt();
+    this.embedding_pipeline = undefined;
+    this.embed_adapter = undefined;
+    this._search_embed_model = undefined;
+    this.source_collection = undefined;
+    this.block_collection = undefined;
+    this._notices = undefined;
+  }
+
   setEmbedPhase(phase: 'idle' | 'running' | 'error', opts: { error?: string; fingerprint?: string } = {}): void {
     const prev = this._embed_state.phase;
     this._embed_state = {
@@ -208,17 +241,23 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this._unloading = false;
+    const lifecycle = this.beginLifecycle();
+    this.resetTransientRuntimeState();
     console.log('Loading Open Connections plugin');
 
     await this.loadSettings();
+    if (!this.isCurrentLifecycle(lifecycle)) return;
 
     if (this.app.workspace.layoutReady) {
-      await this.initialize();
+      await this.initialize(lifecycle);
     } else {
       this.app.workspace.onLayoutReady(async () => {
-        await this.initialize();
+        if (!this.isCurrentLifecycle(lifecycle)) return;
+        await this.initialize(lifecycle);
       });
     }
+
+    if (!this.isCurrentLifecycle(lifecycle)) return;
 
     this.registerView(
       CONNECTIONS_VIEW_TYPE,
@@ -301,21 +340,25 @@ export default class SmartConnectionsPlugin extends Plugin {
     });
   }
 
-  async initialize(): Promise<void> {
+  async initialize(lifecycle: number = this._lifecycle_epoch): Promise<void> {
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     console.log('[SC][Init] ▶ Initialization starting');
 
     // Phase 1: Core init (blocking)
-    await this.initializeCore();
+    await this.initializeCore(lifecycle);
+    if (!this.isCurrentLifecycle(lifecycle)) return;
 
     // Phase 2: Embedding (background, fire-and-forget)
-    this.initializeEmbedding().then(() => {
+    this.initializeEmbedding(lifecycle).then(() => {
+      if (!this.isCurrentLifecycle(lifecycle)) return;
       this.handleNewUser();
     }).catch(e => {
       console.error('Background embedding init failed:', e);
     });
   }
 
-  async initializeCore(): Promise<void> {
+  async initializeCore(lifecycle: number = this._lifecycle_epoch): Promise<void> {
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     const t0 = performance.now();
     console.log('[SC][Init] ▶ Phase 1: Core initialization');
 
@@ -328,8 +371,14 @@ export default class SmartConnectionsPlugin extends Plugin {
     ): Promise<boolean> => {
       try {
         await fn();
+        if (!this.isCurrentLifecycle(lifecycle)) {
+          return false;
+        }
         return true;
       } catch (e) {
+        if (!this.isCurrentLifecycle(lifecycle)) {
+          return false;
+        }
         this.init_errors.push({ phase: name, error: e as Error });
         console.error(`[SC][Init] ${name} failed:`, e);
         if (critical) {
@@ -341,10 +390,15 @@ export default class SmartConnectionsPlugin extends Plugin {
     };
 
     await runStep('Load user state', () => this.loadUserState());
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     await runStep('Wait for sync', () => this.waitForSync());
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     if (!await runStep('Init collections', () => this.initCollections(), true)) return;
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     if (!await runStep('Load collections', () => this.loadCollections(), true)) return;
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     await runStep('Register file watchers', () => this.registerFileWatchers());
+    if (!this.isCurrentLifecycle(lifecycle)) return;
 
     this.ready = true;
     this.app.workspace.trigger('smart-connections:core-ready' as any);
@@ -354,14 +408,19 @@ export default class SmartConnectionsPlugin extends Plugin {
     console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - t0).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`);
   }
 
-  async initializeEmbedding(): Promise<void> {
+  async initializeEmbedding(lifecycle: number = this._lifecycle_epoch): Promise<void> {
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     const t0 = performance.now();
     console.log('[SC][Init] ▶ Phase 2: Embedding initialization');
     try {
+      if (!this.isCurrentLifecycle(lifecycle)) return;
       await this.switchEmbeddingModel('Initial embedding setup');
+      if (!this.isCurrentLifecycle(lifecycle)) return;
       await _processNewSourcesChunked(this);
+      if (!this.isCurrentLifecycle(lifecycle)) return;
       console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
+      if (!this.isCurrentLifecycle(lifecycle)) return;
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
       console.error('[SC][Init] ✗ Phase 2 failed:', e);
       this.setEmbedPhase('error', { error: e instanceof Error ? e.message : String(e) });
@@ -536,29 +595,28 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   onunload(): void {
     console.log('Unloading Open Connections plugin');
+    this.beginLifecycle();
     this._unloading = true;
 
     // Halt active embedding pipeline before clearing the queue
     this.embedding_pipeline?.halt();
     this.clearEmbedNotice();
     this._notices?.unload();
-    this.embedding_job_queue?.clear('Plugin unload');
 
     // Clear timeouts
     if (this.re_import_timeout) {
       window.clearTimeout(this.re_import_timeout);
-    }
-
-    // Unload search model adapter if separate from indexing
-    if (this._search_embed_model?.unload) {
-      this._search_embed_model.unload().catch((err: unknown) => {
-        console.warn('Failed to unload search embed model:', err);
-      });
-      this._search_embed_model = undefined;
+      this.re_import_timeout = undefined;
     }
 
     // Fire-and-forget async cleanup with error handling
     // Obsidian does not await onunload, so we cannot use await here
+    if (this._search_embed_model?.unload) {
+      this._search_embed_model.unload().catch((err: unknown) => {
+        console.warn('Failed to unload search embed model:', err);
+      });
+    }
+
     if (this.embed_adapter?.unload) {
       this.embed_adapter.unload().catch((err: unknown) => {
         console.warn('Failed to unload embed model:', err);
@@ -570,6 +628,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Start SQLite cleanup immediately so hot reload cannot grab a DB that
     // the previous plugin instance is still about to close.
+    this.resetTransientRuntimeState();
     closeSqliteDatabases().catch((err: unknown) => {
       console.warn('Failed to close SQLite databases:', err);
     });
