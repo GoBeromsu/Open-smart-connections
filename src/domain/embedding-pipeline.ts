@@ -15,6 +15,13 @@ import type { EmbedModelAdapter, EmbedResult } from '../../types/models';
 // FatalError is checked by name (error.name === 'FatalError') to support both direct import
 // and test stubs. No import needed since instanceof is not used.
 
+class BatchIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BatchIntegrityError';
+  }
+}
+
 /**
  * Embedding queue statistics
  */
@@ -24,7 +31,11 @@ export interface EmbedQueueStats {
   failed: number;
   skipped: number;
   duration_ms: number;
+  outcome: EmbedRunOutcome;
+  error?: string;
 }
+
+export type EmbedRunOutcome = 'completed' | 'halted' | 'failed';
 
 /**
  * Embedding pipeline options
@@ -81,6 +92,7 @@ export class EmbeddingPipeline {
     failed: 0,
     skipped: 0,
     duration_ms: 0,
+    outcome: 'completed',
   };
 
   constructor(model: EmbedModelAdapter) {
@@ -134,6 +146,14 @@ export class EmbeddingPipeline {
       let batches_since_save = 0;
       let entities_processed = 0;
       let save_chain: Promise<void> = Promise.resolve();
+      let fatal_error: Error | null = null;
+
+      const mark_fatal = (error: unknown): void => {
+        if (!fatal_error) {
+          fatal_error = error instanceof Error ? error : new Error(String(error));
+        }
+        this.should_halt = true;
+      };
 
       const flush_save = async (): Promise<void> => {
         if (!on_save) return;
@@ -148,16 +168,27 @@ export class EmbeddingPipeline {
 
       interface WorkerCounts { success: number; failed: number; skipped: number; batches: number }
 
+      const claim_remaining = (): number => {
+        if (batch_index >= batches.length) return 0;
+        let skipped = 0;
+        for (let i = batch_index; i < batches.length; i++) {
+          skipped += batches[i].length;
+        }
+        batch_index = batches.length;
+        return skipped;
+      };
+
       const process_next_batch = async (): Promise<WorkerCounts> => {
         const local: WorkerCounts = { success: 0, failed: 0, skipped: 0, batches: 0 };
 
         while (batch_index < batches.length) {
+          if (fatal_error) {
+            local.skipped += claim_remaining();
+            return local;
+          }
+
           if (this.should_halt) {
-            // Count remaining unprocessed entities as skipped
-            for (let i = batch_index; i < batches.length; i++) {
-              local.skipped += batches[i].length;
-            }
-            batch_index = batches.length;
+            local.skipped += claim_remaining();
             return local;
           }
 
@@ -204,8 +235,9 @@ export class EmbeddingPipeline {
             local.failed += batch.length;
             this.clear_queue_flags(batch);
 
-            if (halt_on_error) {
-              throw error;
+            if (halt_on_error || (error instanceof Error && error.name === 'BatchIntegrityError')) {
+              mark_fatal(error);
+              continue;
             }
           }
 
@@ -223,7 +255,11 @@ export class EmbeddingPipeline {
           batches_since_save++;
           if (on_save && batches_since_save >= save_interval) {
             batches_since_save = 0;
-            await flush_save();
+            try {
+              await flush_save();
+            } catch (error) {
+              mark_fatal(error);
+            }
           }
         }
 
@@ -243,15 +279,27 @@ export class EmbeddingPipeline {
       }
 
       // Final save
-      if (on_save && batches_since_save > 0) {
+      if (!fatal_error && on_save && batches_since_save > 0) {
         batches_since_save = 0;
-        await flush_save();
+        try {
+          await flush_save();
+        } catch (error) {
+          mark_fatal(error);
+        }
       }
 
       if (on_save) {
         await save_chain;
       }
 
+      if (fatal_error) {
+        this.stats.outcome = 'failed';
+        this.stats.error = fatal_error.message;
+      } else if (this.should_halt) {
+        this.stats.outcome = 'halted';
+      } else {
+        this.stats.outcome = 'completed';
+      }
       this.stats.duration_ms = Date.now() - start_time;
       return this.stats;
     } finally {
@@ -302,21 +350,30 @@ export class EmbeddingPipeline {
 
     while (retries <= max_retries) {
       try {
-        const inputs = batch.map(e => ({ _embed_input: e._embed_input! }));
+        const inputs = batch.map((entity, index) => ({
+          embed_input: entity._embed_input!,
+          key: entity.key,
+          index,
+        }));
         const embeddings: EmbedResult[] = await this.model.embed_batch(inputs);
+        const embeddings_by_entity = this.index_results(batch, embeddings);
 
         // Assign embeddings to entities, validating vec
         let succeeded = 0;
         let failed_count = 0;
         const updatedAt = Date.now();
 
-        embeddings.forEach((emb, i) => {
-          const entity = batch[i];
+        for (const entity of batch) {
+          const emb = embeddings_by_entity.get(entity.key);
+          if (!emb) {
+            failed_count++;
+            continue;
+          }
 
           // Null vec guard: reject null/empty vec (prevents silent data corruption)
           if (!emb.vec || emb.vec.length === 0) {
             failed_count++;
-            return;
+            continue;
           }
 
           entity.vec = emb.vec;
@@ -335,11 +392,11 @@ export class EmbeddingPipeline {
           }
 
           succeeded++;
-        });
+        }
 
         // Clear queue flags for successful entities
-        batch.forEach((entity, i) => {
-          const emb = embeddings[i];
+        batch.forEach((entity) => {
+          const emb = embeddings_by_entity.get(entity.key);
           if (emb?.vec && emb.vec.length > 0) {
             entity._queue_embed = false;
             entity._embed_input = null;
@@ -349,7 +406,7 @@ export class EmbeddingPipeline {
         return { succeeded, failed_count };
       } catch (error) {
         // FatalError: immediate failure, no retry
-        if (error instanceof Error && error.name === 'FatalError') {
+        if (error instanceof Error && (error.name === 'FatalError' || error.name === 'BatchIntegrityError')) {
           this.clear_queue_flags(batch);
           throw error;
         }
@@ -416,7 +473,64 @@ export class EmbeddingPipeline {
       failed: 0,
       skipped: 0,
       duration_ms: 0,
+      outcome: 'completed',
+      error: undefined,
     };
+  }
+
+  private index_results(
+    batch: EmbeddingEntity[],
+    embeddings: EmbedResult[],
+  ): Map<string, EmbedResult> {
+    if (embeddings.length !== batch.length) {
+      throw new BatchIntegrityError(
+        `Embedding adapter returned ${embeddings.length} results for ${batch.length} inputs`,
+      );
+    }
+
+    const expected_keys = new Set(batch.map(entity => entity.key));
+    const keyed_results = new Map<string, EmbedResult>();
+
+    for (const result of embeddings) {
+      const result_index =
+        typeof result.index === 'number' && Number.isInteger(result.index)
+          ? result.index
+          : null;
+      const result_key =
+        typeof result.key === 'string' && result.key.length > 0
+          ? result.key
+          : result_index !== null
+            ? batch[result_index]?.key ?? null
+            : null;
+
+      if (!result_key) {
+        throw new BatchIntegrityError('Embedding adapter result is missing key/index identity');
+      }
+
+      if (!expected_keys.has(result_key)) {
+        throw new BatchIntegrityError(`Embedding adapter returned an unknown entity key: ${result_key}`);
+      }
+
+      if (result_index !== null && batch[result_index]?.key !== result_key) {
+        throw new BatchIntegrityError(
+          `Embedding adapter result identity mismatch for index ${result_index}: ${result_key}`,
+        );
+      }
+
+      if (keyed_results.has(result_key)) {
+        throw new BatchIntegrityError(`Embedding adapter returned duplicate results for entity: ${result_key}`);
+      }
+
+      keyed_results.set(result_key, result);
+    }
+
+    if (keyed_results.size !== batch.length) {
+      throw new BatchIntegrityError(
+        `Embedding adapter result identity mismatch: expected ${batch.length} unique entities, received ${keyed_results.size}`,
+      );
+    }
+
+    return keyed_results;
   }
 
   private clear_queue_flags(entities: EmbeddingEntity[]): void {

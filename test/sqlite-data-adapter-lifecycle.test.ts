@@ -113,5 +113,12 @@ describe('SQLite adapter lifecycle', () => {
     await secondSave;
 
     expect(dbConstructCount).toBe(2);
+
+    await closeSqliteDatabases();
+
+    const thirdAdapter = createAdapter();
+    await thirdAdapter.save_batch([makeEntity('third-note.md') as any]);
+
+    expect(dbConstructCount).toBe(3);
   });
 });

@@ -43,6 +43,10 @@ export function getActiveEmbeddingContext(plugin: SmartConnectionsPlugin): Embed
   return { ...plugin.current_embed_context };
 }
 
+function publishEmbedContext(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext): void {
+  plugin.current_embed_context = { ...ctx };
+}
+
 // dispatchQueueSnapshot removed — snapshot computed on demand by status bar
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -148,6 +152,7 @@ export function emitEmbedProgress(
   const payload: EmbedProgressEventPayload = {
     runId: ctx.runId,
     phase: ctx.phase,
+    outcome: ctx.outcome,
     reason: ctx.reason,
     adapter: ctx.adapter,
     modelKey: ctx.modelKey,
@@ -164,8 +169,9 @@ export function emitEmbedProgress(
     startedAt: ctx.startedAt,
     elapsedMs,
     etaMs,
+    followupQueued: ctx.followupQueued,
     done: opts.done,
-    error: opts.error,
+    error: opts.error ?? ctx.error ?? undefined,
   };
 
   plugin.app.workspace.trigger('smart-connections:embed-progress' as any, payload);
@@ -431,6 +437,17 @@ async function saveCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   }
 }
 
+function scheduleFollowupRun(plugin: SmartConnectionsPlugin, reason: string, runId: number): void {
+  void plugin.enqueueEmbeddingJob({
+    type: 'RUN_EMBED_FOLLOWUP',
+    key: `RUN_EMBED_FOLLOWUP:${runId}`,
+    priority: 31,
+    run: async () => runEmbeddingJobNow(plugin, reason),
+  }).catch((error) => {
+    console.warn('[SC] Failed to schedule embedding follow-up run:', error);
+  });
+}
+
 // ── Main embedding job ──────────────────────────────────────────────
 
 export async function runEmbeddingJob(plugin: SmartConnectionsPlugin, reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
@@ -477,6 +494,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
   const ctx: EmbeddingRunContext = {
     runId,
     phase: 'running',
+    outcome: undefined,
     reason,
     adapter: model.adapter,
     modelKey: model.modelKey,
@@ -490,9 +508,11 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
     saveCount: 0,
     sourceDataDir: plugin.source_collection.data_dir,
     blockDataDir: plugin.block_collection?.data_dir ?? '',
+    followupQueued: false,
+    error: null,
   };
 
-  plugin.current_embed_context = ctx;
+  publishEmbedContext(plugin, ctx);
   plugin.setEmbedPhase('running');
   updateEmbedNotice(plugin, ctx, true);
   emitEmbedProgress(plugin, ctx);
@@ -524,6 +544,8 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
         if (progress?.current_key) ctx.currentEntityKey = progress.current_key;
         if (progress?.current_source_path) ctx.currentSourcePath = progress.current_source_path;
         ctx.phase = 'running';
+        ctx.outcome = undefined;
+        publishEmbedContext(plugin, ctx);
         // Throttle UI updates to max 1/sec
         const now = Date.now();
         if (now - lastProgressEmit > 1000) {
@@ -535,30 +557,64 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
       },
       on_save: async () => {
         await saveCollections(plugin);
-        if (plugin.current_embed_context?.runId === runId) ctx.saveCount += 1;
+        if (plugin.current_embed_context?.runId === runId) {
+          ctx.saveCount += 1;
+          publishEmbedContext(plugin, ctx);
+        }
       },
       save_interval: plugin.settings.embed_save_interval || 5,
     });
 
     if (plugin.current_embed_context?.runId !== runId) {
-      plugin.current_embed_context = null;
       plugin.setEmbedPhase('idle');
       return stats;
     }
 
     ctx.current = stats.success + stats.failed + stats.skipped;
     ctx.total = stats.total;
+    ctx.outcome = stats.outcome;
+    ctx.error = stats.error ?? null;
 
-    await saveCollections(plugin);
-    ctx.saveCount += 1;
+    if (stats.outcome === 'failed') {
+      ctx.phase = 'failed';
+      publishEmbedContext(plugin, ctx);
+      plugin.setEmbedPhase('error', { error: stats.error ?? 'Embedding pipeline failed' });
+      plugin.logEmbed('run-failed', {
+        runId: ctx.runId,
+        adapter: ctx.adapter,
+        modelKey: ctx.modelKey,
+        dims: ctx.dims,
+        current: ctx.current,
+        total: ctx.total,
+        currentSourcePath: ctx.currentSourcePath,
+        error: stats.error ?? 'Embedding pipeline failed',
+      });
+      plugin.notices.show('embedding_failed');
+      return stats;
+    }
 
-    // Handle completion
-    ctx.phase = 'completed';
-    plugin.current_embed_context = null;
-    plugin.setEmbedPhase('idle');
-    plugin.notices.show('embedding_complete', { success: stats.success });
+    if (stats.outcome === 'completed') {
+      await saveCollections(plugin);
+      ctx.saveCount += 1;
+    }
 
     unresolvedAfterRun = plugin.queueUnembeddedEntities();
+    ctx.followupQueued = unresolvedAfterRun > 0 && stats.outcome === 'completed' && !plugin._unloading;
+
+    if (stats.outcome === 'halted') {
+      ctx.phase = 'halted';
+    } else if (ctx.followupQueued) {
+      ctx.phase = 'followup-required';
+    } else {
+      ctx.phase = 'completed';
+    }
+
+    publishEmbedContext(plugin, ctx);
+    plugin.setEmbedPhase('idle');
+
+    if (stats.outcome === 'completed' && !ctx.followupQueued) {
+      plugin.notices.show('embedding_complete', { success: stats.success });
+    }
 
     if (unresolvedAfterRun > 0) {
       plugin.logEmbed('run-stale-remaining', {
@@ -568,6 +624,10 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
         current: unresolvedAfterRun,
         total: unresolvedAfterRun,
       });
+    }
+
+    if (ctx.followupQueued) {
+      scheduleFollowupRun(plugin, `${reason} (follow-up)`, runId);
     }
 
     plugin.logEmbed('run-finished', {
@@ -583,13 +643,14 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
     return stats;
   } catch (error) {
     if (plugin.current_embed_context?.runId !== runId) {
-      plugin.current_embed_context = null;
       plugin.setEmbedPhase('idle');
       throw error;
     }
 
     ctx.phase = 'failed';
-    plugin.current_embed_context = null;
+    ctx.outcome = 'failed';
+    ctx.error = error instanceof Error ? error.message : String(error);
+    publishEmbedContext(plugin, ctx);
     plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
     plugin.logEmbed('run-failed', {
       runId: ctx.runId,
@@ -606,7 +667,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
   } finally {
     if (plugin.current_embed_context?.runId === runId || plugin.current_embed_context === null) {
       emitEmbedProgress(plugin, ctx, { done: true });
-      if (ctx.phase !== 'failed') plugin.current_embed_context = { ...ctx };
+      publishEmbedContext(plugin, ctx);
       clearEmbedNotice(plugin);
     }
   }

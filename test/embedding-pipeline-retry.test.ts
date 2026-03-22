@@ -100,10 +100,22 @@ function makeModel(opts: {
   adapter?: string;
 } = {}) {
   const embed_batch = opts.embed_batch ?? (async (inputs: any[]) =>
-    inputs.map(() => ({ vec: [0.1, 0.2, 0.3], tokens: 10 }))
+    inputs.map((input: any, index: number) => ({
+      key: input.key,
+      index: input.index ?? index,
+      vec: [0.1, 0.2, 0.3],
+      tokens: 10,
+    }))
   );
   return {
-    embed_batch,
+    embed_batch: vi.fn(async (inputs: any[]) => {
+      const results = await embed_batch(inputs);
+      return results.map((result: any, index: number) => ({
+        key: result?.key ?? inputs[index]?.key,
+        index: result?.index ?? inputs[index]?.index ?? index,
+        ...result,
+      }));
+    }),
     dims: opts.dims ?? 1536,
     adapter: opts.adapter ?? 'openai',
   } as any;
@@ -517,6 +529,7 @@ describe('Concurrent batch processing', () => {
     // Some entities were processed, rest were skipped due to halt
     expect(stats.skipped).toBeGreaterThan(0);
     expect(stats.success + stats.failed + stats.skipped).toBe(20);
+    expect(stats.outcome).toBe('halted');
     // halt should not have allowed all 20 batches to start
     expect(batchesStarted).toBeLessThan(20);
   });
@@ -782,5 +795,84 @@ describe('Periodic save with concurrency', () => {
 
     expect(onSave).toHaveBeenCalled();
     expect(maxInFlight).toBe(1);
+  });
+
+  it('returns failed outcome when on_save rejects while multiple workers are active', async () => {
+    let saveCalls = 0;
+    const onSave = vi.fn(async () => {
+      saveCalls++;
+      if (saveCalls === 1) {
+        await new Promise(resolve => setTimeout(resolve, 5));
+        throw new Error('save boom');
+      }
+    });
+
+    const model = makeModel({
+      embed_batch: vi.fn(async (inputs: any[]) => {
+        await new Promise(resolve => setTimeout(resolve, 5));
+        return inputs.map((input: any, index: number) => ({
+          key: input.key,
+          index: input.index ?? index,
+          vec: [0.1],
+          tokens: 5,
+        }));
+      }),
+    });
+
+    const pipeline = new EmbeddingPipeline(model);
+    const entities = Array.from({ length: 8 }, (_, i) => makeEntity(`note-${i}.md`));
+
+    const stats = await pipeline.process(entities, {
+      batch_size: 1,
+      concurrency: 3,
+      save_interval: 1,
+      on_save: onSave,
+    });
+
+    expect(onSave).toHaveBeenCalled();
+    expect(stats.outcome).toBe('failed');
+    expect(stats.error).toContain('save boom');
+    expect(stats.success + stats.failed + stats.skipped).toBe(8);
+    expect(pipeline.is_active()).toBe(false);
+  });
+});
+
+describe('Batch result integrity', () => {
+  it('fails the run when the adapter returns fewer results than inputs', async () => {
+    const model = makeModel({
+      embed_batch: vi.fn(async (_inputs: any[]) => [{ vec: [0.1], tokens: 5 }]),
+    });
+
+    const pipeline = new EmbeddingPipeline(model);
+    const entities = [makeEntity('a.md'), makeEntity('b.md')];
+
+    const stats = await pipeline.process(entities, {
+      batch_size: 2,
+      max_retries: 0,
+    });
+
+    expect(stats.outcome).toBe('failed');
+    expect(stats.error).toMatch(/returned 1 results for 2 inputs/i);
+    expect(stats.failed).toBe(2);
+  });
+
+  it('fails the run when the adapter returns a mismatched entity identity', async () => {
+    const model = makeModel({
+      embed_batch: vi.fn(async () => [
+        { key: 'wrong.md', index: 0, vec: [0.1], tokens: 5 },
+      ]),
+    });
+
+    const pipeline = new EmbeddingPipeline(model);
+    const entities = [makeEntity('a.md')];
+
+    const stats = await pipeline.process(entities, {
+      batch_size: 1,
+      max_retries: 0,
+    });
+
+    expect(stats.outcome).toBe('failed');
+    expect(stats.error).toMatch(/unknown entity key|identity mismatch/i);
+    expect(stats.failed).toBe(1);
   });
 });

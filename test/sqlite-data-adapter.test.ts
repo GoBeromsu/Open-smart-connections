@@ -9,6 +9,7 @@ vi.mock('sql.js', () => ({
 
 type MockDbPlan = {
   throwOnRunCall?: number;
+  throwOnPrepareCall?: number;
   throwError?: Error;
   throwOnExport?: boolean;
 };
@@ -30,20 +31,30 @@ class MockDatabase {
   }
 
   private throwOnRunCall?: number;
+  private throwOnPrepareCall?: number;
   private throwError?: Error;
   private throwOnExport: boolean;
   runCount = 0;
+  prepareCount = 0;
   closed = false;
 
   constructor(_data?: Uint8Array) {
     const plan = MockDatabase.plans.shift() ?? {};
     this.throwOnRunCall = plan.throwOnRunCall;
+    this.throwOnPrepareCall = plan.throwOnPrepareCall;
     this.throwError = plan.throwError;
     this.throwOnExport = plan.throwOnExport ?? false;
     MockDatabase.instances.push(this);
   }
 
+  private assertOpen(): void {
+    if (this.closed) {
+      throw new Error('closed db');
+    }
+  }
+
   run(_sql: string, _params?: unknown[]): void {
+    this.assertOpen();
     this.runCount += 1;
     if (this.throwOnRunCall === this.runCount) {
       throw this.throwError ?? new Error('mock run failure');
@@ -51,14 +62,21 @@ class MockDatabase {
   }
 
   prepare(_sql: string): MockStatement {
+    this.assertOpen();
+    this.prepareCount += 1;
+    if (this.throwOnPrepareCall === this.prepareCount) {
+      throw this.throwError ?? new Error('mock prepare failure');
+    }
     return new MockStatement();
   }
 
   exec(_sql: string): unknown[] {
+    this.assertOpen();
     return [];
   }
 
   export(): Uint8Array {
+    this.assertOpen();
     if (this.throwOnExport) {
       throw this.throwError ?? new Error('mock export failure');
     }
@@ -94,6 +112,7 @@ function createCollection(entities: any[], initialDeletedKeys: string[] = []) {
   const deleted = new Set(initialDeletedKeys);
   const collection = {
     embed_model_key: 'test-model',
+    create_or_update: vi.fn(),
     get save_queue() {
       return entities.filter((entity) => entity._queue_save);
     },
@@ -195,6 +214,78 @@ describe('SqliteDataAdapter', () => {
 
     await vi.advanceTimersByTimeAsync(30_000);
 
+    expect(MockDatabase.instances).toHaveLength(2);
+    expect(MockDatabase.instances[0].closed).toBe(true);
+
+    await closeSqliteDatabases();
+  });
+
+  it('rebinds queued callers onto the fresh database after recreate', async () => {
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {
+        throwOnRunCall: 2,
+        throwError: new Error('bad parameter or other API misuse'),
+      },
+      {},
+    ]);
+
+    const { collection } = createCollection([]);
+    const vaultAdapter = createVaultAdapter();
+    const adapter = new SqliteDataAdapter(collection, 'smart_blocks', 'test-namespace');
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    const first = makeEntity('first.md');
+    const second = makeEntity('second.md');
+
+    await expect(Promise.all([
+      adapter.save_batch([first] as any),
+      adapter.save_batch([second] as any),
+    ])).resolves.toEqual([undefined, undefined]);
+
+    expect(MockDatabase.instances).toHaveLength(2);
+    expect(MockDatabase.instances[0].closed).toBe(true);
+    expect(MockDatabase.instances[1].runCount).toBeGreaterThan(0);
+
+    await closeSqliteDatabases();
+  });
+
+  it('retries load() after SQLITE_MISUSE on the read path', async () => {
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {
+        throwOnPrepareCall: 1,
+        throwError: new Error('bad parameter or other API misuse'),
+      },
+      {},
+    ]);
+
+    const { collection } = createCollection([]);
+    const vaultAdapter = createVaultAdapter();
+    const adapter = new SqliteDataAdapter(collection, 'smart_blocks', 'test-namespace');
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await expect(adapter.load()).resolves.toBeUndefined();
+    expect(MockDatabase.instances).toHaveLength(2);
+    expect(MockDatabase.instances[0].closed).toBe(true);
+
+    await closeSqliteDatabases();
+  });
+
+  it('retries query_nearest() after SQLITE_MISUSE on the read path', async () => {
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {
+        throwOnPrepareCall: 1,
+        throwError: new Error('bad parameter or other API misuse'),
+      },
+      {},
+    ]);
+
+    const { collection } = createCollection([]);
+    collection.embed_model_dims = 2;
+    const vaultAdapter = createVaultAdapter();
+    const adapter = new SqliteDataAdapter(collection, 'smart_blocks', 'test-namespace');
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await expect(adapter.query_nearest([0.1, 0.2])).resolves.toEqual([]);
     expect(MockDatabase.instances).toHaveLength(2);
     expect(MockDatabase.instances[0].closed).toBe(true);
 

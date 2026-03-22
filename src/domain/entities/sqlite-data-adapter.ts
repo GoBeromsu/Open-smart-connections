@@ -24,6 +24,7 @@ const AUTOSAVE_INTERVAL_MS = 30_000;
 let sqlJsPromise: Promise<typeof import('sql.js').default> | null = null;
 const dbInstances = new Map<string, Promise<SqlJsDatabase>>();
 const dbTeardowns = new Map<string, Promise<void>>();
+const dbOperationChains = new Map<string, Promise<void>>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,7 +117,6 @@ interface DbContext {
   configDir: string;
   pluginId: string;
   autosaveTimer: ReturnType<typeof setInterval> | null;
-  operationChain: Promise<void>;
 }
 
 const dbContexts = new Map<string, DbContext>();
@@ -182,7 +182,16 @@ function ensureSchema(db: SqlJsDatabase): void {
 }
 
 async function persistDb(ctx: DbContext): Promise<void> {
-  await queueDbOperation(ctx, async () => {
+  await queueDbOperation(ctx.key, async () => {
+    try {
+      await assertActiveDbContext(ctx);
+    } catch (error) {
+      if (error instanceof StaleDbContextError) {
+        return;
+      }
+      throw error;
+    }
+
     try {
       await persistDbNow(ctx);
     } catch (err) {
@@ -218,18 +227,35 @@ function getDbContext(storageNamespace: string): DbContext {
   return ctx;
 }
 
+class StaleDbContextError extends Error {
+  constructor() {
+    super('[SQLite] Database context was replaced before the operation ran');
+  }
+}
+
+async function assertActiveDbContext(ctx: DbContext): Promise<void> {
+  const activeCtx = dbContexts.get(ctx.key);
+  if (activeCtx === ctx) return;
+
+  if (!activeCtx) {
+    await awaitDbTeardown(ctx.key);
+  }
+
+  throw new StaleDbContextError();
+}
+
 function queueDbOperation<T>(
-  ctx: DbContext,
+  key: string,
   operation: () => Promise<T> | T,
 ): Promise<T> {
-  const previous = ctx.operationChain ?? Promise.resolve();
+  const previous = dbOperationChains.get(key) ?? Promise.resolve();
   const run = previous
     .catch(() => undefined)
     .then(() => operation());
 
-  ctx.operationChain = run
+  dbOperationChains.set(key, run
     .then(() => undefined)
-    .catch(() => undefined);
+    .catch(() => undefined));
 
   return run;
 }
@@ -322,7 +348,6 @@ async function createDb(
     configDir,
     pluginId,
     autosaveTimer: setInterval(() => persistDb(ctx), AUTOSAVE_INTERVAL_MS),
-    operationChain: Promise.resolve(),
   };
   dbContexts.set(dbKey, ctx);
 
@@ -348,6 +373,12 @@ async function getDb(
   return dbInstances.get(key)!;
 }
 
+function cleanupDbOperationKey(key: string): void {
+  if (!dbContexts.has(key) && !dbTeardowns.has(key)) {
+    dbOperationChains.delete(key);
+  }
+}
+
 /**
  * Persist all databases and clean up timers.
  * Call this on plugin unload.
@@ -355,7 +386,7 @@ async function getDb(
 export async function closeSqliteDatabases(): Promise<void> {
   const contexts = detachDbContexts();
   for (const ctx of contexts) {
-    const teardown = queueDbOperation(ctx, async () => {
+    const teardown = queueDbOperation(ctx.key, async () => {
       try {
         await persistDbNow(ctx);
       } catch (error) {
@@ -368,15 +399,17 @@ export async function closeSqliteDatabases(): Promise<void> {
         console.warn('[SQLite] Failed to close database handle:', error);
       }
     });
+    const barrier = teardown.finally(() => {
+      if (dbTeardowns.get(ctx.key) === barrier) {
+        dbTeardowns.delete(ctx.key);
+      }
+      cleanupDbOperationKey(ctx.key);
+    });
     dbTeardowns.set(
       ctx.key,
-      teardown.finally(() => {
-        if (dbTeardowns.get(ctx.key) === teardown) {
-          dbTeardowns.delete(ctx.key);
-        }
-      }),
+      barrier,
     );
-    await teardown;
+    await barrier;
   }
 }
 
@@ -426,14 +459,16 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
     operation: (db: SqlJsDatabase) => Promise<T> | T,
     retryOnMisuse: boolean = true,
   ): Promise<T> {
-    const db = await this.db();
-    const ctx = getDbContext(this.storage_namespace);
+    const key = toDbKey(this.storage_namespace);
 
-    return queueDbOperation(ctx, async () => {
+    return queueDbOperation(key, async () => {
+      const db = await this.db();
+      const ctx = getDbContext(this.storage_namespace);
+
       try {
         return await operation(db);
       } catch (error) {
-        if (!retryOnMisuse || !isSqliteMisuseError(error)) {
+        if (!retryOnMisuse || !isSqliteMisuseError(error) || dbContexts.get(ctx.key) !== ctx) {
           throw error;
         }
 

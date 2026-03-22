@@ -68,11 +68,16 @@ import type {
 // Core type imports needed for plugin fields
 import type { EmbedModelAdapter } from './types/models';
 import type { SourceCollection, BlockCollection } from './domain/entities';
-import type { EmbeddingPipeline, EmbedQueueStats } from './domain/embedding-pipeline';
+import type {
+  EmbeddingPipeline,
+  EmbedQueueStats,
+  EmbedRunOutcome,
+} from './domain/embedding-pipeline';
 
 export interface EmbeddingRunContext {
   runId: number;
-  phase: 'running' | 'completed' | 'failed';
+  phase: 'running' | 'completed' | 'halted' | 'failed' | 'followup-required';
+  outcome?: EmbedRunOutcome;
   reason: string;
   isChunkedPipeline?: boolean;
   adapter: string;
@@ -87,11 +92,14 @@ export interface EmbeddingRunContext {
   saveCount: number;
   sourceDataDir: string;
   blockDataDir: string;
+  followupQueued?: boolean;
+  error?: string | null;
 }
 
 export interface EmbedProgressEventPayload {
   runId: number;
   phase: EmbeddingRunContext['phase'];
+  outcome?: EmbedRunOutcome;
   reason: string;
   adapter: string;
   modelKey: string;
@@ -108,6 +116,7 @@ export interface EmbedProgressEventPayload {
   startedAt: number;
   elapsedMs: number;
   etaMs: number | null;
+  followupQueued?: boolean;
   done?: boolean;
   error?: string;
 }

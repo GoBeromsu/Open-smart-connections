@@ -83,6 +83,7 @@ function createControlledPipeline() {
       failed: 0,
       skipped: 0,
       duration_ms: 0,
+      outcome: 'completed' as const,
     },
     process: vi.fn(async (entities: any[], opts: any) => {
       pipeline.active = true;
@@ -92,13 +93,16 @@ function createControlledPipeline() {
         failed: 0,
         skipped: 0,
         duration_ms: 0,
+        outcome: 'completed' as const,
       };
       opts.on_progress?.(1, entities.length);
       await gate;
       if (pipeline.halted) {
         pipeline.stats.skipped = Math.max(entities.length - 1, 0);
+        pipeline.stats.outcome = 'halted';
       } else {
         pipeline.stats.success = entities.length;
+        pipeline.stats.outcome = 'completed';
       }
       pipeline.active = false;
       return pipeline.stats;
@@ -161,7 +165,7 @@ describe('SmartConnectionsPlugin embedding control', () => {
     plugin.embedding_pipeline = {
       is_active: vi.fn(() => false),
       halt: vi.fn(),
-      get_stats: vi.fn(() => ({ total: 0, success: 0, failed: 0, skipped: 0 })),
+      get_stats: vi.fn(() => ({ total: 0, success: 0, failed: 0, skipped: 0, duration_ms: 0, outcome: 'completed' })),
     } as any;
 
     plugin.settings.smart_sources.embed_model = {
