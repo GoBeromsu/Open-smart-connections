@@ -19,6 +19,7 @@ type ViewState =
   | { type: 'plugin_loading' }
   | { type: 'model_error' }
   | { type: 'embed_loading' }
+  | { type: 'pending_import'; path: string }
   | { type: 'note_too_short' }
   | { type: 'embedding_in_progress'; path: string }
   | { type: 'no_connections' }
@@ -46,6 +47,8 @@ export class ConnectionsView extends ItemView {
   private progressEl: HTMLElement | null = null;
   private lastRenderedPath: string | null = null;
   private autoEmbedRequestedForPath: string | null = null;
+  private _autoEmbedTimeout: number | null = null;
+  private _needsRefresh = false;
   private _renderGen: number = 0;
   private _lastResultKeys: string[] = [];
 
@@ -116,7 +119,25 @@ export class ConnectionsView extends ItemView {
         if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
           invalidateConnectionsCache(); // Clear all — embeddings changed
           this.autoEmbedRequestedForPath = null;
+          this.clearAutoEmbedTimeout();
           void this.renderView(this.lastRenderedPath);
+        }
+      }),
+    );
+
+    // Live progress updates from the embedding pipeline (fires ~1/sec)
+    this.registerEvent(
+      this.app.workspace.on('smart-connections:embed-progress' as any, () => {
+        this.updateProgressBanner();
+      }),
+    );
+
+    // Re-render when sidebar is revealed after being hidden
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        if (this._needsRefresh && typeof this.container?.checkVisibility === 'function' && this.container.checkVisibility()) {
+          this._needsRefresh = false;
+          void this.renderView(this.lastRenderedPath ?? undefined);
         }
       }),
     );
@@ -128,6 +149,7 @@ export class ConnectionsView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.clearAutoEmbedTimeout();
     this.container?.empty();
   }
 
@@ -144,10 +166,14 @@ export class ConnectionsView extends ItemView {
 
     const allFileBlocks = this.plugin.block_collection.for_source(targetPath);
     if (allFileBlocks.length === 0) {
+      // Distinguish "not imported yet" from "actually too short"
+      if (this.plugin.pendingReImportPaths.has(targetPath)) {
+        return { type: 'pending_import', path: targetPath };
+      }
       return { type: 'note_too_short' };
     }
 
-    const embedded = allFileBlocks.filter(b => b.vec);
+    const embedded = allFileBlocks.filter(b => b.has_embed());
     if (embedded.length === 0) {
       this.autoQueueBlockEmbedding(allFileBlocks);
       return { type: 'embedding_in_progress', path: targetPath };
@@ -174,6 +200,9 @@ export class ConnectionsView extends ItemView {
       case 'embed_loading':
         this.showLoading('Smart Connections is loading... Connections will appear when embedding is complete.');
         break;
+      case 'pending_import':
+        this.showLoading('Importing note... Connections will appear when embedding is complete.');
+        break;
       case 'note_too_short':
         this.showEmpty('Note is too short to find connections.');
         break;
@@ -192,7 +221,10 @@ export class ConnectionsView extends ItemView {
   async renderView(targetPath?: string): Promise<void> {
     const gen = ++this._renderGen;
     if (!this.container) return;
-    if (typeof this.container.checkVisibility === 'function' && !this.container.checkVisibility()) return;
+    if (typeof this.container.checkVisibility === 'function' && !this.container.checkVisibility()) {
+      this._needsRefresh = true;
+      return;
+    }
 
     if (!targetPath) {
       targetPath = this.app.workspace.getActiveFile()?.path;
@@ -218,35 +250,45 @@ export class ConnectionsView extends ItemView {
    * Queue a list of blocks for embedding via the job queue.
    */
   private enqueueBlocksForEmbedding(blocks: EmbeddingBlock[]): void {
-    const now = Date.now();
     for (const block of blocks) {
       block.queue_embed();
-      if (!block._queue_embed) continue;
-      this.plugin.embed_job_queue?.enqueue({
-        entityKey: block.key,
-        contentHash: block.read_hash || '',
-        sourcePath: block.source_key,
-        enqueuedAt: now,
-      });
+    }
+  }
+
+  private clearAutoEmbedTimeout(): void {
+    if (this._autoEmbedTimeout !== null) {
+      window.clearTimeout(this._autoEmbedTimeout);
+      this._autoEmbedTimeout = null;
     }
   }
 
   /**
    * Auto-queue unembedded blocks for a file.
    * Fire-and-forget — the view will auto-refresh on RUN_FINISHED.
+   * Falls back to a 30s timeout to recover from silent failures.
    */
   private autoQueueBlockEmbedding(blocks: EmbeddingBlock[]): void {
     if (!this.plugin.embed_ready) return;
     const firstKey = blocks[0]?.key;
     if (!firstKey) return;
-    if (this.autoEmbedRequestedForPath === firstKey.split('#')[0]) return;
-    this.autoEmbedRequestedForPath = firstKey.split('#')[0];
+    const sourcePath = firstKey.split('#')[0];
+    if (this.autoEmbedRequestedForPath === sourcePath) return;
+    this.autoEmbedRequestedForPath = sourcePath;
+    this.clearAutoEmbedTimeout();
     try {
       this.enqueueBlocksForEmbedding(blocks);
       void this.plugin.runEmbeddingJob('Auto embed blocks for connections view');
     } catch (error) {
       console.warn('[SC] Auto-queue block embedding failed (non-critical):', error);
     }
+    // Safety timeout: if no embed-state-changed arrives within 30s, re-derive state
+    this._autoEmbedTimeout = window.setTimeout(() => {
+      this._autoEmbedTimeout = null;
+      if (this.autoEmbedRequestedForPath === sourcePath) {
+        this.autoEmbedRequestedForPath = null;
+        void this.renderView(this.lastRenderedPath ?? undefined);
+      }
+    }, 30000);
   }
 
   private addBanner(message: string): void {

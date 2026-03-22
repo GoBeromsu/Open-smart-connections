@@ -38,7 +38,6 @@ function createPluginStub() {
       nearest: vi.fn(async () => []),
     },
     open_note: vi.fn(),
-    embed_job_queue: null,
     runEmbeddingJob: vi.fn(async () => ({})),
     getActiveEmbeddingContext: vi.fn(() => null),
     current_embed_context: null,
@@ -49,6 +48,7 @@ function createPluginStub() {
       },
     })),
     reembedStaleEntities: vi.fn(async () => 0),
+    pendingReImportPaths: new Set<string>(),
   } as any;
 }
 
@@ -104,6 +104,7 @@ describe('ConnectionsView rendering states', () => {
       source_key: 'note.md',
       vec: [1, 2, 3],
       is_unembedded: false,
+      has_embed: () => true,
     };
     plugin.block_collection.all = [embeddedBlock];
     plugin.block_collection.nearest = vi.fn(async () => [
@@ -126,11 +127,11 @@ describe('ConnectionsView rendering states', () => {
       source_key: 'note.md',
       vec: null,
       is_unembedded: true,
+      has_embed: () => false,
       queue_embed: vi.fn(),
       _queue_embed: false,
     };
     plugin.block_collection.all = [unembeddedBlock];
-    plugin.embed_job_queue = { enqueue: vi.fn() };
     plugin.runEmbeddingJob = vi.fn(async () => ({}));
 
     const view = new ConnectionsView({} as any, plugin);

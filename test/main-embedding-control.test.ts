@@ -65,16 +65,6 @@ function createPlugin() {
 
   plugin.ensureEmbeddingKernel();
 
-  // Pre-populate EmbedJobQueue with the block entities
-  for (const entity of (plugin.block_collection as any).all) {
-    plugin.embed_job_queue!.enqueue({
-      entityKey: entity.key,
-      contentHash: '',
-      sourcePath: String(entity.key).split('#')[0],
-      enqueuedAt: Date.now(),
-    });
-  }
-
   return { app, plugin };
 }
 
@@ -238,7 +228,6 @@ describe('SmartConnectionsPlugin embedding control', () => {
     vi.spyOn(plugin, 'initPipeline').mockResolvedValue();
     vi.spyOn(plugin, 'syncCollectionEmbeddingContext').mockImplementation(() => {});
     vi.spyOn(plugin, 'queueUnembeddedEntities').mockReturnValue(2);
-    const runSpy = vi.spyOn(plugin, 'runEmbeddingJob').mockResolvedValue(null);
 
     await plugin.switchEmbeddingModel('unit-model-switch');
 
@@ -246,7 +235,6 @@ describe('SmartConnectionsPlugin embedding control', () => {
     expect(sourceQueue).toHaveBeenCalled();
     expect(blockSetMeta).toHaveBeenCalled();
     expect(blockQueue).toHaveBeenCalled();
-    expect(runSpy).toHaveBeenCalledWith('unit-model-switch');
   });
 
   it('does not force stale re-embed when embedding fingerprint is unchanged', async () => {

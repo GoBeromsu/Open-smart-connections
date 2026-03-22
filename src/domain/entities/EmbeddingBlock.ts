@@ -44,12 +44,6 @@ export class EmbeddingBlock extends EmbeddingEntity {
     }
   }
 
-  queue_embed(): void {
-    if (this.should_embed && this.is_unembedded) {
-      this._queue_embed = true;
-    }
-  }
-
   /**
    * Read block content from source
    */
