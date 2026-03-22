@@ -11,7 +11,7 @@ export default {
     pushBranches: ['main'],
   },
   version: {
-    stageFiles: ['manifest.json', 'versions.json'],
+    stageFiles: ['package.json', 'manifest.json', 'versions.json'],
   },
   release: {
     pluginName: 'open-smart-connections',
