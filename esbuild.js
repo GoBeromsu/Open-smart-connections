@@ -119,8 +119,7 @@ const markdown_plugin = {
     });
   }
 };
-const worker_path = path.join(process.cwd(), 'dist', 'embed-worker.js');
-const release_file_paths = [manifest_path, styles_path, main_path, worker_path, sqlWasmDest];
+const release_file_paths = [manifest_path, styles_path, main_path, sqlWasmDest];
 
 function copy_output_plugin() {
   return {
@@ -141,10 +140,6 @@ function copy_output_plugin() {
           fs.mkdirSync(destDir, { recursive: true });
           for (const file_path of release_file_paths) {
             fs.copyFileSync(file_path, path.join(destDir, path.basename(file_path)));
-          }
-          // Copy worker file if it exists
-          if (fs.existsSync(worker_path)) {
-            fs.copyFileSync(worker_path, path.join(destDir, path.basename(worker_path)));
           }
           // Touch hot reload marker on every successful build.
           fs.writeFileSync(path.join(destDir, '.hotreload'), String(Date.now()));

@@ -35,7 +35,6 @@ import {
   loadCollections as _loadCollections,
   processNewSourcesChunked as _processNewSourcesChunked,
   queueUnembeddedEntities as _queueUnembeddedEntities,
-  getEmbeddingQueueSnapshot as _getEmbeddingQueueSnapshot,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
   getEmbedAdapterSettings as _getEmbedAdapterSettings,
 } from './ui/collection-loader';
@@ -52,7 +51,6 @@ import {
   initPipeline as _initPipeline,
   switchEmbeddingModel as _switchEmbeddingModel,
   runEmbeddingJob as _runEmbeddingJob,
-  runEmbeddingJobImmediate as _runEmbeddingJobImmediate,
   reembedStaleEntities as _reembedStaleEntities,
   getCurrentModelInfo as _getCurrentModelInfo,
   getActiveEmbeddingContext as _getActiveEmbeddingContext,
@@ -65,7 +63,6 @@ import {
 import type {
   EmbeddingKernelJob,
 } from './domain/embedding/kernel/types';
-import { EmbedJobQueue } from './domain/embedding/embed-job-queue';
 
 // Core type imports needed for plugin fields
 import type { EmbedModelAdapter } from './types/models';
@@ -121,11 +118,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   status_container?: HTMLElement;
   status_msg?: HTMLElement;
   re_import_timeout?: number;
-  re_import_retry_timeout?: number;
-  re_import_halted = false;
-  _defer_retry_count = 0;
   _unloading = false;
-  _chunked_pipeline_active = false;
   _installed_at: number | null = null;
   readonly logger = new PluginLogger('Open Connections');
 
@@ -144,7 +137,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   embed_notice_last_percent = 0;
   current_embed_context: EmbeddingRunContext | null = null;
   embedding_job_queue?: EmbeddingKernelJobQueue;
-  embed_job_queue?: EmbedJobQueue;
+  pendingReImportPaths = new Set<string>();
   private _embed_state: { phase: 'idle' | 'running' | 'error'; modelFingerprint: string | null; lastError: string | null } = {
     phase: 'idle',
     modelFingerprint: null,
@@ -251,7 +244,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
       // Find embedded blocks for this file and average their vectors
       const fileBlocks = this.block_collection.all.filter(
-        (b: any) => b.source_key === activeFile.path && b.vec,
+        (b: any) => b.source_key === activeFile.path && b.has_embed(),
       );
       if (fileBlocks.length === 0) {
         el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
@@ -299,7 +292,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async initialize(): Promise<void> {
-    const t0 = performance.now();
     console.log('[SC][Init] ▶ Initialization starting');
 
     // Phase 1: Core init (blocking)
@@ -307,105 +299,62 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Phase 2: Embedding (background, fire-and-forget)
     this.initializeEmbedding().then(() => {
-      // Handle new user after everything is loaded
       this.handleNewUser();
-      // Update check removed — interrupting user focus is a bad pattern.
-      // Users get updates via BRAT or manual check.
     }).catch(e => {
       console.error('Background embedding init failed:', e);
     });
-
-    console.log(`[SC][Init] ✓ Core ready, embedding loading in background (${(performance.now() - t0).toFixed(0)}ms)`);
   }
 
   async initializeCore(): Promise<void> {
-    const phase1Start = performance.now();
-    console.log('[SC][Init] ▶ Phase 1: Core initialization starting');
+    const t0 = performance.now();
+    console.log('[SC][Init] ▶ Phase 1: Core initialization');
 
-    const TOTAL = 5;
-    let step = 0;
-
-    // Setup status bar first so users see feedback during the rest of init
     this.setupStatusBar();
 
-    /**
-     * Run an init step with timing and error capture.
-     * Returns true on success, false on failure.
-     * If `critical` is true, failure should abort the phase (caller checks return value).
-     */
     const runStep = async (
       name: string,
       fn: () => void | Promise<void>,
-      opts?: { critical?: boolean; onSuccess?: () => string | undefined },
+      critical = false,
     ): Promise<boolean> => {
-      step++;
-      const tag = `[${step}/${TOTAL}]`;
-      console.log(`[SC][Init]   ${tag} ${name}...`);
-      const t = performance.now();
       try {
         await fn();
-        const extra = opts?.onSuccess?.();
-        console.log(`[SC][Init]   ${tag} ${name} ✓ (${(performance.now() - t).toFixed(0)}ms)${extra ? ` — ${extra}` : ''}`);
         return true;
       } catch (e) {
         this.init_errors.push({ phase: name, error: e as Error });
-        console.error(`[SC][Init]   ${tag} ${name} ✗ (${(performance.now() - t).toFixed(0)}ms):`, e);
-        if (opts?.critical) {
+        console.error(`[SC][Init] ${name} failed:`, e);
+        if (critical) {
           this.ready = false;
           this.setEmbedPhase('error', { error: `Failed: ${name}` });
-          console.log(`[SC][Init] ✗ Phase 1 aborted (${(performance.now() - phase1Start).toFixed(0)}ms): ${name} failed`);
         }
         return false;
       }
     };
 
-    await runStep('Loading user state', () => this.loadUserState());
-    await runStep('Waiting for sync', () => this.waitForSync());
-
-    if (!await runStep('Initializing collections', () => this.initCollections(), { critical: true })) return;
-    if (!await runStep('Loading collections', () => this.loadCollections(), {
-      critical: true,
-      onSuccess: () => {
-        const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
-        const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;
-        return `${sourceCount} sources, ${blockCount} blocks`;
-      },
-    })) return;
-
-    await runStep('Registering file watchers', () => this.registerFileWatchers());
+    await runStep('Load user state', () => this.loadUserState());
+    await runStep('Wait for sync', () => this.waitForSync());
+    if (!await runStep('Init collections', () => this.initCollections(), true)) return;
+    if (!await runStep('Load collections', () => this.loadCollections(), true)) return;
+    await runStep('Register file watchers', () => this.registerFileWatchers());
 
     this.ready = true;
     this.app.workspace.trigger('smart-connections:core-ready' as any);
-    console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - phase1Start).toFixed(0)}ms) — ready=${this.ready}, errors=${this.init_errors.length}`);
 
-    if (this.init_errors.length > 0) {
-      console.warn('[SC][Init]   Phase 1 errors:', this.init_errors);
-    }
+    const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
+    const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;
+    console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - t0).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`);
   }
 
   async initializeEmbedding(): Promise<void> {
     const t0 = performance.now();
-    let modelId = 'unknown';
+    console.log('[SC][Init] ▶ Phase 2: Embedding initialization');
     try {
-      const es = this.settings.smart_sources.embed_model;
-      const as_ = this.getEmbedAdapterSettings(es);
-      modelId = `${es.adapter}/${as_.model_key || '?'}`;
-    } catch { /* use default 'unknown' */ }
-    console.log(`[SC][Init] ▶ Phase 2: Embedding initialization starting (model: ${modelId})`);
-    try {
-      // Step 1: Load model + handle stale existing entities (modified since last run)
       await this.switchEmbeddingModel('Initial embedding setup');
-
-      // Step 2: Chunk-based discovery + embedding for new files not yet in DB
       await _processNewSourcesChunked(this);
-
       console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
-      console.error(`[SC][Init] ✗ Phase 2 failed (${(performance.now() - t0).toFixed(0)}ms): ${e instanceof Error ? e.message : String(e)}`);
+      console.error('[SC][Init] ✗ Phase 2 failed:', e);
       this.setEmbedPhase('error', { error: e instanceof Error ? e.message : String(e) });
-
-      // Don't rethrow — Phase 1 is already working
     }
   }
 
@@ -531,7 +480,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   syncCollectionEmbeddingContext(): void { _syncCollectionEmbeddingContext(this); }
   getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> { return _getEmbedAdapterSettings(embedSettings); }
   queueUnembeddedEntities(): number { return _queueUnembeddedEntities(this); }
-  getEmbeddingQueueSnapshot(): EmbeddingKernelQueueSnapshot { return _getEmbeddingQueueSnapshot(this); }
   async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
   async switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> { return _switchEmbeddingModel(this, reason); }
 
@@ -540,7 +488,6 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initPipeline(): Promise<void> { return _initPipeline(this); }
   async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
-  async runEmbeddingJobImmediate(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJobImmediate(this, reason); }
 
   registerFileWatchers(): void { _registerFileWatchers(this); }
   isSourceFile(file: TFile): boolean { return _isSourceFile(file); }
@@ -556,7 +503,6 @@ export default class SmartConnectionsPlugin extends Plugin {
   ensureEmbeddingKernel(): void {
     if (this.embedding_job_queue) return;
     this.embedding_job_queue = new EmbeddingKernelJobQueue();
-    this.embed_job_queue = new EmbedJobQueue();
   }
 
   enqueueEmbeddingJob<T = unknown>(job: EmbeddingKernelJob<T>): Promise<T> {
@@ -587,14 +533,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.clearEmbedNotice();
     this._notices?.unload();
     this.embedding_job_queue?.clear('Plugin unload');
-    this.embed_job_queue?.clear();
 
     // Clear timeouts
     if (this.re_import_timeout) {
       window.clearTimeout(this.re_import_timeout);
-    }
-    if (this.re_import_retry_timeout) {
-      window.clearTimeout(this.re_import_retry_timeout);
     }
 
     // Unload search model adapter if separate from indexing

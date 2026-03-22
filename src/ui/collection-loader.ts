@@ -5,7 +5,6 @@
 
 import type SmartConnectionsPlugin from '../main';
 import { SourceCollection, BlockCollection } from '../domain/entities';
-import type { EmbeddingKernelQueueSnapshot } from '../domain/embedding/kernel/types';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
@@ -62,14 +61,12 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
       throw new Error('Collections must be initialized before loading');
     }
 
-    const t = performance.now();
     await Promise.all([
       plugin.source_collection.data_adapter.load(),
       plugin.block_collection.data_adapter.load(),
     ]);
     plugin.source_collection.loaded = true;
     plugin.block_collection.loaded = true;
-    console.log(`[SC][Init]   [collections] Loading sources + blocks ✓ (${(performance.now() - t).toFixed(0)}ms)`);
 
     plugin.source_collection._initializing = false;
   } catch (error) {
@@ -82,6 +79,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
 /**
  * Unified chunked pipeline: discover + embed + save per chunk of new files.
  * Must be called AFTER the embedding model and pipeline are initialized.
+ * Runs OUTSIDE the kernel queue, so uses runEmbeddingJob (through queue) to avoid deadlock.
  */
 export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): Promise<void> {
   if (!plugin.source_collection?.vault || !plugin.block_collection) return;
@@ -91,67 +89,52 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
   if (newFiles.length === 0) return;
 
-  plugin._chunked_pipeline_active = true;
   const chunkSize = plugin.settings.discovery_chunk_size || 1000;
   const total = newFiles.length;
 
-  try {
-    for (let i = 0; i < total; i += chunkSize) {
+  for (let i = 0; i < total; i += chunkSize) {
+    if (plugin._unloading) return;
+    const chunk = newFiles.slice(i, i + chunkSize);
+
+    for (const file of chunk) {
       if (plugin._unloading) return;
-      const chunk = newFiles.slice(i, i + chunkSize);
-
-      for (const file of chunk) {
-        if (plugin._unloading) return;
-        try {
-          await plugin.source_collection.import_source(file);
-        } catch (err) {
-          console.warn(`[SC] Failed to import ${file.path}:`, err);
-        }
-      }
-
-      await plugin.source_collection.data_adapter.save();
-      await plugin.block_collection.data_adapter.save();
-
-      const chunkQueued = queueUnembeddedEntities(plugin);
-      const processed = Math.min(i + chunkSize, total);
-
-      if (chunkQueued > 0 && plugin.embedding_pipeline) {
-        await plugin.runEmbeddingJobImmediate(`[chunked-pipeline] ${processed}/${total}`);
-      }
-
-      console.log(`[SC] Processed ${processed}/${total} files`);
-      plugin.refreshStatus?.();
-      await new Promise(r => setTimeout(r, 0));
-    }
-
-    if (!plugin._unloading) {
-      const remaining = queueUnembeddedEntities(plugin);
-      if (remaining > 0 && plugin.embedding_pipeline) {
-        console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
-        await plugin.runEmbeddingJobImmediate('[chunked-pipeline] final sweep');
-      }
-      // Preserve source-level re-import paths queued during chunked processing,
-      // then clear only block-level embed jobs (which are done).
-      const pendingReimports = plugin.embed_job_queue?.toArray().filter(j => !j.entityKey.includes('#')) ?? [];
-      plugin.embed_job_queue?.clear();
-      // Re-queue source paths so post-chunked re-import can process them
-      for (const j of pendingReimports) {
-        plugin.embed_job_queue?.enqueue(j);
+      try {
+        await plugin.source_collection.import_source(file);
+      } catch (err) {
+        console.warn(`[SC] Failed to import ${file.path}:`, err);
       }
     }
 
-    console.log(`[SC] All ${total} new files processed`);
-  } finally {
-    plugin._chunked_pipeline_active = false;
-    // If source paths were queued during chunked processing, trigger re-import
-    if (!plugin._unloading) {
-      const { debounceReImport } = await import('./file-watcher');
-      const pending = plugin.embed_job_queue?.toArray().filter(j => !j.entityKey.includes('#')) ?? [];
-      if (pending.length > 0) {
-        console.log(`[SC] Post-chunked: ${pending.length} source paths need re-import`);
-        debounceReImport(plugin);
-      }
+    await plugin.source_collection.data_adapter.save();
+    await plugin.block_collection.data_adapter.save();
+
+    const chunkQueued = queueUnembeddedEntities(plugin);
+    const processed = Math.min(i + chunkSize, total);
+
+    if (chunkQueued > 0 && plugin.embedding_pipeline) {
+      await plugin.runEmbeddingJob(`[chunked-pipeline] ${processed}/${total}`);
     }
+
+    console.log(`[SC] Processed ${processed}/${total} files`);
+    plugin.refreshStatus?.();
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  if (!plugin._unloading) {
+    const remaining = queueUnembeddedEntities(plugin);
+    if (remaining > 0 && plugin.embedding_pipeline) {
+      console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
+      await plugin.runEmbeddingJob('[chunked-pipeline] final sweep');
+    }
+  }
+
+  console.log(`[SC] All ${total} new files processed`);
+
+  // If file changes were collected during chunked processing, trigger re-import
+  if (!plugin._unloading && plugin.pendingReImportPaths.size > 0) {
+    const { debounceReImport } = await import('./file-watcher');
+    console.log(`[SC] Post-chunked: ${plugin.pendingReImportPaths.size} source paths need re-import`);
+    debounceReImport(plugin);
   }
 }
 
@@ -159,50 +142,15 @@ export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number 
   if (!plugin.block_collection) return 0;
 
   let queued = 0;
-  const now = Date.now();
 
   for (const block of plugin.block_collection.all) {
     if (!block.is_unembedded) continue;
     block.queue_embed();
     if (!block._queue_embed) continue;
-
-    plugin.embed_job_queue?.enqueue({
-      entityKey: block.key,
-      contentHash: block.read_hash || '',
-      sourcePath: String(block.key || '').split('#')[0],
-      enqueuedAt: now,
-    });
     queued++;
   }
 
   return queued;
-}
-
-export function getEmbeddingQueueSnapshot(plugin: SmartConnectionsPlugin): EmbeddingKernelQueueSnapshot {
-  let staleTotal = 0;
-  let staleEmbeddableTotal = 0;
-
-  const queuedTotal = plugin.embed_job_queue?.size() ?? 0;
-
-  for (const source of plugin.source_collection?.all || []) {
-    if (source?.is_unembedded) {
-      staleTotal += 1;
-      if (source.should_embed) staleEmbeddableTotal += 1;
-    }
-  }
-  for (const block of plugin.block_collection?.all || []) {
-    if (block?.is_unembedded) {
-      staleTotal += 1;
-      if (block.should_embed) staleEmbeddableTotal += 1;
-    }
-  }
-
-  return {
-    pendingJobs: plugin.embedding_job_queue?.size?.() ?? 0,
-    staleTotal,
-    staleEmbeddableTotal,
-    queuedTotal,
-  };
 }
 
 export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): void {
