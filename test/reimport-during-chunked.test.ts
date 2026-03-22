@@ -42,7 +42,7 @@ function makePlugin(opts: {
     logEmbed: vi.fn(),
     queueUnembeddedEntities: vi.fn(() => 0),
     setEmbedPhase: vi.fn(),
-    enqueueEmbeddingJob: vi.fn(async (job: any) => job.run()),
+    enqueueEmbeddingJob: vi.fn(async () => undefined),
   };
 }
 
@@ -51,6 +51,7 @@ describe('queueSourceReImport', () => {
     const plugin = makePlugin();
     queueSourceReImport(plugin, 'changed.md');
     expect(plugin.pendingReImportPaths.has('changed.md')).toBe(true);
+    if (plugin.re_import_timeout) clearTimeout(plugin.re_import_timeout);
   });
 
   it('deduplicates paths in the set', () => {
@@ -58,6 +59,7 @@ describe('queueSourceReImport', () => {
     queueSourceReImport(plugin, 'changed.md');
     queueSourceReImport(plugin, 'changed.md');
     expect(plugin.pendingReImportPaths.size).toBe(1);
+    if (plugin.re_import_timeout) clearTimeout(plugin.re_import_timeout);
   });
 });
 

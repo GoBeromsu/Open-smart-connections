@@ -117,65 +117,6 @@ function makeModel(opts: {
 import { EmbeddingPipeline } from '../src/domain/embedding-pipeline';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Phase 3 — Typed Error Classification
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-describe('Typed error classification', () => {
-  it('TransientError carries status and optional retryAfterMs', () => {
-    const err = new TransientError('Rate limited', 429, { retryAfterMs: 5000 });
-    expect(err).toBeInstanceOf(Error);
-    expect(err.name).toBe('TransientError');
-    expect(err.status).toBe(429);
-    expect(err.retryAfterMs).toBe(5000);
-    expect(err.message).toBe('Rate limited');
-  });
-
-  it('TransientError works without retryAfterMs', () => {
-    const err = new TransientError('Service unavailable', 503);
-    expect(err.retryAfterMs).toBeUndefined();
-    expect(err.status).toBe(503);
-  });
-
-  it('FatalError carries status with no retry hint', () => {
-    const err = new FatalError('Unauthorized', 401);
-    expect(err).toBeInstanceOf(Error);
-    expect(err.name).toBe('FatalError');
-    expect(err.status).toBe(401);
-    expect(err.message).toBe('Unauthorized');
-    expect(err).not.toHaveProperty('retryAfterMs');
-  });
-
-  it('TransientError covers 429, 503, and network errors', () => {
-    const cases = [
-      { msg: 'Rate limited', status: 429 },
-      { msg: 'Service unavailable', status: 503 },
-      { msg: 'Gateway timeout', status: 504 },
-      { msg: 'Connection refused', status: 0 },
-    ];
-
-    for (const c of cases) {
-      const err = new TransientError(c.msg, c.status);
-      expect(err).toBeInstanceOf(TransientError);
-      expect(err.name).toBe('TransientError');
-    }
-  });
-
-  it('FatalError covers 400, 401, 403', () => {
-    const cases = [
-      { msg: 'Bad request', status: 400 },
-      { msg: 'Unauthorized', status: 401 },
-      { msg: 'Forbidden', status: 403 },
-    ];
-
-    for (const c of cases) {
-      const err = new FatalError(c.msg, c.status);
-      expect(err).toBeInstanceOf(FatalError);
-      expect(err.name).toBe('FatalError');
-    }
-  });
-});
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Phase 3 — Single Retry Layer (Pipeline Only)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

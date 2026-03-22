@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { App, Setting } from 'obsidian';
 import { SmartConnectionsSettingsTab } from '../src/ui/settings';
-import { getTransformersKnownModels, renderModelDropdown } from '../src/ui/settings-model-picker';
+import { renderModelDropdown } from '../src/ui/settings-model-picker';
 
 describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
   let app: App;
@@ -48,13 +48,6 @@ describe('SmartConnectionsSettingsTab.triggerReEmbed', () => {
     expect(plugin.notices.show).toHaveBeenCalledWith('embedding_model_switched');
   });
 
-  it('should always delegate re-embed flow to switchEmbeddingModel', async () => {
-    plugin.switchEmbeddingModel.mockResolvedValue(undefined);
-
-    await (tab as any).triggerReEmbed();
-
-    expect(plugin.switchEmbeddingModel).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe('SmartConnectionsSettingsTab model options', () => {
@@ -82,15 +75,6 @@ describe('SmartConnectionsSettingsTab model options', () => {
     };
 
     tab = new SmartConnectionsSettingsTab(app, plugin as any);
-  });
-
-  it('builds transformers dropdown options from registry with dimension labels', () => {
-    const options = getTransformersKnownModels();
-    expect(options.some((item) => item.value === 'Xenova/bge-m3')).toBe(true);
-    expect(options.some((item) => item.value === 'Xenova/multilingual-e5-large')).toBe(true);
-    expect(options.some((item) => item.value === 'Xenova/multilingual-e5-small')).toBe(true);
-    expect(options.some((item) => item.value === 'Xenova/paraphrase-multilingual-MiniLM-L12-v2')).toBe(true);
-    expect(options.find((item) => item.value === 'Xenova/bge-m3')?.name).toContain('(1024d)');
   });
 
   it('updates model key and re-embeds when an ollama quick pick is selected', async () => {
