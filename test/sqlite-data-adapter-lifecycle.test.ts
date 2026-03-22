@@ -64,7 +64,7 @@ afterEach(async () => {
 });
 
 describe('SQLite adapter lifecycle', () => {
-  it('detaches singleton DB state before awaiting persistence during close', async () => {
+  it('waits for the prior database teardown before reopening the same DB key', async () => {
     initSqlJs.mockResolvedValue({ Database: MockDatabase } as any);
 
     let writeCount = 0;
@@ -103,11 +103,15 @@ describe('SQLite adapter lifecycle', () => {
     const closePromise = closeSqliteDatabases();
 
     const secondAdapter = createAdapter();
-    await secondAdapter.save_batch([makeEntity('second-note.md') as any]);
+    const secondSave = secondAdapter.save_batch([makeEntity('second-note.md') as any]);
 
-    expect(dbConstructCount).toBe(2);
+    await Promise.resolve();
+    expect(dbConstructCount).toBe(1);
 
     firstWrite.resolve();
     await closePromise;
+    await secondSave;
+
+    expect(dbConstructCount).toBe(2);
   });
 });

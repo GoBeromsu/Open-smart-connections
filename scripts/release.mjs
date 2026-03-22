@@ -21,6 +21,21 @@ function run(command, args) {
   }
 }
 
+function requireCleanWorktree() {
+  const result = spawnSync('git', ['status', '--short'], { encoding: 'utf8' });
+  if (result.error) {
+    console.error(`Failed to check git status: ${result.error.message}`);
+    process.exit(1);
+  }
+  if ((result.status ?? 0) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+  if (result.stdout.trim().length > 0) {
+    console.error('Release requires a clean git worktree.');
+    process.exit(1);
+  }
+}
+
 const level = process.argv[2];
 if (!RELEASE_LEVELS.has(level)) {
   console.error(`Usage: node scripts/release.mjs <patch|minor|major>`);
@@ -29,6 +44,7 @@ if (!RELEASE_LEVELS.has(level)) {
 
 const pnpm = getPnpmCommand();
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+requireCleanWorktree();
 if (pkg.scripts?.['sync:check']) {
   run(pnpm, ['sync:check']);
 }
@@ -46,4 +62,4 @@ if (fs.existsSync('manifest.json')) {
   }
 }
 
-run(pnpm, ['version', level]);
+run(pnpm, ['version', level, '-m', 'chore(release): %s']);

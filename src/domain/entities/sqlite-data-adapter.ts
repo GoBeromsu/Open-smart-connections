@@ -23,6 +23,7 @@ const AUTOSAVE_INTERVAL_MS = 30_000;
 
 let sqlJsPromise: Promise<typeof import('sql.js').default> | null = null;
 const dbInstances = new Map<string, Promise<SqlJsDatabase>>();
+const dbTeardowns = new Map<string, Promise<void>>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,6 +109,7 @@ function getEntityType(collectionKey: string): 'source' | 'block' {
 
 interface DbContext {
   key: string;
+  storageNamespace: string;
   db: SqlJsDatabase;
   dbPath: string;
   vaultAdapter: any; // Obsidian DataAdapter
@@ -184,6 +186,20 @@ async function persistDb(ctx: DbContext): Promise<void> {
     try {
       await persistDbNow(ctx);
     } catch (err) {
+      if (isSqliteMisuseError(err) && dbContexts.get(ctx.key) === ctx) {
+        console.warn('[SQLite] Recreating unusable database handle after SQLITE_MISUSE during persist');
+        try {
+          await recreateDb(
+            ctx.storageNamespace,
+            ctx.vaultAdapter,
+            ctx.configDir,
+            ctx.pluginId,
+          );
+          return;
+        } catch (recreateError) {
+          console.error('[SQLite] Failed to recreate database handle after persist error:', recreateError);
+        }
+      }
       console.error('[SQLite] Failed to persist database:', err);
     }
   });
@@ -222,6 +238,12 @@ async function persistDbNow(ctx: DbContext): Promise<void> {
   const data = ctx.db.export();
   const buffer = Buffer.from(data);
   await ctx.vaultAdapter.writeBinary(ctx.dbPath, buffer);
+}
+
+async function awaitDbTeardown(key: string): Promise<void> {
+  const pending = dbTeardowns.get(key);
+  if (!pending) return;
+  await pending.catch(() => undefined);
 }
 
 async function recreateDb(
@@ -293,6 +315,7 @@ async function createDb(
   // Set up autosave and context
   const ctx: DbContext = {
     key: dbKey,
+    storageNamespace,
     db,
     dbPath,
     vaultAdapter,
@@ -317,7 +340,10 @@ async function getDb(
     if (!vaultAdapter || !configDir || !pluginId) {
       throw new Error('[SQLite] Cannot create DB without vault adapter context');
     }
-    dbInstances.set(key, createDb(storageNamespace, vaultAdapter, configDir, pluginId));
+    dbInstances.set(key, (async () => {
+      await awaitDbTeardown(key);
+      return createDb(storageNamespace, vaultAdapter, configDir, pluginId);
+    })());
   }
   return dbInstances.get(key)!;
 }
@@ -329,7 +355,7 @@ async function getDb(
 export async function closeSqliteDatabases(): Promise<void> {
   const contexts = detachDbContexts();
   for (const ctx of contexts) {
-    await queueDbOperation(ctx, async () => {
+    const teardown = queueDbOperation(ctx, async () => {
       try {
         await persistDbNow(ctx);
       } catch (error) {
@@ -342,6 +368,15 @@ export async function closeSqliteDatabases(): Promise<void> {
         console.warn('[SQLite] Failed to close database handle:', error);
       }
     });
+    dbTeardowns.set(
+      ctx.key,
+      teardown.finally(() => {
+        if (dbTeardowns.get(ctx.key) === teardown) {
+          dbTeardowns.delete(ctx.key);
+        }
+      }),
+    );
+    await teardown;
   }
 }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { EntityData } from '../src/types/entities';
 
 const initSqlJsMock = vi.fn();
@@ -10,6 +10,7 @@ vi.mock('sql.js', () => ({
 type MockDbPlan = {
   throwOnRunCall?: number;
   throwError?: Error;
+  throwOnExport?: boolean;
 };
 
 class MockStatement {
@@ -30,6 +31,7 @@ class MockDatabase {
 
   private throwOnRunCall?: number;
   private throwError?: Error;
+  private throwOnExport: boolean;
   runCount = 0;
   closed = false;
 
@@ -37,6 +39,7 @@ class MockDatabase {
     const plan = MockDatabase.plans.shift() ?? {};
     this.throwOnRunCall = plan.throwOnRunCall;
     this.throwError = plan.throwError;
+    this.throwOnExport = plan.throwOnExport ?? false;
     MockDatabase.instances.push(this);
   }
 
@@ -56,6 +59,9 @@ class MockDatabase {
   }
 
   export(): Uint8Array {
+    if (this.throwOnExport) {
+      throw this.throwError ?? new Error('mock export failure');
+    }
     return new Uint8Array([1, 2, 3]);
   }
 
@@ -121,6 +127,10 @@ async function loadAdapterModule(plans: MockDbPlan[] = []) {
   return import('../src/domain/entities/sqlite-data-adapter');
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('SqliteDataAdapter', () => {
   it('keeps queued saves and deleted keys after a failed transaction', async () => {
     const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
@@ -159,6 +169,34 @@ describe('SqliteDataAdapter', () => {
     expect(MockDatabase.instances).toHaveLength(2);
     expect(MockDatabase.instances[0].closed).toBe(true);
     expect(entity._queue_save).toBe(false);
+
+    await closeSqliteDatabases();
+  });
+
+  it('recreates the database handle when autosave persistence hits SQLITE_MISUSE', async () => {
+    vi.useFakeTimers();
+
+    const { SqliteDataAdapter, closeSqliteDatabases } = await loadAdapterModule([
+      {
+        throwOnExport: true,
+        throwError: new Error('bad parameter or other API misuse'),
+      },
+      {},
+    ]);
+
+    const entity = makeEntity();
+    const { collection } = createCollection([entity]);
+    const vaultAdapter = createVaultAdapter();
+    const adapter = new SqliteDataAdapter(collection, 'smart_blocks', 'test-namespace');
+    adapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+
+    await adapter.save();
+    expect(MockDatabase.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(MockDatabase.instances).toHaveLength(2);
+    expect(MockDatabase.instances[0].closed).toBe(true);
 
     await closeSqliteDatabases();
   });
