@@ -7,7 +7,6 @@
  */
 
 import type { PluginSettings, NoticeCatalog } from '../types/settings';
-import { PluginNotices } from '../shared/plugin-notices';
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -144,5 +143,4 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   },
 };
 
-export { PluginNotices as SmartConnectionsNotices };
 export type { NoticeCatalog };

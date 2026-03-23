@@ -4,7 +4,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NOTICE_CATALOG, SmartConnectionsNotices } from '../src/domain/config';
+import { NOTICE_CATALOG } from '../src/domain/config';
+import { PluginNotices as SmartConnectionsNotices } from '../src/shared/plugin-notices';
 
 function createPluginStub() {
 	return {

@@ -11,8 +11,8 @@ import {
 import { average_vectors } from './utils';
 
 import type { PluginSettings } from './types/settings';
-import { DEFAULT_SETTINGS } from './domain/config';
-import { SmartConnectionsNotices, NOTICE_CATALOG } from './domain/config';
+import { DEFAULT_SETTINGS, NOTICE_CATALOG } from './domain/config';
+import { PluginNotices as SmartConnectionsNotices } from './shared/plugin-notices';
 import { PluginLogger } from './shared/plugin-logger';
 import { SmartConnectionsSettingsTab } from './ui/settings';
 import { registerCommands } from './ui/commands';

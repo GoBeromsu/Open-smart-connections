@@ -1,49 +1,17 @@
-/**
- * @file EntityCollection.ts
- * @description Base collection class with CRUD and SQLite persistence
- */
-
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
 import { SqliteDataAdapter } from './sqlite-data-adapter';
-import type { EmbeddingPipeline } from '../search/embedding-pipeline';
 
-/**
- * Base collection class for entities
- * Simplified from the legacy collection implementation
- */
 export abstract class EntityCollection<T extends EmbeddingEntity> {
-  /** Collection items keyed by entity key */
   items: Record<string, T> = {};
-
-  /** Data adapter for SQLite persistence */
   data_adapter: SqliteDataAdapter<T>;
-
-  /** Embedding pipeline for batch processing */
-  embedding_pipeline?: EmbeddingPipeline;
-
-  /** Collection settings */
   settings: any;
-
-  /** Data directory path */
   data_dir: string;
-
-  /** Collection key */
   collection_key: string;
-
-  /** Shared storage namespace */
   storage_namespace: string;
-
-  /** Pending deletions to persist */
   private deleted_keys: Set<string> = new Set();
-
-  /** Whether collection is loaded */
   loaded: boolean = false;
-
-  /** Embed model key */
   embed_model_key: string = 'None';
-
-  /** Expected embedding dimensions for the active model */
   embed_model_dims?: number;
 
   constructor(
@@ -61,94 +29,61 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     this.data_adapter = new SqliteDataAdapter(this, this.collection_key, this.storage_namespace);
   }
 
-  /**
-   * Get item type constructor (to be implemented in subclasses)
-   */
   abstract get_item_type(): new (collection: EntityCollection<T>, data?: Partial<EntityData>) => T;
 
   protected onItemAdded(_item: T): void { /* override in subclass */ }
   protected onItemRemoved(_key: string): void { /* override in subclass */ }
 
-  /**
-   * Initialize collection
-   */
   async init(): Promise<void> {
     // Override in subclasses if needed
   }
 
-  /**
-   * Get item by key
-   */
   get(key: string): T | undefined {
     return this.items[key];
   }
 
-  /**
-   * Set item in collection
-   */
   set(item: T): void {
     this.items[item.key] = item;
     this.onItemAdded(item);
   }
 
-  /**
-   * Create or update an item
-   */
   create_or_update(data: Partial<EntityData>): T {
     const key = data.path || '';
     let item = this.items[key];
 
     if (!item) {
-      // Create new item
       const ItemType = this.get_item_type();
       item = new ItemType(this, data as EntityData);
       this.items[item.key] = item;
       item._queue_save = true;
       this.onItemAdded(item);
     } else {
-      // Update existing item
       Object.assign(item.data, data);
     }
 
-    // Initialize item
     item.init();
 
     return item;
   }
 
-  /**
-   * Delete item by key
-   */
   delete(key: string): void {
     this.deleted_keys.add(key);
     this.onItemRemoved(key);
     delete this.items[key];
   }
 
-  /**
-   * Get all items
-   */
   get all(): T[] {
     return Object.values(this.items);
   }
 
-  /**
-   * Get embed queue (items needing embedding)
-   */
   get embed_queue(): T[] {
     return this.all.filter(item => item._queue_embed && item.should_embed);
   }
 
-  /**
-   * Get save queue (items needing saving)
-   */
   get save_queue(): T[] {
     return this.all.filter(item => item._queue_save);
   }
 
-  /**
-   * Consume and clear pending deletion keys
-   */
   consume_deleted_keys(): string[] {
     const keys = Array.from(this.deleted_keys);
     this.deleted_keys.clear();
@@ -164,24 +99,15 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     }
   }
 
-  /**
-   * Load collection from disk
-   */
   async load(): Promise<void> {
     await this.data_adapter.load();
     this.loaded = true;
   }
 
-  /**
-   * Save collection to disk
-   */
   async save(): Promise<void> {
     await this.data_adapter.save();
   }
 
-  /**
-   * Process save queue
-   */
   async process_save_queue(): Promise<void> {
     const queue = this.save_queue;
     if (queue.length === 0) return;
@@ -190,9 +116,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     await this.data_adapter.save_batch(queue);
   }
 
-  /**
-   * Find nearest entities to a vector
-   */
   async nearest(vec: number[], filter: SearchFilter = {}): Promise<ConnectionResult[]> {
     const limit = filter.limit ?? 50;
     const fetch_multiplier = filter.filter_fn ? 6 : 3;
@@ -210,9 +133,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     return results;
   }
 
-  /**
-   * Find nearest entities to an entity
-   */
   async nearest_to(entity: T, filter: SearchFilter = {}): Promise<ConnectionResult[]> {
     await this.ensure_entity_vector(entity);
     if (!entity.vec) {
@@ -225,16 +145,10 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     });
   }
 
-  /**
-   * Get collection size
-   */
   get size(): number {
     return Object.keys(this.items).length;
   }
 
-  /**
-   * Clear all items
-   */
   clear(): void {
     this.items = {};
   }
