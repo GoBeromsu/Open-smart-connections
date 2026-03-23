@@ -20,6 +20,7 @@ import {
   renderHostField as renderHostFieldExternal,
   renderSearchModelPicker,
 } from './settings-model-picker';
+import { formatEta } from '../utils';
 
 interface SmartConnectionsPlugin extends Plugin {
   settings?: PluginSettings;
@@ -43,6 +44,7 @@ interface SmartConnectionsPlugin extends Plugin {
     runId: number;
     current: number;
     total: number;
+    startedAt?: number;
     currentEntityKey?: string | null;
     currentSourcePath?: string | null;
   } | null;
@@ -92,6 +94,9 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   private eventRefs: EventRef[] = [];
   private statusRowEl: HTMLElement | null = null;
   private statsGridEl: HTMLElement | null = null;
+  private currentRunEl: HTMLElement | null = null;
+  private currentRunSettingEl: HTMLElement | null = null;
+  private progressBarEl: HTMLElement | null = null;
 
   constructor(app: App, plugin: SmartConnectionsPlugin) {
     super(app, plugin);
@@ -105,6 +110,9 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.eventRefs = [];
     this.statusRowEl = null;
     this.statsGridEl = null;
+    this.currentRunEl = null;
+    this.currentRunSettingEl = null;
+    this.progressBarEl = null;
   }
 
   hide(): void {
@@ -509,23 +517,35 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.renderStatCard(statsGrid, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
 
     const progressWrap = containerEl.createDiv({ cls: 'osc-settings-embed-progress' });
-    new ProgressBarComponent(progressWrap).setValue(pct);
+    const progressBar = new ProgressBarComponent(progressWrap).setValue(pct);
+    this.progressBarEl = (progressBar as any).progressBar ?? progressWrap.querySelector('progress') as HTMLElement | null;
 
     const runCurrent = activeCtx?.current ?? embedded;
     const runTotal = activeCtx?.total ?? total;
     const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
     const currentItem = activeCtx?.currentSourcePath ?? activeCtx?.currentEntityKey ?? '-';
 
-    if (status === 'embedding') {
-      new Setting(containerEl)
+    {
+      let runDesc = '-';
+      if (status === 'embedding') {
+        const elapsedMs = activeCtx?.startedAt ? Date.now() - activeCtx.startedAt : 0;
+        const etaMs = activeCtx && activeCtx.current > 0 && activeCtx.total > activeCtx.current
+          ? Math.round((elapsedMs / activeCtx.current) * (activeCtx.total - activeCtx.current))
+          : null;
+        const etaStr = formatEta(etaMs);
+        const etaPart = etaStr ? ` • ETA: ${etaStr}` : '';
+        runDesc = `Run #${activeCtx?.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart} • ${currentItem}`;
+      } else if (status === 'error') {
+        runDesc = 'Embedding run encountered an error. Check notices for details.';
+      }
+      const runSetting = new Setting(containerEl)
         .setName('Current run')
-        .setDesc(
-          `Run #${activeCtx?.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%) • ${currentItem}`,
-        );
-    } else if (status === 'error') {
-      new Setting(containerEl)
-        .setName('Current run')
-        .setDesc('Embedding run encountered an error. Check notices for details.');
+        .setDesc(runDesc);
+      this.currentRunEl = runSetting.descEl;
+      this.currentRunSettingEl = runSetting.settingEl;
+      if (status === 'idle') {
+        runSetting.settingEl.style.display = 'none';
+      }
     }
 
     const actionSetting = new Setting(containerEl)
@@ -558,6 +578,33 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       this.renderStatCard(this.statsGridEl, 'Embedded', embedded.toLocaleString(), 'green');
       this.renderStatCard(this.statsGridEl, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
       this.renderStatCard(this.statsGridEl, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
+    }
+
+    // Live-update current run section
+    const ctx = (this.plugin as any).current_embed_context;
+    const status = this.plugin.status_state ?? 'idle';
+    if (this.currentRunEl) {
+      if (status === 'embedding' && ctx) {
+        if (this.currentRunSettingEl) this.currentRunSettingEl.style.display = '';
+        const runCurrent: number = ctx.current ?? 0;
+        const runTotal: number = ctx.total ?? 0;
+        const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
+        const elapsedMs = ctx.startedAt ? Date.now() - ctx.startedAt : 0;
+        const etaMs = runCurrent > 0 && runTotal > runCurrent
+          ? Math.round((elapsedMs / runCurrent) * (runTotal - runCurrent))
+          : null;
+        const etaStr = formatEta(etaMs);
+        const etaPart = etaStr ? ` • ETA: ${etaStr}` : '';
+        const currentItem: string = ctx.currentSourcePath ?? ctx.currentEntityKey ?? '-';
+        this.currentRunEl.setText(
+          `Run #${ctx.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart} • ${currentItem}`,
+        );
+        if (this.progressBarEl) {
+          (this.progressBarEl as any).value = runPercent;
+        }
+      } else {
+        if (this.currentRunSettingEl) this.currentRunSettingEl.style.display = 'none';
+      }
     }
   }
 

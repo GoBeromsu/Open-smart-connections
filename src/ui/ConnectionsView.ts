@@ -7,10 +7,12 @@ import {
   setIcon,
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
+import type { EmbedProgressEventPayload } from '../main';
 import type { ConnectionResult } from '../types/entities';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { showResultContextMenu } from './result-context-menu';
 import { getBlockConnections, invalidateConnectionsCache } from './block-connections';
+import { formatEta } from '../utils';
 
 export const CONNECTIONS_VIEW_TYPE = 'open-connections-view';
 
@@ -127,8 +129,8 @@ export class ConnectionsView extends ItemView {
 
     // Live progress updates from the embedding pipeline (fires ~1/sec)
     this.registerEvent(
-      this.app.workspace.on('open-connections:embed-progress' as any, () => {
-        this.updateProgressBanner();
+      this.app.workspace.on('open-connections:embed-progress' as any, (payload?: EmbedProgressEventPayload) => {
+        this.updateProgressBanner(payload);
       }),
     );
 
@@ -296,7 +298,7 @@ export class ConnectionsView extends ItemView {
     banner.createSpan({ text: message, cls: 'osc-banner-text' });
   }
 
-  private updateProgressBanner(): void {
+  private updateProgressBanner(payload?: EmbedProgressEventPayload): void {
     if (!this.container) return;
     const ctx = this.plugin.current_embed_context;
     const isRunning = this.plugin.status_state === 'embedding' && ctx;
@@ -309,15 +311,26 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
+    // Run progress from payload (primary); fall back to ctx
+    const runCurrent = payload?.current ?? ctx.current;
+    const runTotal = payload?.total ?? ctx.total;
+    const runPercent = payload?.percent ?? (runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0);
+    const etaMs = payload?.etaMs ?? null;
+    const etaStr = formatEta(etaMs);
+    const etaPart = etaStr ? ` ETA: ${etaStr}` : '';
+    const runText = `Embedding: ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart}`;
+
+    // Vault-wide progress (secondary, muted)
     const blocks = this.plugin.block_collection?.all;
     const totalBlocks = blocks?.length ?? 0;
-    const embeddedBlocks = blocks?.filter(b => b.vec)?.length ?? 0;
-    const percent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
-    const text = `Embedding ${embeddedBlocks.toLocaleString()}/${totalBlocks.toLocaleString()} (${percent}%)`;
+    const embeddedBlocks = blocks?.filter((b: any) => b.vec)?.length ?? 0;
+    const vaultPercent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
+    const vaultText = `Vault: ${embeddedBlocks.toLocaleString()}/${totalBlocks.toLocaleString()} (${vaultPercent}%)`;
 
     if (!this.progressEl) {
       this.progressEl = createDiv({ cls: 'osc-embed-progress' });
       this.progressEl.createSpan({ cls: 'osc-embed-progress-text' });
+      this.progressEl.createSpan({ cls: 'osc-embed-progress-vault' });
       this.progressEl.createDiv({ cls: 'osc-embed-progress-bar' })
         .createDiv({ cls: 'osc-embed-progress-fill' });
       // Insert at top of container, before header
@@ -325,10 +338,13 @@ export class ConnectionsView extends ItemView {
     }
 
     const textEl = this.progressEl.querySelector('.osc-embed-progress-text') as HTMLElement;
-    if (textEl) textEl.setText(text);
+    if (textEl) textEl.setText(runText);
+
+    const vaultEl = this.progressEl.querySelector('.osc-embed-progress-vault') as HTMLElement;
+    if (vaultEl) vaultEl.setText(vaultText);
 
     const fillEl = this.progressEl.querySelector('.osc-embed-progress-fill') as HTMLElement;
-    if (fillEl) fillEl.style.width = `${percent}%`;
+    if (fillEl) fillEl.style.width = `${runPercent}%`;
   }
 
   renderResults(targetPath: string, results: ConnectionResult[]): void {
