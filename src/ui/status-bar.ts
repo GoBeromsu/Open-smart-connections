@@ -1,6 +1,6 @@
 /**
  * @file status-bar.ts
- * @description Status bar setup, rendering, and click handling for Smart Connections
+ * @description Status bar setup, rendering, and click handling for Open Connections
  */
 
 import { setIcon } from 'obsidian';
@@ -20,18 +20,18 @@ export function setupStatusBar(plugin: SmartConnectionsPlugin): void {
   const status_bar_container: HTMLElement | undefined = app_any?.statusBar?.containerEl;
   if (!status_bar_container) return;
 
-  const existing = status_bar_container.querySelector('.smart-connections-status');
+  const existing = status_bar_container.querySelector('.open-connections-status');
   if (existing) {
     existing.closest('.status-bar-item')?.remove();
   }
 
   plugin.status_elm = plugin.addStatusBarItem();
   plugin.status_container = plugin.status_elm.createEl('a', {
-    cls: 'smart-connections-status',
+    cls: 'open-connections-status',
   });
   setIcon(plugin.status_container, 'network');
 
-  plugin.status_msg = plugin.status_container.createSpan('smart-connections-status-msg');
+  plugin.status_msg = plugin.status_container.createSpan('open-connections-status-msg');
 
   plugin.registerDomEvent(plugin.status_container, 'click', () => handleStatusBarClick(plugin));
 
@@ -66,8 +66,8 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
 
   if (!plugin.block_collection) {
     setStatusIcon(plugin, 'network');
-    plugin.status_msg.setText('SC: Loading...');
-    plugin.status_container.setAttribute('title', 'Smart Connections is loading...');
+    plugin.status_msg.setText('OC: Loading...');
+    plugin.status_container.setAttribute('title', 'Open Connections is loading...');
     return;
   }
 
@@ -79,15 +79,15 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
   switch (plugin.status_state) {
     case 'idle':
       setStatusIcon(plugin, 'network');
-      plugin.status_msg.setText(`SC: ${vaultTag}`);
+      plugin.status_msg.setText(`OC: ${vaultTag}`);
       plugin.status_container.setAttribute(
         'title',
-        `Smart Connections is ready\nEmbedded: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
+        `Open Connections is ready\nEmbedded: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
       );
       break;
     case 'embedding': {
       setStatusIcon(plugin, 'loader');
-      plugin.status_msg.setText(`SC: ${vaultTag}`);
+      plugin.status_msg.setText(`OC: ${vaultTag}`);
       const currentNote = ctx?.currentSourcePath ?? '-';
       plugin.status_container.setAttribute(
         'title',
@@ -97,7 +97,7 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
     }
     case 'error':
       setStatusIcon(plugin, 'alert-triangle');
-      plugin.status_msg.setText(`SC: ${vaultTag}`);
+      plugin.status_msg.setText(`OC: ${vaultTag}`);
       plugin.status_container.setAttribute('title', `Embedding error\nProgress: ${vaultTag}\nClick to open settings`);
       break;
   }

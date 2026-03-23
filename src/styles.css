@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   Open Smart Connections — Plugin Styles
+   Open Connections — Plugin Styles
    ═══════════════════════════════════════════════════════ */
 
 /* ─── Custom Properties ─── */
@@ -503,7 +503,7 @@
 }
 
 /* ─── Side Panes ─── */
-div.workspace-leaf-content[data-type="smart-connections-view"] > .view-content {
+div.workspace-leaf-content[data-type="open-connections-view"] > .view-content {
   display: flex;
   flex-direction: column;
 }

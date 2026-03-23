@@ -1,6 +1,6 @@
 /**
  * @file settings.ts
- * @description Settings UI for Smart Connections plugin
+ * @description Settings UI for Open Connections plugin
  */
 
 import {
@@ -116,7 +116,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass('smart-connections-settings');
+    containerEl.addClass('open-connections-settings');
 
     // Embedding Model Section
     new Setting(containerEl).setName('Embedding Model').setHeading();
@@ -144,12 +144,12 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     // Register live-update listeners for the status section
     this.eventRefs.push(
-      this.app.workspace.on('smart-connections:embed-progress' as any, () => {
+      this.app.workspace.on('open-connections:embed-progress' as any, () => {
         this.updateEmbeddingStatusOnly();
       }),
     );
     this.eventRefs.push(
-      this.app.workspace.on('smart-connections:embed-state-changed' as any, () => {
+      this.app.workspace.on('open-connections:embed-state-changed' as any, () => {
         this.updateEmbeddingStatusOnly();
       }),
     );
@@ -675,7 +675,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.plugin.saveSettings?.();
 
     // Emit settings changed event with the changed key
-    this.app.workspace.trigger('smart-connections:settings-changed' as any, {
+    this.app.workspace.trigger('open-connections:settings-changed' as any, {
       key: path,
       oldValue,
       newValue: value,

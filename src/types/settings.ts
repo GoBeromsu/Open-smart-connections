@@ -1,7 +1,7 @@
 /**
  * @file settings.ts
  * @description Type definitions for plugin settings
- * All settings interfaces for the Smart Connections plugin
+ * All settings interfaces for the Open Connections plugin
  */
 
 /**

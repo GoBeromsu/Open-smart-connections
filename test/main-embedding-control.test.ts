@@ -195,7 +195,7 @@ describe('SmartConnectionsPlugin embedding control', () => {
     expect(plugin.embed_ready).toBe(false);
     expect(initPipelineSpy).not.toHaveBeenCalled();
     expect((app as any).workspace.trigger).not.toHaveBeenCalledWith(
-      'smart-connections:embed-ready',
+      'open-connections:embed-ready',
     );
   });
 

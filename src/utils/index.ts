@@ -1,6 +1,6 @@
 /**
  * @file index.ts
- * @description Utility functions for the Open Smart Connections plugin
+ * @description Utility functions for the Open Connections plugin
  */
 
 // ── Error helpers ─────────────────────────────────────────────────────────────

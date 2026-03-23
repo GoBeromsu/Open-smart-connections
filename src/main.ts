@@ -228,7 +228,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     };
     if (prev !== phase) {
       console.log(`[Open Connections] ${prev} → ${phase}${opts.error ? `: ${opts.error}` : ''}`);
-      this.app.workspace.trigger('smart-connections:embed-state-changed' as any, { phase, prev });
+      this.app.workspace.trigger('open-connections:embed-state-changed' as any, { phase, prev });
       this.refreshStatus();
     }
   }
@@ -267,6 +267,9 @@ export default class SmartConnectionsPlugin extends Plugin {
       LOOKUP_VIEW_TYPE,
       (leaf) => new LookupView(leaf, this),
     );
+    // Migration: redirect old view types to new ones
+    this.registerView('smart-connections-view', (leaf) => new ConnectionsView(leaf, this));
+    this.registerView('smart-connections-lookup', (leaf) => new LookupView(leaf, this));
 
     this.addSettingTab(new SmartConnectionsSettingsTab(this.app, this));
     registerCommands(this);
@@ -401,7 +404,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (!this.isCurrentLifecycle(lifecycle)) return;
 
     this.ready = true;
-    this.app.workspace.trigger('smart-connections:core-ready' as any);
+    this.app.workspace.trigger('open-connections:core-ready' as any);
 
     const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
     const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;

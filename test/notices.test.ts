@@ -29,7 +29,7 @@ describe('SmartConnectionsNotices', () => {
 
 	beforeEach(() => {
 		plugin = createPluginStub();
-		notices = new SmartConnectionsNotices(plugin, NOTICE_CATALOG, 'Smart Connections');
+		notices = new SmartConnectionsNotices(plugin, NOTICE_CATALOG, 'Open Connections');
 	});
 
 	it('shows notice before mute and blocks it after mute', async () => {

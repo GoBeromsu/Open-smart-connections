@@ -3,7 +3,7 @@ import type SmartConnectionsPlugin from '../main';
 import type { SearchFilter, ConnectionResult } from '../types/entities';
 import { showResultContextMenu } from './result-context-menu';
 
-export const LOOKUP_VIEW_TYPE = 'smart-connections-lookup';
+export const LOOKUP_VIEW_TYPE = 'open-connections-lookup';
 
 type LookupFilter = 'all' | 'notes' | 'blocks';
 type ScoreTier = 'high' | 'medium' | 'low';
@@ -212,7 +212,7 @@ export class LookupView extends ItemView {
     });
 
     this.registerEvent(
-      (this.app.workspace as any).on('smart-connections:model-switched', () => {
+      (this.app.workspace as any).on('open-connections:model-switched', () => {
         this.handleModelSwitched();
       }),
     );

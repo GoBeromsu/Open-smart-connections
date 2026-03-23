@@ -12,7 +12,7 @@ import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { showResultContextMenu } from './result-context-menu';
 import { getBlockConnections, invalidateConnectionsCache } from './block-connections';
 
-export const CONNECTIONS_VIEW_TYPE = 'smart-connections-view';
+export const CONNECTIONS_VIEW_TYPE = 'open-connections-view';
 
 type ViewState =
   | { type: 'idle' }
@@ -33,7 +33,7 @@ interface ConnectionsSessionState {
   pausedPath?: string;
 }
 
-const EMBED_ERROR_MSG = 'Embedding model failed to initialize. Check Smart Connections settings.';
+const EMBED_ERROR_MSG = 'Embedding model failed to initialize. Check Open Connections settings.';
 
 /**
  * ConnectionsView - Shows connections for the active note
@@ -81,7 +81,7 @@ export class ConnectionsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Smart Connections';
+    return 'Open Connections';
   }
 
   getIcon(): string {
@@ -100,20 +100,20 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
-      this.app.workspace.on('smart-connections:core-ready' as any, () => {
+      this.app.workspace.on('open-connections:core-ready' as any, () => {
         const file = this.app.workspace.getActiveFile();
         if (file) void this.renderView(file.path);
       }),
     );
 
     this.registerEvent(
-      this.app.workspace.on('smart-connections:embed-ready' as any, () => {
+      this.app.workspace.on('open-connections:embed-ready' as any, () => {
         void this.renderView();
       }),
     );
 
     this.registerEvent(
-      this.app.workspace.on('smart-connections:embed-state-changed' as any, (payload: any) => {
+      this.app.workspace.on('open-connections:embed-state-changed' as any, (payload: any) => {
         this.updateProgressBanner();
         // Auto-refresh when embedding finishes (running → idle) and we have a stale view
         if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
@@ -127,7 +127,7 @@ export class ConnectionsView extends ItemView {
 
     // Live progress updates from the embedding pipeline (fires ~1/sec)
     this.registerEvent(
-      this.app.workspace.on('smart-connections:embed-progress' as any, () => {
+      this.app.workspace.on('open-connections:embed-progress' as any, () => {
         this.updateProgressBanner();
       }),
     );
@@ -192,13 +192,13 @@ export class ConnectionsView extends ItemView {
         this.showEmpty('No active file');
         break;
       case 'plugin_loading':
-        this.showLoading('Smart Connections is initializing...');
+        this.showLoading('Open Connections is initializing...');
         break;
       case 'model_error':
         this.showError(EMBED_ERROR_MSG);
         break;
       case 'embed_loading':
-        this.showLoading('Smart Connections is loading... Connections will appear when embedding is complete.');
+        this.showLoading('Open Connections is loading... Connections will appear when embedding is complete.');
         break;
       case 'pending_import':
         this.showLoading('Importing note... Connections will appear when embedding is complete.');
@@ -309,8 +309,11 @@ export class ConnectionsView extends ItemView {
       return;
     }
 
-    const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
-    const text = `Embedding ${ctx.current.toLocaleString()}/${ctx.total.toLocaleString()} (${percent}%)`;
+    const blocks = this.plugin.block_collection?.all;
+    const totalBlocks = blocks?.length ?? 0;
+    const embeddedBlocks = blocks?.filter(b => b.vec)?.length ?? 0;
+    const percent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
+    const text = `Embedding ${embeddedBlocks.toLocaleString()}/${totalBlocks.toLocaleString()} (${percent}%)`;
 
     if (!this.progressEl) {
       this.progressEl = createDiv({ cls: 'osc-embed-progress' });

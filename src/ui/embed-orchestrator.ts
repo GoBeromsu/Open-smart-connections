@@ -175,7 +175,7 @@ export function emitEmbedProgress(
     error: opts.error ?? ctx.error ?? undefined,
   };
 
-  plugin.app.workspace.trigger('smart-connections:embed-progress' as any, payload);
+  plugin.app.workspace.trigger('open-connections:embed-progress' as any, payload);
 }
 
 // ── Model initialization ────────────────────────────────────────────
@@ -406,8 +406,8 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
       active.dims,
     );
     plugin.setEmbedPhase('idle', { fingerprint: kernelModel.fingerprint });
-    plugin.app.workspace.trigger('smart-connections:embed-ready');
-    plugin.app.workspace.trigger('smart-connections:model-switched' as any, {
+    plugin.app.workspace.trigger('open-connections:embed-ready');
+    plugin.app.workspace.trigger('open-connections:model-switched' as any, {
       ...active,
       switchedAt: Date.now(),
     });
