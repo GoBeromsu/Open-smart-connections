@@ -6,6 +6,7 @@
 import { setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { ConnectionsView } from './ConnectionsView';
+import { formatEta } from '../utils';
 
 let cachedVaultTag = '';
 let cachedIcon = '';
@@ -87,11 +88,20 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
       break;
     case 'embedding': {
       setStatusIcon(plugin, 'loader');
-      plugin.status_msg.setText(`OC: ${vaultTag}`);
+      const runCurrent = ctx?.current ?? 0;
+      const runTotal = ctx?.total ?? 0;
+      const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
+      plugin.status_msg.setText(`OC: ${runCurrent}/${runTotal} (${runPercent}%)`);
+      const elapsedMs = ctx?.startedAt ? Date.now() - ctx.startedAt : 0;
+      const etaMs = ctx && ctx.current > 0 && ctx.total > ctx.current
+        ? Math.round((elapsedMs / ctx.current) * (ctx.total - ctx.current))
+        : null;
+      const etaStr = formatEta(etaMs);
+      const etaPart = etaStr ? `\nETA: ${etaStr}` : '';
       const currentNote = ctx?.currentSourcePath ?? '-';
       plugin.status_container.setAttribute(
         'title',
-        `Embedding in progress\nProgress: ${vaultTag}\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
+        `Embedding in progress\nRun: #${ctx?.runId ?? '-'}${etaPart}\nRun: ${runCurrent}/${runTotal} (${runPercent}%)\nVault: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
       );
       break;
     }

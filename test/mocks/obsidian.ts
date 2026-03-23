@@ -408,6 +408,8 @@ export class SliderComponent {
 export class Setting {
   static instances: Setting[] = [];
   containerEl: HTMLElement;
+  settingEl: HTMLElement;
+  descEl: HTMLElement;
   name = '';
   desc = '';
   dropdown?: DropdownComponent;
@@ -418,6 +420,9 @@ export class Setting {
 
   constructor(containerEl: HTMLElement) {
     this.containerEl = containerEl;
+    this.settingEl = document.createElement('div');
+    this.descEl = document.createElement('div');
+    containerEl.appendChild(this.settingEl);
     Setting.instances.push(this);
   }
 

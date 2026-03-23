@@ -568,6 +568,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
 
     if (plugin.current_embed_context?.runId !== runId) {
       plugin.setEmbedPhase('idle');
+      plugin.current_embed_context = null;
       return stats;
     }
 
@@ -612,6 +613,9 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
 
     publishEmbedContext(plugin, ctx);
     plugin.setEmbedPhase('idle');
+    if (!ctx.followupQueued) {
+      plugin.current_embed_context = null;
+    }
 
     if (stats.outcome === 'completed' && !ctx.followupQueued) {
       plugin.notices.show('embedding_complete', { success: stats.success });
@@ -645,6 +649,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
   } catch (error) {
     if (plugin.current_embed_context?.runId !== runId) {
       plugin.setEmbedPhase('idle');
+      plugin.current_embed_context = null;
       throw error;
     }
 
