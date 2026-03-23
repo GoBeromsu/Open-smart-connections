@@ -188,8 +188,11 @@ function ensureSchema(db: SqlJsDatabase): void {
       embed_hash TEXT,
       dims INTEGER,
       updated_at INTEGER,
-      PRIMARY KEY (entity_key, model_key),
-      FOREIGN KEY (entity_key) REFERENCES entities(entity_key) ON DELETE CASCADE
+      PRIMARY KEY (entity_key, model_key)
+      -- NOTE: No FOREIGN KEY with ON DELETE CASCADE here. PRAGMA foreign_keys is OFF
+      -- (SQLite default). Enabling it would break INSERT OR REPLACE (which is
+      -- internally DELETE+INSERT), wiping embeddings on every entity upsert.
+      -- Embedding cleanup on entity deletion is handled manually in executeSaveBatch.
     );
     CREATE INDEX IF NOT EXISTS idx_embeddings_model_key ON entity_embeddings(model_key);
   `);
@@ -698,6 +701,9 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
       db.run('BEGIN TRANSACTION');
       transactionOpen = true;
 
+      // Manual cascade: delete embeddings first, then entity.
+      // This is the ONLY cleanup mechanism — ON DELETE CASCADE is intentionally off
+      // (see ensureSchema comment). Any new delete path must also delete from both tables.
       for (const key of deletedKeys) {
         db.run('DELETE FROM entity_embeddings WHERE entity_key = ?', [key]);
         db.run('DELETE FROM entities WHERE entity_key = ?', [key]);
@@ -773,9 +779,19 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
 
     const embedding = entity.data.embeddings?.[modelKey];
     const vec = embedding?.vec;
-    if (!vec || vec.length === 0) return;
-
     const meta = entity.data.embedding_meta?.[modelKey];
+
+    if (!vec || vec.length === 0) {
+      // Vec is lazy-loaded (stored as [] on load). When a save occurs before the vec is
+      // fetched back into memory, we must still sync embed_hash so the next load's hash
+      // comparison doesn't falsely mark this entity as unembedded.
+      if (!meta) return; // Never been embedded — nothing to preserve.
+      db.run(
+        `UPDATE entity_embeddings SET embed_hash = ?, dims = ?, updated_at = ? WHERE entity_key = ? AND model_key = ?`,
+        [meta.hash ?? null, meta.dims ?? null, meta.updated_at ?? Date.now(), entity.key, modelKey],
+      );
+      return;
+    }
     const embedHash =
       meta?.hash ?? entity.data.last_embed?.hash ?? entity.data.last_read?.hash ?? null;
     const dims = meta?.dims ?? vec.length;

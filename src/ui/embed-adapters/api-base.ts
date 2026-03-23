@@ -106,38 +106,41 @@ export class EmbedModelApiAdapter {
   async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
     if (!this.api_key) throw new Error('API key not set');
 
-    // Normalize inputs
-    const normalized_inputs = inputs
-      .map((item) => {
-        const embed_input = 'embed_input' in item ? item.embed_input : item._embed_input;
-        return { ...item, embed_input } as EmbedInput;
-      })
-      .filter((item) => (item.embed_input?.length ?? 0) > 0);
-
-    if (normalized_inputs.length === 0) {
-      console.log('Empty batch (or all items have empty embed_input)');
-      return [];
+    // Normalize ALL inputs — preserve 1:1 mapping with input array.
+    // Items that fail preparation get { vec: [], tokens: 0 } instead of being dropped,
+    // which prevents BatchIntegrityError in the pipeline.
+    const normalized: { item: EmbedInput; originalIndex: number }[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const raw = inputs[i];
+      const embed_input = 'embed_input' in raw ? raw.embed_input : raw._embed_input;
+      normalized.push({ item: { ...raw, embed_input } as EmbedInput, originalIndex: i });
     }
 
-    // Prepare inputs while preserving source item mapping
-    const prepared_items = await Promise.all(
-      normalized_inputs.map(async (item) => ({
-        item,
-        prepared: await this.prepare_embed_input(item.embed_input!),
-      })),
+    // Prepare inputs — track which succeeded
+    const prepared = await Promise.all(
+      normalized.map(async (entry) => {
+        if (!entry.item.embed_input || entry.item.embed_input.length === 0) return { ...entry, prepared: null };
+        const prepared = await this.prepare_embed_input(entry.item.embed_input);
+        return { ...entry, prepared: (typeof prepared === 'string' && prepared.length > 0) ? prepared : null };
+      }),
     );
 
-    const valid_items = prepared_items.filter(
-      (entry) => typeof entry.prepared === 'string' && entry.prepared.length > 0,
-    );
+    const valid = prepared.filter((e) => e.prepared !== null);
 
-    if (valid_items.length === 0) {
-      console.log('All embed inputs were trimmed to empty values');
-      return [];
+    // Build result array preserving original positions
+    const results: EmbedResult[] = normalized.map((entry) => ({
+      ...entry.item,
+      vec: [],
+      tokens: 0,
+    } as EmbedResult));
+
+    if (valid.length === 0) {
+      console.log('Empty batch (or all items have empty embed_input)');
+      return results;
     }
 
     // Create request and response adapters
-    const _req = new this.req_adapter(this, valid_items.map((entry) => entry.prepared as string));
+    const _req = new this.req_adapter(this, valid.map((entry) => entry.prepared as string));
     const request_params = _req.to_platform();
 
     const resp = await this.request(request_params);
@@ -146,17 +149,17 @@ export class EmbedModelApiAdapter {
     const embeddings = _res.to_openai();
     if (!embeddings) {
       console.error('Failed to parse embeddings.');
-      return [];
+      return results;
     }
 
-    return valid_items.map((entry, i) => {
-      const item = entry.item;
-      return {
-        ...item,
-        vec: embeddings[i].vec,
-        tokens: embeddings[i].tokens,
-      } as EmbedResult;
-    });
+    // Map API results back to original positions
+    for (let i = 0; i < valid.length && i < embeddings.length; i++) {
+      const idx = valid[i].originalIndex;
+      results[idx].vec = embeddings[i].vec;
+      results[idx].tokens = embeddings[i].tokens;
+    }
+
+    return results;
   }
 
   /**
