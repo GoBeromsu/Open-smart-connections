@@ -7,6 +7,11 @@ import { setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { ConnectionsView } from './ConnectionsView';
 
+let cachedVaultTag = '';
+let cachedIcon = '';
+let lastComputeMs = 0;
+const CACHE_TTL_MS = 2000;
+
 /**
  * Create the status bar item, wire up click handler, and render initial state.
  */
@@ -33,39 +38,67 @@ export function setupStatusBar(plugin: SmartConnectionsPlugin): void {
   refreshStatus(plugin);
 }
 
+function getVaultTag(plugin: SmartConnectionsPlugin): string {
+  const now = Date.now();
+  if (now - lastComputeMs < CACHE_TTL_MS && cachedVaultTag) return cachedVaultTag;
+
+  const blocks = plugin.block_collection?.all;
+  const totalBlocks = blocks?.length ?? 0;
+  const embeddedBlocks = blocks?.filter(b => b.vec)?.length ?? 0;
+  const vaultPercent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
+
+  cachedVaultTag = `${embeddedBlocks}/${totalBlocks} (${vaultPercent}%)`;
+  lastComputeMs = now;
+  return cachedVaultTag;
+}
+
+function setStatusIcon(plugin: SmartConnectionsPlugin, icon: string): void {
+  if (!plugin.status_container || icon === cachedIcon) return;
+  setIcon(plugin.status_container, icon);
+  cachedIcon = icon;
+}
+
 /**
  * Update the status bar text and tooltip based on current embed state.
  */
 export function refreshStatus(plugin: SmartConnectionsPlugin): void {
   if (!plugin.status_msg || !plugin.status_container) return;
 
+  if (!plugin.block_collection) {
+    setStatusIcon(plugin, 'network');
+    plugin.status_msg.setText('SC: Loading...');
+    plugin.status_container.setAttribute('title', 'Smart Connections is loading...');
+    return;
+  }
+
   const model = plugin.getCurrentModelInfo();
   const modelTag = `${model.adapter}/${model.modelKey}`;
   const ctx = plugin.current_embed_context;
+  const vaultTag = getVaultTag(plugin);
 
   switch (plugin.status_state) {
     case 'idle':
-      plugin.status_msg.setText('SC: Ready');
+      setStatusIcon(plugin, 'network');
+      plugin.status_msg.setText(`SC: ${vaultTag}`);
       plugin.status_container.setAttribute(
         'title',
-        `Smart Connections is ready\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
+        `Smart Connections is ready\nEmbedded: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
       );
       break;
     case 'embedding': {
-      const stats = plugin.embedding_pipeline?.get_stats();
-      const current = ctx?.current ?? (stats ? stats.success + stats.failed : 0);
-      const total = ctx?.total ?? stats?.total ?? 0;
-      plugin.status_msg.setText(`SC: Embedding ${current}/${total} (${modelTag})`);
+      setStatusIcon(plugin, 'loader');
+      plugin.status_msg.setText(`SC: ${vaultTag}`);
       const currentNote = ctx?.currentSourcePath ?? '-';
       plugin.status_container.setAttribute(
         'title',
-        `Embedding in progress\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
+        `Embedding in progress\nProgress: ${vaultTag}\nRun: ${ctx?.runId ?? '-'}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
       );
       break;
     }
     case 'error':
-      plugin.status_msg.setText('SC: Error');
-      plugin.status_container.setAttribute('title', 'Click to open settings');
+      setStatusIcon(plugin, 'alert-triangle');
+      plugin.status_msg.setText(`SC: ${vaultTag}`);
+      plugin.status_container.setAttribute('title', `Embedding error\nProgress: ${vaultTag}\nClick to open settings`);
       break;
   }
 }
