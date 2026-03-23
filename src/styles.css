@@ -41,36 +41,92 @@
   color: var(--text-muted);
 }
 
-/* Embedding progress banner — dual Notes + Blocks bars */
-.osc-embed-dual-progress {
+/* Embedding progress banner — single bar with phase-aware messaging */
+.osc-embed-progress {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   padding: 6px 12px;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.osc-embed-dual-progress-row {
+.osc-embed-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.osc-embed-progress-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.osc-embed-progress-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.osc-embed-progress-bar-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.osc-embed-dual-progress-label {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-  min-width: 38px;
-}
-
-.osc-embed-dual-progress-row .progress-bar {
+.osc-embed-progress-bar-row .setting-progress-bar {
   flex: 1;
 }
 
-.osc-embed-dual-progress-count {
+/* Smooth fill for Obsidian's ProgressBarComponent inner element */
+.osc-embed-progress .setting-progress-bar-inner {
+  transition: width 400ms ease-out;
+}
+
+.osc-embed-progress-percent {
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
+  min-width: 28px;
+  text-align: right;
+}
+
+.osc-embed-progress-heartbeat {
+  font-size: 11px;
+  color: var(--text-faint);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 150ms ease-in;
+}
+
+.osc-embed-progress-heartbeat--changing {
+  opacity: 0;
+}
+
+/* Indeterminate bar animation (phase 0 & 1) */
+.osc-embed-progress--indeterminate .setting-progress-bar-inner {
+  width: 30% !important;
+  animation: osc-progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes osc-progress-indeterminate {
+  0% { margin-left: 0; }
+  50% { margin-left: 70%; }
+  100% { margin-left: 0; }
+}
+
+/* Completion fadeout */
+.osc-embed-progress--complete {
+  animation: osc-progress-fadeout 300ms ease-out 1.5s forwards;
+}
+
+.osc-embed-progress--complete .osc-embed-progress-label {
+  color: var(--text-success);
+}
+
+@keyframes osc-progress-fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .osc-header-title {

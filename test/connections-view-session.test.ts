@@ -1,8 +1,3 @@
-/**
- * @file connections-view-session.test.ts
- * @description ConnectionsView behavior tests (session card removed in Phase 5)
- */
-
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionsView } from '../src/ui/ConnectionsView';
 
@@ -59,6 +54,9 @@ function createObsidianLikeContainer(): any {
     };
     el.addClass = function addClass(cls: string) {
       this.classList.add(cls);
+    };
+    el.removeClass = function removeClass(cls: string) {
+      this.classList.remove(cls);
     };
     el.toggleClass = function toggleClass(cls: string, force: boolean) {
       this.classList.toggle(cls, force);

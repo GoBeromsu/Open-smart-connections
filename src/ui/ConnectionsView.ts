@@ -327,13 +327,15 @@ export class ConnectionsView extends ItemView {
   private updateProgressBanner(): void {
     if (!this.container) return;
 
-    // Show progress whenever embedding is incomplete; hide only at 100%
-    const blocksAll = this.plugin.block_collection?.all;
-    const totalBlocks = blocksAll?.length ?? 0;
+    const blocksAll = this.plugin.block_collection?.all ?? [];
+    const totalBlocks = blocksAll.length;
     const embeddedBlocks = totalBlocks > 0 ? blocksAll.filter((b: any) => b.vec).length : 0;
     const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
 
-    if (isComplete || totalBlocks === 0) {
+    const modelLoading = !this.plugin.embed_ready && this.plugin.status_state !== 'error';
+    const shouldShow = modelLoading || this.plugin.status_state === 'embedding' || (totalBlocks > 0 && !isComplete);
+
+    if (!shouldShow) {
       if (this.embedProgress) {
         this.embedProgress.destroy();
         this.embedProgress = null;
