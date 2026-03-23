@@ -533,8 +533,17 @@ export default class SmartConnectionsPlugin extends Plugin {
   async waitForSync(): Promise<void> {
     if (!this.obsidianIsSyncing()) return;
     console.log('[SC][Init] Waiting for Obsidian Sync to finish...');
+    const deadline = Date.now() + 60_000; // 60s timeout
     await new Promise(r => setTimeout(r, 1000));
     while (this.obsidianIsSyncing()) {
+      if (this._unloading) {
+        console.warn('[SC][Init] Plugin unloading during sync wait, aborting');
+        return;
+      }
+      if (Date.now() > deadline) {
+        console.warn('[SC][Init] Sync wait timed out after 60s, proceeding without sync completion');
+        return;
+      }
       await new Promise(r => setTimeout(r, 1000));
     }
     console.log('[SC][Init] Obsidian Sync complete');
@@ -629,9 +638,20 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Unload environment
     this.env?.unload?.();
 
-    // Start SQLite cleanup immediately so hot reload cannot grab a DB that
-    // the previous plugin instance is still about to close.
+    // Flush pending save queues before closing DBs — ensures deleted files
+    // and in-memory state changes are persisted. All three calls go through
+    // the same queueDbOperation queue, so saves complete before close.
+    const srcAdapter = this.source_collection?.data_adapter;
+    const blkAdapter = this.block_collection?.data_adapter;
+
+    // resetTransientRuntimeState MUST run synchronously so tests and hot-reload
+    // see ready=false immediately after onunload().
     this.resetTransientRuntimeState();
+
+    // Fire-and-forget: saves enqueue into the same DB operation queue as close,
+    // so ordering (save → save → close) is preserved by the queue.
+    if (srcAdapter) srcAdapter.save().catch((e: unknown) => console.warn('[SC] Flush source save failed:', e));
+    if (blkAdapter) blkAdapter.save().catch((e: unknown) => console.warn('[SC] Flush block save failed:', e));
     closeSqliteDatabases().catch((err: unknown) => {
       console.warn('Failed to close SQLite databases:', err);
     });

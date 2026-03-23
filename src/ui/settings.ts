@@ -10,7 +10,6 @@ import {
   Plugin,
   Modal,
   ButtonComponent,
-  ProgressBarComponent,
   EventRef,
 } from 'obsidian';
 import type { PluginSettings } from '../types/settings';
@@ -20,7 +19,7 @@ import {
   renderHostField as renderHostFieldExternal,
   renderSearchModelPicker,
 } from './settings-model-picker';
-import { formatEta } from '../utils';
+import { renderEmbedProgress } from './embed-progress';
 
 interface SmartConnectionsPlugin extends Plugin {
   settings?: PluginSettings;
@@ -96,7 +95,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   private statsGridEl: HTMLElement | null = null;
   private currentRunEl: HTMLElement | null = null;
   private currentRunSettingEl: HTMLElement | null = null;
-  private progressBarEl: HTMLElement | null = null;
+  private embedProgress: ReturnType<typeof renderEmbedProgress> | null = null;
 
   constructor(app: App, plugin: SmartConnectionsPlugin) {
     super(app, plugin);
@@ -112,7 +111,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.statsGridEl = null;
     this.currentRunEl = null;
     this.currentRunSettingEl = null;
-    this.progressBarEl = null;
+    this.embedProgress = null;
   }
 
   hide(): void {
@@ -516,25 +515,16 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.renderStatCard(statsGrid, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
     this.renderStatCard(statsGrid, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
 
-    const progressWrap = containerEl.createDiv({ cls: 'osc-settings-embed-progress' });
-    const progressBar = new ProgressBarComponent(progressWrap).setValue(pct);
-    this.progressBarEl = (progressBar as any).progressBar ?? progressWrap.querySelector('progress') as HTMLElement | null;
-
-    const runCurrent = activeCtx?.current ?? embedded;
-    const runTotal = activeCtx?.total ?? total;
-    const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
-    const currentItem = activeCtx?.currentSourcePath ?? activeCtx?.currentEntityKey ?? '-';
+    this.embedProgress = renderEmbedProgress(containerEl, this.plugin);
 
     {
+      const runCurrent = activeCtx?.current ?? embedded;
+      const runTotal = activeCtx?.total ?? total;
+      const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
+      const currentItem = activeCtx?.currentSourcePath ?? activeCtx?.currentEntityKey ?? '-';
       let runDesc = '-';
       if (status === 'embedding') {
-        const elapsedMs = activeCtx?.startedAt ? Date.now() - activeCtx.startedAt : 0;
-        const etaMs = activeCtx && activeCtx.current > 0 && activeCtx.total > activeCtx.current
-          ? Math.round((elapsedMs / activeCtx.current) * (activeCtx.total - activeCtx.current))
-          : null;
-        const etaStr = formatEta(etaMs);
-        const etaPart = etaStr ? ` • ETA: ${etaStr}` : '';
-        runDesc = `Run #${activeCtx?.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart} • ${currentItem}`;
+        runDesc = `Run #${activeCtx?.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%) • ${currentItem}`;
       } else if (status === 'error') {
         runDesc = 'Embedding run encountered an error. Check notices for details.';
       }
@@ -580,7 +570,8 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       this.renderStatCard(this.statsGridEl, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
     }
 
-    // Live-update current run section
+    // Live-update progress bars and current run section
+    this.embedProgress?.update();
     const ctx = (this.plugin as any).current_embed_context;
     const status = this.plugin.status_state ?? 'idle';
     if (this.currentRunEl) {
@@ -589,19 +580,10 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
         const runCurrent: number = ctx.current ?? 0;
         const runTotal: number = ctx.total ?? 0;
         const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
-        const elapsedMs = ctx.startedAt ? Date.now() - ctx.startedAt : 0;
-        const etaMs = runCurrent > 0 && runTotal > runCurrent
-          ? Math.round((elapsedMs / runCurrent) * (runTotal - runCurrent))
-          : null;
-        const etaStr = formatEta(etaMs);
-        const etaPart = etaStr ? ` • ETA: ${etaStr}` : '';
         const currentItem: string = ctx.currentSourcePath ?? ctx.currentEntityKey ?? '-';
         this.currentRunEl.setText(
-          `Run #${ctx.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart} • ${currentItem}`,
+          `Run #${ctx.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%) • ${currentItem}`,
         );
-        if (this.progressBarEl) {
-          (this.progressBarEl as any).value = runPercent;
-        }
       } else {
         if (this.currentRunSettingEl) this.currentRunSettingEl.style.display = 'none';
       }
@@ -683,7 +665,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   ): void {
     const card = containerEl.createDiv({ cls: 'osc-stat-card' });
     if (tone === 'green') card.addClass('osc-stat--green');
-    if (tone === 'amber') card.addClass('osc-stat--amber');
+    else if (tone === 'amber') card.addClass('osc-stat--amber');
     card.createDiv({ cls: 'osc-stat-value', text: value });
     card.createDiv({ cls: 'osc-stat-label', text: label });
   }

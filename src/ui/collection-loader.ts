@@ -69,6 +69,14 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.block_collection.loaded = true;
 
     plugin.source_collection._initializing = false;
+
+    const mk = plugin.source_collection.embed_model_key;
+    const sc = plugin.source_collection.all;
+    const bc = plugin.block_collection.all;
+    console.log(
+      `[SC][Init]   [collections] Loaded: ${sc.length} sources (${sc.filter(e => e.data.embedding_meta?.[mk]).length} with meta, ${sc.filter(e => e.is_unembedded).length} unembedded), ` +
+      `${bc.length} blocks (${bc.filter(e => e.data.embedding_meta?.[mk]).length} with meta, ${bc.filter(e => e.is_unembedded).length} unembedded) [model_key=${mk}]`,
+    );
   } catch (error) {
     console.error('[SC][Init]   [collections] Failed to load collections:', error);
     plugin.notices.show('failed_load_collection_data');
@@ -154,16 +162,28 @@ export function queueUnembeddedEntities(plugin: SmartConnectionsPlugin): number 
 }
 
 export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): void {
-  const modelKey = plugin.embed_adapter?.model_key;
+  const newModelKey = plugin.embed_adapter?.model_key;
   const modelDims = plugin.embed_adapter?.dims;
 
   if (plugin.source_collection) {
-    if (modelKey) plugin.source_collection.embed_model_key = modelKey;
+    if (newModelKey) {
+      const oldKey = plugin.source_collection.embed_model_key;
+      if (oldKey && oldKey !== 'None' && oldKey !== newModelKey) {
+        console.warn(`[SC][Init] [collections] WARNING: source model_key changed ${oldKey} → ${newModelKey}`);
+      }
+      plugin.source_collection.embed_model_key = newModelKey;
+    }
     plugin.source_collection.embed_model_dims = modelDims;
   }
 
   if (plugin.block_collection) {
-    if (modelKey) plugin.block_collection.embed_model_key = modelKey;
+    if (newModelKey) {
+      const oldKey = plugin.block_collection.embed_model_key;
+      if (oldKey && oldKey !== 'None' && oldKey !== newModelKey) {
+        console.warn(`[SC][Init] [collections] WARNING: block model_key changed ${oldKey} → ${newModelKey}`);
+      }
+      plugin.block_collection.embed_model_key = newModelKey;
+    }
     plugin.block_collection.embed_model_dims = modelDims;
   }
 }

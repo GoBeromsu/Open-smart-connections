@@ -41,8 +41,8 @@
   color: var(--text-muted);
 }
 
-/* Embedding progress banner */
-.osc-embed-progress {
+/* Embedding progress banner — dual Notes + Blocks bars */
+.osc-embed-dual-progress {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -50,26 +50,27 @@
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
 }
-.osc-embed-progress-text {
-  font-size: var(--font-smallest, 11px);
+
+.osc-embed-dual-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.osc-embed-dual-progress-label {
+  font-size: var(--font-ui-small);
   color: var(--text-muted);
+  min-width: 38px;
 }
-.osc-embed-progress-bar {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--background-modifier-border);
-  overflow: hidden;
+
+.osc-embed-dual-progress-row .progress-bar {
+  flex: 1;
 }
-.osc-embed-progress-vault {
+
+.osc-embed-dual-progress-count {
   font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-.osc-embed-progress-fill {
-  height: 100%;
-  border-radius: 2px;
-  background: var(--interactive-accent);
-  transition: width 0.3s ease;
+  color: var(--text-faint);
+  white-space: nowrap;
 }
 
 .osc-header-title {
@@ -216,7 +217,6 @@
   color: var(--text-faint);
 }
 
-
 /* ─── Notices ─── */
 /* Obsidian's .notice container always uses a dark background regardless of theme.
    Use `color: inherit` to pick up Obsidian's notice text color (light/white)
@@ -302,7 +302,6 @@
   color: var(--text-muted);
 }
 
-
 /* ─── State Displays (Loading/Empty/Error) ─── */
 .osc-state {
   display: flex;
@@ -348,7 +347,6 @@
 @keyframes osc-spin {
   to { transform: rotate(360deg); }
 }
-
 
 /* ─── Advanced (Collapsible) Section ─── */
 .osc-advanced-section {
@@ -500,11 +498,6 @@
 
 .osc-stat--amber .osc-stat-value {
   color: var(--osc-color-warning);
-}
-
-.osc-settings-embed-progress {
-  margin: 0 16px 8px;
-  min-height: 6px;
 }
 
 /* ─── Side Panes ─── */

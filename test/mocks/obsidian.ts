@@ -184,6 +184,7 @@ function patchObsidianEl(el: HTMLElement): HTMLElement {
     this.appendChild(child);
     return child;
   };
+  (el as any).setText = function(text: string): void { this.textContent = text; };
   return el;
 }
 

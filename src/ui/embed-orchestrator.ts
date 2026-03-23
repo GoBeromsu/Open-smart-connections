@@ -25,7 +25,6 @@ import {
 import { buildKernelModel } from '../domain/embedding/kernel';
 import { errorMessage } from '../utils';
 
-
 // ── Model info helpers ──────────────────────────────────────────────
 
 export function getCurrentModelInfo(plugin: SmartConnectionsPlugin): { adapter: string; modelKey: string; dims: number | null } {
@@ -278,7 +277,10 @@ export async function reembedStaleEntities(plugin: SmartConnectionsPlugin, reaso
     key: 'REFRESH_REQUEST',
     priority: 20,
     run: async () => {
+      // Reset both error message AND phase — without phase reset, runEmbeddingJobNow
+      // returns null when status_state === 'error', silently discarding the re-embed.
       plugin.resetError();
+      plugin.setEmbedPhase('idle');
       const queued = plugin.queueUnembeddedEntities();
       if (queued === 0) {
         plugin.logEmbed('reembed-skip-empty', { reason });
@@ -392,6 +394,26 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     }
 
     const queuedAfterSync = plugin.queueUnembeddedEntities();
+
+    if (queuedAfterSync > 0) {
+      const mk = plugin.block_collection?.embed_model_key ?? '';
+      const expectedDims = plugin.embed_adapter?.dims;
+      let missingMeta = 0, hashMismatch = 0, dimsMismatch = 0;
+      for (const entity of (plugin.block_collection?.all ?? [])) {
+        if (!entity.is_unembedded) continue;
+        const meta = entity.data.embedding_meta?.[mk];
+        if (!meta) { missingMeta++; continue; }
+        const readHash = entity.data.last_read?.hash;
+        if (!readHash || meta.hash !== readHash) { hashMismatch++; continue; }
+        if (typeof expectedDims === 'number' && expectedDims > 0 && typeof meta.dims === 'number' && meta.dims > 0 && meta.dims !== expectedDims) {
+          dimsMismatch++;
+        }
+      }
+      plugin.logEmbed('switch-queued', { adapter: targetAdapter, modelKey: targetModelKey, current: queuedAfterSync, total: queuedAfterSync });
+      console.log(`[SC][Embed] switch-queued breakdown: missingMeta=${missingMeta} hashMismatch=${hashMismatch} dimsMismatch=${dimsMismatch}`);
+    }
+
+    await saveCollections(plugin);
     await plugin.initPipeline();
 
     // Notify success

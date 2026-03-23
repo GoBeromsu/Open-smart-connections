@@ -7,12 +7,11 @@ import {
   setIcon,
 } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
-import type { EmbedProgressEventPayload } from '../main';
 import type { ConnectionResult } from '../types/entities';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { showResultContextMenu } from './result-context-menu';
 import { getBlockConnections, invalidateConnectionsCache } from './block-connections';
-import { formatEta } from '../utils';
+import { renderEmbedProgress } from './embed-progress';
 
 export const CONNECTIONS_VIEW_TYPE = 'open-connections-view';
 
@@ -46,7 +45,7 @@ export class ConnectionsView extends ItemView {
   container: HTMLElement;
   private session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
   private folderFilter: string = '';
-  private progressEl: HTMLElement | null = null;
+  private embedProgress: ReturnType<typeof renderEmbedProgress> | null = null;
   private lastRenderedPath: string | null = null;
   private autoEmbedRequestedForPath: string | null = null;
   private _autoEmbedTimeout: number | null = null;
@@ -115,6 +114,12 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
+      (this.app.workspace as any).on('open-connections:model-switched', () => {
+        this.handleModelSwitched();
+      }),
+    );
+
+    this.registerEvent(
       this.app.workspace.on('open-connections:embed-state-changed' as any, (payload: any) => {
         this.updateProgressBanner();
         // Auto-refresh when embedding finishes (running → idle) and we have a stale view
@@ -129,8 +134,8 @@ export class ConnectionsView extends ItemView {
 
     // Live progress updates from the embedding pipeline (fires ~1/sec)
     this.registerEvent(
-      this.app.workspace.on('open-connections:embed-progress' as any, (payload?: EmbedProgressEventPayload) => {
-        this.updateProgressBanner(payload);
+      this.app.workspace.on('open-connections:embed-progress' as any, () => {
+        this.updateProgressBanner();
       }),
     );
 
@@ -152,7 +157,15 @@ export class ConnectionsView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearAutoEmbedTimeout();
+    this.clearEmbedProgress();
     this.container?.empty();
+  }
+
+  private clearEmbedProgress(): void {
+    if (this.embedProgress) {
+      this.embedProgress.destroy();
+      this.embedProgress = null;
+    }
   }
 
   private async deriveViewState(targetPath: string): Promise<ViewState> {
@@ -242,9 +255,11 @@ export class ConnectionsView extends ItemView {
       const state = await this.deriveViewState(targetPath);
       if (gen !== this._renderGen) return;
       this.applyViewState(state);
+      this.updateProgressBanner();
     } catch (e) {
       if (gen !== this._renderGen) return;
       this.showError('Failed to find connections: ' + (e as Error).message);
+      this.updateProgressBanner();
     }
   }
 
@@ -298,53 +313,39 @@ export class ConnectionsView extends ItemView {
     banner.createSpan({ text: message, cls: 'osc-banner-text' });
   }
 
-  private updateProgressBanner(payload?: EmbedProgressEventPayload): void {
-    if (!this.container) return;
-    const ctx = this.plugin.current_embed_context;
-    const isRunning = this.plugin.status_state === 'embedding' && ctx;
+  private handleModelSwitched(): void {
+    this.clearAutoEmbedTimeout();
+    this.clearEmbedProgress();
+    invalidateConnectionsCache();
+    this.container.empty();
+    this.addBanner('Embedding model changed. Re-embedding in progress.');
+    this.lastRenderedPath = null;
+    this._lastResultKeys = [];
+    this.autoEmbedRequestedForPath = null;
+  }
 
-    if (!isRunning) {
-      if (this.progressEl) {
-        this.progressEl.remove();
-        this.progressEl = null;
+  private updateProgressBanner(): void {
+    if (!this.container) return;
+
+    // Show progress whenever embedding is incomplete; hide only at 100%
+    const blocksAll = this.plugin.block_collection?.all;
+    const totalBlocks = blocksAll?.length ?? 0;
+    const embeddedBlocks = totalBlocks > 0 ? blocksAll.filter((b: any) => b.vec).length : 0;
+    const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
+
+    if (isComplete || totalBlocks === 0) {
+      if (this.embedProgress) {
+        this.embedProgress.destroy();
+        this.embedProgress = null;
       }
       return;
     }
 
-    // Run progress from payload (primary); fall back to ctx
-    const runCurrent = payload?.current ?? ctx.current;
-    const runTotal = payload?.total ?? ctx.total;
-    const runPercent = payload?.percent ?? (runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0);
-    const etaMs = payload?.etaMs ?? null;
-    const etaStr = formatEta(etaMs);
-    const etaPart = etaStr ? ` ETA: ${etaStr}` : '';
-    const runText = `Embedding: ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%)${etaPart}`;
-
-    // Vault-wide progress (secondary, muted)
-    const blocks = this.plugin.block_collection?.all;
-    const totalBlocks = blocks?.length ?? 0;
-    const embeddedBlocks = blocks?.filter((b: any) => b.vec)?.length ?? 0;
-    const vaultPercent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
-    const vaultText = `Vault: ${embeddedBlocks.toLocaleString()}/${totalBlocks.toLocaleString()} (${vaultPercent}%)`;
-
-    if (!this.progressEl) {
-      this.progressEl = createDiv({ cls: 'osc-embed-progress' });
-      this.progressEl.createSpan({ cls: 'osc-embed-progress-text' });
-      this.progressEl.createSpan({ cls: 'osc-embed-progress-vault' });
-      this.progressEl.createDiv({ cls: 'osc-embed-progress-bar' })
-        .createDiv({ cls: 'osc-embed-progress-fill' });
-      // Insert at top of container, before header
-      this.container.prepend(this.progressEl);
+    if (!this.embedProgress) {
+      this.embedProgress = renderEmbedProgress(this.container, this.plugin, { prepend: true });
+    } else {
+      this.embedProgress.update();
     }
-
-    const textEl = this.progressEl.querySelector('.osc-embed-progress-text') as HTMLElement;
-    if (textEl) textEl.setText(runText);
-
-    const vaultEl = this.progressEl.querySelector('.osc-embed-progress-vault') as HTMLElement;
-    if (vaultEl) vaultEl.setText(vaultText);
-
-    const fillEl = this.progressEl.querySelector('.osc-embed-progress-fill') as HTMLElement;
-    if (fillEl) fillEl.style.width = `${runPercent}%`;
   }
 
   renderResults(targetPath: string, results: ConnectionResult[]): void {
@@ -358,8 +359,8 @@ export class ConnectionsView extends ItemView {
     }
     this._lastResultKeys = newKeys;
 
+    this.clearEmbedProgress();
     this.container.empty();
-    this.progressEl = null; // reset reference since container was emptied
     const fileName = targetPath.split('/').pop()?.replace(/\.md$/, '') || 'Unknown';
 
     const header = this.container.createDiv({ cls: 'osc-header' });
@@ -589,6 +590,7 @@ export class ConnectionsView extends ItemView {
 
   showLoading(message = 'Loading...'): void {
     this._lastResultKeys = [];
+    this.clearEmbedProgress();
     this.container.empty();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state' });
@@ -607,8 +609,11 @@ export class ConnectionsView extends ItemView {
   }
 
   showEmpty(message = 'No similar notes found', clear = true): void {
-    if (clear) this._lastResultKeys = [];
-    if (clear) this.container.empty();
+    if (clear) {
+      this._lastResultKeys = [];
+      this.clearEmbedProgress();
+      this.container.empty();
+    }
 
     const wrapper = this.container.createDiv({ cls: 'osc-state' });
     const iconEl = wrapper.createDiv({ cls: 'osc-state-icon' });
@@ -632,6 +637,7 @@ export class ConnectionsView extends ItemView {
 
   showError(message = 'An error occurred'): void {
     this._lastResultKeys = [];
+    this.clearEmbedProgress();
     this.container.empty();
 
     const wrapper = this.container.createDiv({ cls: 'osc-state osc-state--error' });
