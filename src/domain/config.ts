@@ -6,8 +6,8 @@
  *   - NOTICE_CATALOG: all notice definitions + SmartConnectionsNotices alias
  */
 
-import type { PluginSettings } from '../types/settings';
-import { PluginNotices, type NoticeCatalog } from '../shared/plugin-notices';
+import type { PluginSettings, NoticeCatalog } from '../types/settings';
+import { PluginNotices } from '../shared/plugin-notices';
 
 // ---------------------------------------------------------------------------
 // Errors

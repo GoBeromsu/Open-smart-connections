@@ -6,6 +6,7 @@
 export type EmbeddingKernelJobType =
   | 'MODEL_SWITCH'
   | 'RUN_EMBED_BATCH'
+  | 'RUN_EMBED_FOLLOWUP'
   | 'REIMPORT_SOURCES'
   | 'REFRESH_REQUEST';
 

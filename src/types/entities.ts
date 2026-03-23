@@ -4,7 +4,13 @@
  * CRITICAL: Maintain exact data structure for cache compatibility
  */
 
-import type { EmbeddingEntity as EmbeddingEntityClass } from '../domain/entities/EmbeddingEntity';
+/**
+ * Minimal runtime entity interface used for connection results.
+ * Avoids importing from domain/ into types/.
+ */
+interface EntityRef {
+  key: string;
+}
 
 /**
  * Last read/embed metadata
@@ -136,7 +142,7 @@ export interface BlockData extends EntityData {
  */
 export interface ConnectionResult {
   /** The entity item */
-  item: EmbeddingEntityClass;
+  item: EntityRef;
 
   /** Similarity score (cosine similarity) */
   score: number;

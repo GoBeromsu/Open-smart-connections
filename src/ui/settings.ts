@@ -11,6 +11,7 @@ import {
   Modal,
   ButtonComponent,
   ProgressBarComponent,
+  EventRef,
 } from 'obsidian';
 import type { PluginSettings } from '../types/settings';
 import {
@@ -88,13 +89,31 @@ class ConfirmModal extends Modal {
 
 export class SmartConnectionsSettingsTab extends PluginSettingTab {
   plugin: SmartConnectionsPlugin;
+  private eventRefs: EventRef[] = [];
+  private statusRowEl: HTMLElement | null = null;
+  private statsGridEl: HTMLElement | null = null;
 
   constructor(app: App, plugin: SmartConnectionsPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
 
+  private cleanupListeners(): void {
+    for (const ref of this.eventRefs) {
+      this.app.workspace.offref(ref);
+    }
+    this.eventRefs = [];
+    this.statusRowEl = null;
+    this.statsGridEl = null;
+  }
+
+  hide(): void {
+    this.cleanupListeners();
+  }
+
   display(): void {
+    this.cleanupListeners();
+
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass('smart-connections-settings');
@@ -122,6 +141,18 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     // Embedding Status
     new Setting(containerEl).setName('Embedding Status').setHeading();
     this.renderEmbeddingStatus(containerEl);
+
+    // Register live-update listeners for the status section
+    this.eventRefs.push(
+      this.app.workspace.on('smart-connections:embed-progress' as any, () => {
+        this.updateEmbeddingStatusOnly();
+      }),
+    );
+    this.eventRefs.push(
+      this.app.workspace.on('smart-connections:embed-state-changed' as any, () => {
+        this.updateEmbeddingStatusOnly();
+      }),
+    );
   }
 
   private renderEmbeddingModelSection(containerEl: HTMLElement): void {
@@ -454,6 +485,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     const runLabel = this.getRunStateLabel(status);
 
     const statusRow = containerEl.createDiv({ cls: 'osc-model-status' });
+    this.statusRowEl = statusRow;
     this.renderStatusPill(statusRow, 'Core', this.plugin.ready ? 'Ready' : 'Loading', !!this.plugin.ready);
     this.renderStatusPill(
       statusRow,
@@ -470,6 +502,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     );
 
     const statsGrid = containerEl.createDiv({ cls: 'osc-stats-grid' });
+    this.statsGridEl = statsGrid;
     this.renderStatCard(statsGrid, 'Total', total.toLocaleString());
     this.renderStatCard(statsGrid, 'Embedded', embedded.toLocaleString(), 'green');
     this.renderStatCard(statsGrid, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
@@ -510,6 +543,42 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           this.display();
         });
     });
+  }
+
+  private updateEmbeddingStatusOnly(): void {
+    if (this.statusRowEl) this.updateStatusPills(this.statusRowEl);
+    if (this.statsGridEl) {
+      const collection = this.plugin.source_collection;
+      const total = collection?.size ?? 0;
+      const embedded = collection?.all?.filter((s: any) => s.vec)?.length ?? 0;
+      const pending = Math.max(0, total - embedded);
+      const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
+      this.statsGridEl.empty();
+      this.renderStatCard(this.statsGridEl, 'Total', total.toLocaleString());
+      this.renderStatCard(this.statsGridEl, 'Embedded', embedded.toLocaleString(), 'green');
+      this.renderStatCard(this.statsGridEl, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
+      this.renderStatCard(this.statsGridEl, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
+    }
+  }
+
+  private updateStatusPills(statusRow: HTMLElement): void {
+    const status = this.plugin.status_state ?? 'idle';
+    const runLabel = this.getRunStateLabel(status);
+    statusRow.empty();
+    this.renderStatusPill(statusRow, 'Core', this.plugin.ready ? 'Ready' : 'Loading', !!this.plugin.ready);
+    this.renderStatusPill(
+      statusRow,
+      'Embedding',
+      this.plugin.embed_ready ? 'Ready' : 'Loading',
+      !!this.plugin.embed_ready,
+    );
+    this.renderStatusPill(
+      statusRow,
+      'Run',
+      runLabel,
+      status === 'embedding',
+      this.getRunStateTone(status),
+    );
   }
 
   private getRunStateLabel(

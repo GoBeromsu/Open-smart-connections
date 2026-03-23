@@ -120,6 +120,17 @@ export interface ViewFilterSettings {
 }
 
 /**
+ * Notice catalog types (mirrors shared/plugin-notices, without the Obsidian import)
+ */
+export interface NoticeDefinition {
+  template: string;
+  timeout?: number;
+  immutable?: boolean;
+}
+
+export type NoticeCatalog = Record<string, NoticeDefinition>;
+
+/**
  * Notice settings
  */
 export interface SmartNoticesSettings {

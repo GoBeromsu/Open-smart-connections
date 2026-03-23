@@ -57,17 +57,11 @@ export interface EmbedPipelineOptions {
     progress?: EmbedProgressSnapshot,
   ) => void;
 
-  /** Callback for batch complete */
-  on_batch_complete?: (batch_num: number, batch_size: number) => void;
-
   /** Callback to save after N batches (default: every 50 batches) */
   on_save?: () => Promise<void>;
 
   /** Save interval in batches (default 50) */
   save_interval?: number;
-
-  /** Whether to halt on error (default false) */
-  halt_on_error?: boolean;
 
   /** Expected content hashes for hash re-verification (entityKey -> hash) */
   expected_hashes?: Record<string, string>;
@@ -119,10 +113,8 @@ export class EmbeddingPipeline {
       max_retries = 3,
       concurrency = 1,
       on_progress,
-      on_batch_complete,
       on_save,
       save_interval = 50,
-      halt_on_error = false,
       expected_hashes,
     } = opts;
 
@@ -194,7 +186,6 @@ export class EmbeddingPipeline {
 
           const current_batch_index = batch_index++;
           const batch = batches[current_batch_index];
-          const batch_num = current_batch_index + 1;
 
           // Prepare embed inputs for this batch
           await Promise.all(batch.map(e => e.get_embed_input()));
@@ -228,14 +219,11 @@ export class EmbeddingPipeline {
             local.skipped += skipped_in_batch.length;
             this.clear_queue_flags(skipped_in_batch);
 
-            if (on_batch_complete) {
-              on_batch_complete(batch_num, ready.length);
-            }
           } catch (error) {
             local.failed += batch.length;
             this.clear_queue_flags(batch);
 
-            if (halt_on_error || (error instanceof Error && error.name === 'BatchIntegrityError')) {
+            if (error instanceof Error && error.name === 'BatchIntegrityError') {
               mark_fatal(error);
               continue;
             }

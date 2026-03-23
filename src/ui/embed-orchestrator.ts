@@ -23,6 +23,7 @@ import {
 } from '../domain/embedding-pipeline';
 
 import { buildKernelModel } from '../domain/embedding/kernel';
+import { errorMessage } from '../utils';
 
 
 // ── Model info helpers ──────────────────────────────────────────────
@@ -200,7 +201,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
     console.log(`[SC][Init] Embed model initialized (${adapterType}/${modelKey})`);
   } catch (error) {
     console.error('[SC][Init]   [model] Failed to initialize embed model:', error);
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     if (
       plugin.settings.smart_sources.embed_model.adapter === 'transformers' &&
       /(failed to fetch|network|cdn|timed out)/i.test(message)
@@ -418,10 +419,10 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     });
     console.log(`[SC][Init] Model switch complete (${active.adapter}/${active.modelKey}, ${queuedAfterSync} queued)`);
   } catch (error) {
-    plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
+    plugin.setEmbedPhase('error', { error: errorMessage(error) });
     plugin.logEmbed('switch-failed', {
       reason,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
     });
     throw error;
   }
@@ -649,9 +650,9 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
 
     ctx.phase = 'failed';
     ctx.outcome = 'failed';
-    ctx.error = error instanceof Error ? error.message : String(error);
+    ctx.error = errorMessage(error);
     publishEmbedContext(plugin, ctx);
-    plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
+    plugin.setEmbedPhase('error', { error: errorMessage(error) });
     plugin.logEmbed('run-failed', {
       runId: ctx.runId,
       adapter: ctx.adapter,
@@ -660,7 +661,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
       current: ctx.current,
       total: ctx.total,
       currentSourcePath: ctx.currentSourcePath,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
     });
     plugin.notices.show('embedding_failed');
     throw error;

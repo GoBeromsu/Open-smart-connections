@@ -154,12 +154,46 @@ export class Plugin {
 }
 
 /**
+ * Patch an HTMLElement with Obsidian's extended DOM helpers (.empty(), .addClass(), .createDiv(), .createEl(), .createSpan())
+ */
+function patchObsidianEl(el: HTMLElement): HTMLElement {
+  (el as any).empty = function(): void { while (this.firstChild) this.removeChild(this.firstChild); };
+  (el as any).addClass = function(...cls: string[]): void { this.classList.add(...cls); };
+  (el as any).removeClass = function(...cls: string[]): void { this.classList.remove(...cls); };
+  (el as any).createEl = function(tag: string, opts?: { text?: string; cls?: string }): HTMLElement {
+    const child = document.createElement(tag);
+    if (opts?.text) child.textContent = opts.text;
+    if (opts?.cls) child.className = opts.cls;
+    patchObsidianEl(child);
+    this.appendChild(child);
+    return child;
+  };
+  (el as any).createDiv = function(opts?: { cls?: string; text?: string }): HTMLElement {
+    const child = document.createElement('div');
+    if (opts?.cls) child.className = opts.cls;
+    if (opts?.text) child.textContent = opts.text;
+    patchObsidianEl(child);
+    this.appendChild(child);
+    return child;
+  };
+  (el as any).createSpan = function(opts?: { cls?: string; text?: string }): HTMLElement {
+    const child = document.createElement('span');
+    if (opts?.cls) child.className = opts.cls;
+    if (opts?.text) child.textContent = opts.text;
+    patchObsidianEl(child);
+    this.appendChild(child);
+    return child;
+  };
+  return el;
+}
+
+/**
  * Mock PluginSettingTab
  */
 export class PluginSettingTab {
   app: App;
   plugin: Plugin;
-  containerEl: HTMLElement = document.createElement('div');
+  containerEl: HTMLElement = patchObsidianEl(document.createElement('div'));
 
   constructor(app: App, plugin: Plugin) {
     this.app = app;
@@ -354,6 +388,23 @@ export class ToggleComponent {
   }
 }
 
+export class SliderComponent {
+  value = 0;
+  private changeHandler?: (value: number) => unknown | Promise<unknown>;
+
+  setLimits(_min: number, _max: number, _step: number): this { return this; }
+  setValue(value: number): this { this.value = value; return this; }
+  setDynamicTooltip(): this { return this; }
+  onChange(handler: (value: number) => unknown | Promise<unknown>): this {
+    this.changeHandler = handler;
+    return this;
+  }
+  async trigger(value: number): Promise<void> {
+    this.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
 export class Setting {
   static instances: Setting[] = [];
   containerEl: HTMLElement;
@@ -363,6 +414,7 @@ export class Setting {
   text?: TextComponent;
   toggle?: ToggleComponent;
   button?: ButtonComponent;
+  slider?: SliderComponent;
 
   constructor(containerEl: HTMLElement) {
     this.containerEl = containerEl;
@@ -412,6 +464,13 @@ export class Setting {
     const button = new ButtonComponent(this.containerEl);
     this.button = button;
     callback(button);
+    return this;
+  }
+
+  addSlider(callback: (slider: SliderComponent) => unknown): this {
+    const slider = new SliderComponent();
+    this.slider = slider;
+    callback(slider);
     return this;
   }
 }
@@ -523,6 +582,7 @@ export default {
   TextComponent,
   ToggleComponent,
   ButtonComponent,
+  SliderComponent,
   ProgressBarComponent,
   setIcon,
   TFile,
