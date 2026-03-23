@@ -46,11 +46,16 @@ export async function getBlockConnections(
   }
 
   const fileBlocks = blockCollection.for_source(filePath);
-  const embedded = fileBlocks.filter(b => b.vec);
+  const embedded = fileBlocks.filter(b => b.has_embed());
   if (embedded.length === 0) return [];
 
-  const avgVec = average_vectors(embedded.map(b => b.vec!));
-  const excludeKeys = new Set(fileBlocks.map(b => b.key));
+  await Promise.all(embedded.map(b => blockCollection.ensure_entity_vector(b)));
+  const withVec = embedded.filter(b => b.vec && b.vec.length > 0);
+  if (withVec.length === 0) return [];
+
+  const avgVec = average_vectors(withVec.map(b => b.vec!));
+  withVec.forEach(b => b.evictVec());
+  const excludeKeys = fileBlocks.map(b => b.key);
   const results = await blockCollection.nearest(avgVec, { limit: limit * 3, exclude: excludeKeys });
 
   // Dedupe by source path, keep highest score

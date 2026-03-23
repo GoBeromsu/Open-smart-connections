@@ -580,6 +580,8 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
       },
       on_save: async () => {
         await saveCollections(plugin);
+        plugin.block_collection?.recomputeEmbeddedCount();
+        plugin.source_collection?.recomputeEmbeddedCount();
         if (plugin.current_embed_context?.runId === runId) {
           ctx.saveCount += 1;
           publishEmbedContext(plugin, ctx);
@@ -619,6 +621,8 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
 
     if (stats.outcome === 'completed') {
       await saveCollections(plugin);
+      plugin.block_collection?.recomputeEmbeddedCount();
+      plugin.source_collection?.recomputeEmbeddedCount();
       ctx.saveCount += 1;
     }
 

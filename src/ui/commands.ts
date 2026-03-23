@@ -79,7 +79,7 @@ export function registerCommands(plugin: Plugin): void {
       if (!activeFile || !p.block_collection) return;
 
       const blockCollection = p.block_collection as BlockCollection;
-      const hasEmbedded = blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.vec);
+      const hasEmbedded = blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.has_embed());
       if (!hasEmbedded) {
         p.notices?.show('no_embedding_for_context');
         return;
@@ -114,7 +114,7 @@ export function registerCommands(plugin: Plugin): void {
       if (!activeFile || !p.block_collection) return;
 
       const blockCollection = p.block_collection as BlockCollection;
-      if (!blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.vec)) return;
+      if (!blockCollection.for_source(activeFile.path).some((b: EmbeddingBlock) => b.has_embed())) return;
 
       try {
         const results = await getBlockConnections(blockCollection, activeFile.path, { limit: 20 });

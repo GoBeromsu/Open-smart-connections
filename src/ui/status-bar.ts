@@ -42,9 +42,8 @@ function getVaultTag(plugin: SmartConnectionsPlugin): string {
   const now = Date.now();
   if (now - lastComputeMs < CACHE_TTL_MS && cachedVaultTag) return cachedVaultTag;
 
-  const blocks = plugin.block_collection?.all;
-  const totalBlocks = blocks?.length ?? 0;
-  const embeddedBlocks = blocks?.filter(b => b.vec)?.length ?? 0;
+  const totalBlocks = plugin.block_collection?.size ?? 0;
+  const embeddedBlocks = plugin.block_collection?.embeddedCount ?? 0;
   const vaultPercent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
 
   cachedVaultTag = `${embeddedBlocks}/${totalBlocks} (${vaultPercent}%)`;

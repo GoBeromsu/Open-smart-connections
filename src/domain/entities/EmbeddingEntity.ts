@@ -78,7 +78,7 @@ export class EmbeddingEntity {
     }
   }
 
-  private has_dim_mismatch(vec: number[] | null): boolean {
+  private has_dim_mismatch(vec: number[] | Float32Array | null): boolean {
     const expected_dims = (this.collection as any).embed_model_dims;
     return (
       typeof expected_dims === 'number' &&
@@ -165,7 +165,7 @@ export class EmbeddingEntity {
    * Get current embedding vector
    * CRITICAL: Format is data.embeddings[model_key].vec
    */
-  get vec(): number[] | null {
+  get vec(): number[] | Float32Array | null {
     const vec = this.embedding_data.vec;
     return (vec && vec.length > 0) ? vec : null;
   }
@@ -174,7 +174,7 @@ export class EmbeddingEntity {
    * Set embedding vector
    * CRITICAL: Must maintain data.embeddings[model_key] = { vec, tokens } format
    */
-  set vec(vec: number[] | null) {
+  set vec(vec: number[] | Float32Array | null) {
     if (vec === null) {
       if (this.data.embeddings[this.embed_model_key]) {
         this.data.embeddings[this.embed_model_key].vec = [];
@@ -313,6 +313,18 @@ export class EmbeddingEntity {
     const read_hash = this.read_hash;
     const active_hash = this.active_embedding_meta?.hash;
     return !!read_hash && !!active_hash && read_hash === active_hash;
+  }
+
+  /**
+   * Evict the in-memory vector after it has been persisted to SQLite.
+   * Sets vec to [] without triggering queue_save or clearing metadata.
+   * After eviction, has_embed() still returns true via hash comparison.
+   */
+  evictVec(): void {
+    const model_key = this.embed_model_key;
+    if (this.data.embeddings[model_key]) {
+      this.data.embeddings[model_key].vec = [];
+    }
   }
 
   /**

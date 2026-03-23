@@ -72,6 +72,7 @@ function makePlugin(overrides: Record<string, any> = {}): any {
     status_state: 'idle' as 'idle' | 'embedding' | 'error',
     source_collection: {
       size: 10,
+      embeddedCount: 7,
       all: Array.from({ length: 7 }, () => ({ vec: [0.1] })),
     },
     getActiveEmbeddingContext: vi.fn(() => null),
@@ -198,7 +199,7 @@ describe('Settings status sync — terminal event (AC10)', () => {
     const app = makeApp();
     const plugin = makePlugin({
       status_state: 'idle',
-      source_collection: { size: 10, all: fullyEmbedded },
+      source_collection: { size: 10, embeddedCount: 10, all: fullyEmbedded },
     });
     const tab = new SmartConnectionsSettingsTab(app, plugin);
 
@@ -221,7 +222,7 @@ describe('Settings status sync — terminal event (AC10)', () => {
     const fullyEmbedded = Array.from({ length: 5 }, () => ({ vec: [0.1] }));
     const app = makeApp();
     const plugin = makePlugin({
-      source_collection: { size: 5, all: fullyEmbedded },
+      source_collection: { size: 5, embeddedCount: 5, all: fullyEmbedded },
     });
     const tab = new SmartConnectionsSettingsTab(app, plugin);
 
@@ -241,6 +242,7 @@ describe('Settings status sync — live stats update', () => {
     const plugin = makePlugin({
       source_collection: {
         size: 20,
+        embeddedCount: 10,
         all: Array.from({ length: 10 }, () => ({ vec: [0.1] })),
       },
     });
@@ -251,6 +253,7 @@ describe('Settings status sync — live stats update', () => {
     // Simulate progress: 15 of 20 embedded
     plugin.source_collection = {
       size: 20,
+      embeddedCount: 15,
       all: Array.from({ length: 15 }, () => ({ vec: [0.1] })),
     };
     (tab as any).updateEmbeddingStatusOnly();

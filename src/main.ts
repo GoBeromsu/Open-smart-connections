@@ -294,7 +294,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       const activeFile = this.app.workspace.getActiveFile();
       if (!activeFile) return;
 
-      // Find embedded blocks for this file and average their vectors
+      // Find embedded blocks for this file and load their vectors on demand
       const fileBlocks = this.block_collection.all.filter(
         (b: any) => b.source_key === activeFile.path && b.has_embed(),
       );
@@ -303,10 +303,18 @@ export default class SmartConnectionsPlugin extends Plugin {
         return;
       }
 
-      const avgVec = average_vectors(fileBlocks.map((b: any) => b.vec));
+      await Promise.all(fileBlocks.map((b: any) => this.block_collection.ensure_entity_vector(b)));
+      const loadedBlocks = fileBlocks.filter((b: any) => b.vec && b.vec.length > 0);
+      if (loadedBlocks.length === 0) {
+        el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
+        return;
+      }
+
+      const avgVec = average_vectors(loadedBlocks.map((b: any) => b.vec));
+      loadedBlocks.forEach((b: any) => (b as any).evictVec?.());
 
       try {
-        const blockKeys = new Set(fileBlocks.map((b: any) => b.key));
+        const blockKeys = fileBlocks.map((b: any) => b.key);
         const results = await this.block_collection.nearest(avgVec, { limit: limit * 3, exclude: blockKeys });
         // Dedupe by source path, keep highest score
         const seen = new Map<string, { score: number; path: string; heading: string }>();

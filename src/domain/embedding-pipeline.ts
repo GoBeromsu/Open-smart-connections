@@ -147,11 +147,18 @@ export class EmbeddingPipeline {
         this.should_halt = true;
       };
 
+      const pendingEviction: EmbeddingEntity[] = [];
+
       const flush_save = async (): Promise<void> => {
         if (!on_save) return;
         const run = save_chain.then(() => on_save());
         save_chain = run.catch(() => undefined);
         await run;
+        // Evict vectors for entities persisted in this save
+        const toEvict = pendingEviction.splice(0);
+        for (const entity of toEvict) {
+          entity.evictVec?.();
+        }
       };
 
       // Concurrent batch dispatcher
@@ -213,7 +220,7 @@ export class EmbeddingPipeline {
           }
 
           try {
-            const { succeeded, failed_count } = await this.process_batch(ready, max_retries);
+            const { succeeded, failed_count } = await this.process_batch(ready, max_retries, pendingEviction);
             local.success += succeeded;
             local.failed += failed_count;
             local.skipped += skipped_in_batch.length;
@@ -332,6 +339,7 @@ export class EmbeddingPipeline {
   private async process_batch(
     batch: EmbeddingEntity[],
     max_retries: number,
+    pendingEviction?: EmbeddingEntity[],
   ): Promise<{ succeeded: number; failed_count: number }> {
     let retries = 0;
     let last_error: Error | null = null;
@@ -366,6 +374,7 @@ export class EmbeddingPipeline {
 
           entity.vec = emb.vec;
           entity.tokens = emb.tokens;
+          pendingEviction?.push(entity);
 
           if (entity.data.last_read) {
             entity.data.last_embed = { ...entity.data.last_read };

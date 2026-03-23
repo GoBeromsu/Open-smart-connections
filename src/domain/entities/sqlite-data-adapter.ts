@@ -41,16 +41,9 @@ function toDbKey(storageNamespace: string): string {
     .slice(0, 200) || 'open_connections';
 }
 
-function vecToBlob(vec: number[]): Uint8Array {
-  const f32 = new Float32Array(vec);
+function vecToBlob(vec: number[] | Float32Array): Uint8Array {
+  const f32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
   return new Uint8Array(f32.buffer);
-}
-
-function blobToVec(blob: Uint8Array | ArrayBuffer | null): number[] | null {
-  if (!blob) return null;
-  const buf = blob instanceof Uint8Array ? blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength) : blob;
-  if (buf.byteLength === 0 || buf.byteLength % 4 !== 0) return null;
-  return Array.from(new Float32Array(buf));
 }
 
 function blobToF32(blob: Uint8Array | ArrayBuffer | null): Float32Array | null {
@@ -821,7 +814,7 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
     entityKey: string,
     modelKey: string,
   ): Promise<{
-    vec: number[] | null;
+    vec: Float32Array | null;
     tokens?: number;
     meta?: EmbeddingModelMeta;
   }> {
@@ -840,7 +833,7 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
         }
 
         const row = stmt.getAsObject();
-        const vec = blobToVec(row.vec as Uint8Array | null);
+        const vec = blobToF32(row.vec as Uint8Array | null);
         const meta = row.embed_hash
           ? {
             hash: row.embed_hash as string,
@@ -865,11 +858,11 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
   // -----------------------------------------------------------------------
 
   async query_nearest(
-    vec: number[],
+    vec: number[] | Float32Array,
     filter: SearchFilter = {},
     fetchMultiplier: number = 3,
   ): Promise<QueryMatch[]> {
-    if (!vec || !Array.isArray(vec) || vec.length === 0) return [];
+    if (!vec || vec.length === 0) return [];
 
     const modelKey = this.collection.embed_model_key;
     if (!modelKey || modelKey === 'None') return [];
@@ -927,7 +920,7 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
 
       try {
         // Compute cosine similarity in JS using Float32Array to skip Array.from() conversion
-        const queryF32 = new Float32Array(vec);
+        const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
         const scored: QueryMatch[] = [];
         while (stmt.step()) {
           const row = stmt.getAsObject();

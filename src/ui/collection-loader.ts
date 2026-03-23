@@ -68,14 +68,15 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.source_collection.loaded = true;
     plugin.block_collection.loaded = true;
 
+    plugin.source_collection.recomputeEmbeddedCount();
+    plugin.block_collection.recomputeEmbeddedCount();
+
     plugin.source_collection._initializing = false;
 
     const mk = plugin.source_collection.embed_model_key;
-    const sc = plugin.source_collection.all;
-    const bc = plugin.block_collection.all;
     console.log(
-      `[SC][Init]   [collections] Loaded: ${sc.length} sources (${sc.filter(e => e.data.embedding_meta?.[mk]).length} with meta, ${sc.filter(e => e.is_unembedded).length} unembedded), ` +
-      `${bc.length} blocks (${bc.filter(e => e.data.embedding_meta?.[mk]).length} with meta, ${bc.filter(e => e.is_unembedded).length} unembedded) [model_key=${mk}]`,
+      `[SC][Init]   [collections] Loaded: ${plugin.source_collection.size} sources (${plugin.source_collection.embeddedCount} embedded), ` +
+      `${plugin.block_collection.size} blocks (${plugin.block_collection.embeddedCount} embedded) [model_key=${mk}]`,
     );
   } catch (error) {
     console.error('[SC][Init]   [collections] Failed to load collections:', error);
@@ -115,6 +116,8 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
     await plugin.source_collection.data_adapter.save();
     await plugin.block_collection.data_adapter.save();
+    plugin.source_collection.recomputeEmbeddedCount();
+    plugin.block_collection.recomputeEmbeddedCount();
 
     const chunkQueued = queueUnembeddedEntities(plugin);
     const processed = Math.min(i + chunkSize, total);

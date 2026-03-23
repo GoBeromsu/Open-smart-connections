@@ -50,12 +50,11 @@ export function renderEmbedProgress(
   function update(): void {
     if (destroyed) return;
 
-    const blocksAll = plugin.block_collection?.all ?? [];
-    const totalBlocks = blocksAll.length;
-    const embeddedBlocks = totalBlocks > 0 ? blocksAll.filter((b: any) => b.vec).length : 0;
+    const totalBlocks = plugin.block_collection?.size ?? 0;
+    const embeddedBlocks = plugin.block_collection?.embeddedCount ?? 0;
 
     const notesTotal = plugin.app?.vault?.getMarkdownFiles()?.length ?? 0;
-    const notesEmbedded = plugin.source_collection?.all?.filter((s: any) => s.vec)?.length ?? 0;
+    const notesEmbedded = plugin.block_collection?.embeddedSourceCount ?? 0;
 
     const phase = detectPhase(embeddedBlocks, totalBlocks);
 
