@@ -43,6 +43,7 @@ function createPlugin() {
     data_dir: '/tmp/sources',
     size: 2,
     all: [],
+    recomputeEmbeddedCount: vi.fn(),
   } as any;
 
   plugin.block_collection = {
@@ -54,6 +55,7 @@ function createPlugin() {
       save: vi.fn(async () => {}),
     },
     data_dir: '/tmp/blocks',
+    recomputeEmbeddedCount: vi.fn(),
   } as any;
 
   plugin.embed_adapter = {

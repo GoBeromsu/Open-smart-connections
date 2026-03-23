@@ -152,7 +152,7 @@ describe('SqliteDataAdapter real sql.js lifecycle', () => {
     ]);
 
     const loaded = await secondAdapter.load_entity_vector('note-a.md#h1', 'test-model');
-    expect(loaded.vec).toEqual([1, 0]);
+    expect(loaded.vec).toEqual(new Float32Array([1, 0]));
     expect(loaded.tokens).toBe(2);
     expect(loaded.meta?.hash).toBe('hash:note-a.md#h1');
 

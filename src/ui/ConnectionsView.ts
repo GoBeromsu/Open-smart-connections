@@ -327,9 +327,8 @@ export class ConnectionsView extends ItemView {
   private updateProgressBanner(): void {
     if (!this.container) return;
 
-    const blocksAll = this.plugin.block_collection?.all ?? [];
-    const totalBlocks = blocksAll.length;
-    const embeddedBlocks = totalBlocks > 0 ? blocksAll.filter((b: any) => b.vec).length : 0;
+    const totalBlocks = this.plugin.block_collection?.size ?? 0;
+    const embeddedBlocks = this.plugin.block_collection?.embeddedCount ?? 0;
     const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
 
     const modelLoading = !this.plugin.embed_ready && this.plugin.status_state !== 'error';

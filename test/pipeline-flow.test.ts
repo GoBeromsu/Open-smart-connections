@@ -71,12 +71,14 @@ function makePlugin(overrides: Partial<{
     block_collection: {
       all: blocks,
       data_adapter: { save: vi.fn(async () => {}) },
+      recomputeEmbeddedCount: vi.fn(),
     },
     source_collection: {
       all: sources,
       vault: {},
       data_adapter: { save: vi.fn(async () => {}) },
       import_source: vi.fn(async () => {}),
+      recomputeEmbeddedCount: vi.fn(),
     },
     app: {
       vault: {

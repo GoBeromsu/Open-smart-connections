@@ -18,6 +18,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   source_collection?: SourceCollection;
 
   private _sourceIndex: Map<string, Set<string>> = new Map();
+  private _cachedEmbeddedSourceCount = 0;
 
   constructor(
     data_dir: string,
@@ -47,6 +48,23 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
       set.delete(key);
       if (set.size === 0) this._sourceIndex.delete(sourceKey);
     }
+  }
+
+  /** Count of distinct source files with at least one embedded block */
+  get embeddedSourceCount(): number {
+    return this._cachedEmbeddedSourceCount;
+  }
+
+  override recomputeEmbeddedCount(): void {
+    super.recomputeEmbeddedCount();
+    let count = 0;
+    for (const [, blockKeys] of this._sourceIndex) {
+      for (const key of blockKeys) {
+        const block = this.items[key];
+        if (block?.has_embed()) { count++; break; }
+      }
+    }
+    this._cachedEmbeddedSourceCount = count;
   }
 
   /**

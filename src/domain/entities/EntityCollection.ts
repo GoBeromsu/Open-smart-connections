@@ -14,6 +14,9 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   embed_model_key: string = 'None';
   embed_model_dims?: number;
 
+  /** Cached embedded count — recomputed at event boundaries (load, save, clear) */
+  private _cachedEmbeddedCount = 0;
+
   constructor(
     data_dir: string,
     settings: any = {},
@@ -62,7 +65,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     }
 
     item.init();
-
     return item;
   }
 
@@ -116,7 +118,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     await this.data_adapter.save_batch(queue);
   }
 
-  async nearest(vec: number[], filter: SearchFilter = {}): Promise<ConnectionResult[]> {
+  async nearest(vec: number[] | Float32Array, filter: SearchFilter = {}): Promise<ConnectionResult[]> {
     const limit = filter.limit ?? 50;
     const fetch_multiplier = filter.filter_fn ? 6 : 3;
     const matches = await this.data_adapter.query_nearest(vec, filter, fetch_multiplier);
@@ -149,11 +151,27 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     return Object.keys(this.items).length;
   }
 
-  clear(): void {
-    this.items = {};
+  /** Delegates to .size for callers that use totalCount */
+  get totalCount(): number {
+    return this.size;
   }
 
-  private async ensure_entity_vector(entity: T): Promise<void> {
+  /** Recompute the embedded count from source of truth. Call after load, save, or clear. */
+  recomputeEmbeddedCount(): void {
+    this._cachedEmbeddedCount = this.all.filter(item => item.has_embed()).length;
+  }
+
+  /** O(1) count of entities with valid embeddings */
+  get embeddedCount(): number {
+    return this._cachedEmbeddedCount;
+  }
+
+  clear(): void {
+    this.items = {};
+    this._cachedEmbeddedCount = 0;
+  }
+
+  async ensure_entity_vector(entity: T): Promise<void> {
     if (entity.vec && entity.vec.length > 0) return;
     const model_key = this.embed_model_key;
     if (!model_key || model_key === 'None') return;

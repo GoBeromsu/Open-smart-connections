@@ -30,6 +30,7 @@ function createPluginStub() {
       data_dir: '/tmp/blocks',
       all: [] as any[],
       for_source(path: string) { return (this.all as any[]).filter((b: any) => b.source_key === path); },
+      ensure_entity_vector: vi.fn(async () => {}),
       nearest: vi.fn(async () => []),
     },
     open_note: vi.fn(),
@@ -103,6 +104,7 @@ describe('ConnectionsView rendering states', () => {
       vec: [1, 2, 3],
       is_unembedded: false,
       has_embed: () => true,
+      evictVec: vi.fn(),
     };
     plugin.block_collection.all = [embeddedBlock];
     plugin.block_collection.nearest = vi.fn(async () => [

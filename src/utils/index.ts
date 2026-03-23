@@ -21,7 +21,7 @@ export function errorMessage(e: unknown): string {
  * @returns Similarity score between 0 and 1
  * @throws Error if vectors have different lengths
  */
-export function cos_sim(vector1: number[] = [], vector2: number[] = []): number {
+export function cos_sim(vector1: number[] | Float32Array = [], vector2: number[] | Float32Array = []): number {
   if (vector1.length !== vector2.length) {
     throw new Error('Vectors must have the same length');
   }
@@ -101,7 +101,7 @@ export async function create_hash(text: string): Promise<string> {
  * Compute the element-wise average of one or more vectors.
  * Returns an empty array when no vectors are provided.
  */
-export function average_vectors(vecs: number[][]): number[] {
+export function average_vectors(vecs: (number[] | Float32Array)[]): number[] {
   if (vecs.length === 0) return [];
   const dims = vecs[0].length;
   const out = new Array<number>(dims).fill(0);

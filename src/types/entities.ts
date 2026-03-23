@@ -31,7 +31,7 @@ export interface LastMetadata {
  */
 export interface EmbeddingData {
   /** The embedding vector */
-  vec: number[];
+  vec: number[] | Float32Array;
   /** Token count (if available) */
   tokens?: number;
 }
@@ -160,7 +160,7 @@ export interface EmbeddingEntity {
   data: EntityData;
 
   /** Current embedding vector (cached from data.embeddings[model_key].vec) */
-  vec: number[] | null;
+  vec: number[] | Float32Array | null;
 
   /** Active-model freshness metadata */
   active_embedding_meta?: EmbeddingModelMeta;
@@ -203,6 +203,12 @@ export interface EmbeddingEntity {
    * Update active-model embedding metadata
    */
   set_active_embedding_meta(meta: EmbeddingModelMeta): void;
+
+  /**
+   * Evict the embedding vector from memory after it has been persisted to SQLite.
+   * Sets vec to [] in data.embeddings[model_key] without triggering queue_save.
+   */
+  evictVec?(): void;
 
   /**
    * Check if entity needs re-embedding
