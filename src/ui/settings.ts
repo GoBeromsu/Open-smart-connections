@@ -484,7 +484,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     const collection = this.plugin.source_collection;
 
     const total = collection?.size ?? 0;
-    const embedded = collection?.embeddedCount ?? 0;
+    const embedded = this.plugin.block_collection?.embeddedSourceCount ?? 0;
     const pending = Math.max(0, total - embedded);
     const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
     const activeCtx = this.plugin.getActiveEmbeddingContext?.() ?? null;
@@ -560,7 +560,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     if (this.statsGridEl) {
       const collection = this.plugin.source_collection;
       const total = collection?.size ?? 0;
-      const embedded = collection?.embeddedCount ?? 0;
+      const embedded = this.plugin.block_collection?.embeddedSourceCount ?? 0;
       const pending = Math.max(0, total - embedded);
       const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
       this.statsGridEl.empty();

@@ -75,6 +75,12 @@ function makePlugin(overrides: Record<string, any> = {}): any {
       embeddedCount: 7,
       all: Array.from({ length: 7 }, () => ({ vec: [0.1] })),
     },
+    block_collection: {
+      size: 0,
+      embeddedCount: 0,
+      embeddedSourceCount: 7,
+      recomputeEmbeddedCount: vi.fn(),
+    },
     getActiveEmbeddingContext: vi.fn(() => null),
     switchEmbeddingModel: vi.fn(async () => {}),
     ...overrides,
@@ -200,6 +206,7 @@ describe('Settings status sync — terminal event (AC10)', () => {
     const plugin = makePlugin({
       status_state: 'idle',
       source_collection: { size: 10, embeddedCount: 10, all: fullyEmbedded },
+      block_collection: { size: 0, embeddedCount: 0, embeddedSourceCount: 10, recomputeEmbeddedCount: vi.fn() },
     });
     const tab = new SmartConnectionsSettingsTab(app, plugin);
 
@@ -223,6 +230,7 @@ describe('Settings status sync — terminal event (AC10)', () => {
     const app = makeApp();
     const plugin = makePlugin({
       source_collection: { size: 5, embeddedCount: 5, all: fullyEmbedded },
+      block_collection: { size: 0, embeddedCount: 0, embeddedSourceCount: 5, recomputeEmbeddedCount: vi.fn() },
     });
     const tab = new SmartConnectionsSettingsTab(app, plugin);
 
@@ -245,6 +253,7 @@ describe('Settings status sync — live stats update', () => {
         embeddedCount: 10,
         all: Array.from({ length: 10 }, () => ({ vec: [0.1] })),
       },
+      block_collection: { size: 0, embeddedCount: 0, embeddedSourceCount: 10, recomputeEmbeddedCount: vi.fn() },
     });
     const tab = new SmartConnectionsSettingsTab(app, plugin);
 
@@ -256,6 +265,7 @@ describe('Settings status sync — live stats update', () => {
       embeddedCount: 15,
       all: Array.from({ length: 15 }, () => ({ vec: [0.1] })),
     };
+    plugin.block_collection = { size: 0, embeddedCount: 0, embeddedSourceCount: 15, recomputeEmbeddedCount: vi.fn() };
     (tab as any).updateEmbeddingStatusOnly();
 
     const statsGrid: HTMLElement = (tab as any).statsGridEl;

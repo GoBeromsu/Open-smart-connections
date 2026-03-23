@@ -412,6 +412,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (!this.isCurrentLifecycle(lifecycle)) return;
 
     this.ready = true;
+    this.refreshStatus();
     this.app.workspace.trigger('open-connections:core-ready' as any);
 
     const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;

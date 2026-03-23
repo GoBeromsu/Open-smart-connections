@@ -345,6 +345,7 @@ export class EmbeddingEntity {
    * Delegates to collection's search function
    */
   async nearest(filter: SearchFilter = {}): Promise<ConnectionResult[]> {
+    await this.collection.ensure_entity_vector(this);
     if (!this.vec) {
       throw new Error('Entity has no embedding vector');
     }
