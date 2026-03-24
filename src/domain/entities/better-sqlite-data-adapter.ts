@@ -7,7 +7,7 @@
 
 import type Database from 'better-sqlite3';
 import { createRequire } from 'module';
-import { join, dirname } from 'path';
+import { join, dirname, isAbsolute } from 'path';
 import { mkdirSync } from 'fs';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
@@ -181,10 +181,13 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
   }
 
   initVaultContext(vaultAdapter: any, configDir: string, pluginId: string, pluginDir: string): void {
-    const DatabaseConstructor = requireBetterSqlite(pluginDir);
     const basePath = typeof vaultAdapter.getBasePath === 'function'
       ? vaultAdapter.getBasePath()
       : (() => { throw new Error('[BetterSQLite] vaultAdapter.getBasePath() not available'); })();
+    // pluginDir from manifest.dir is vault-relative — resolve to absolute for createRequire().
+    // In tests, pluginDir may already be absolute (e.g. process.cwd()), so skip the join.
+    const absolutePluginDir = isAbsolute(pluginDir) ? pluginDir : join(basePath, pluginDir);
+    const DatabaseConstructor = requireBetterSqlite(absolutePluginDir);
     const absoluteDbPath = join(basePath, configDir, 'plugins', pluginId, `${pluginId}.db`);
     mkdirSync(dirname(absoluteDbPath), { recursive: true });
 
