@@ -9,7 +9,7 @@ vi.mock('../src/domain/entities', async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
     ...actual,
-    closeSqliteDatabases: vi.fn(async () => {}),
+    closeBetterSqliteDatabases: vi.fn(() => {}),
   };
 });
 
@@ -18,7 +18,7 @@ vi.mock('../src/ui/commands', () => ({
 }));
 
 import SmartConnectionsPlugin from '../src/main';
-import { closeSqliteDatabases } from '../src/domain/entities';
+import { closeBetterSqliteDatabases } from '../src/domain/entities';
 
 function createPlugin() {
   const app = new App();
@@ -117,7 +117,7 @@ describe('SmartConnectionsPlugin onunload', () => {
     expect(embeddingJobQueue.clear).toHaveBeenCalledWith('Plugin reset');
     expect(notices.unload).toHaveBeenCalledTimes(1);
     expect(embedAdapter.unload).toHaveBeenCalledTimes(1);
-    expect(closeSqliteDatabases).toHaveBeenCalledTimes(1);
+    expect(closeBetterSqliteDatabases).toHaveBeenCalledTimes(1);
   });
 
   it('does not register UI hooks after unload interrupts onload initialization', async () => {

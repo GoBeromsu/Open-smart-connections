@@ -8,33 +8,16 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'module';
-import { readFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { rmSync } from 'fs';
+import { randomUUID } from 'crypto';
 import type { EntityData } from '../src/types/entities';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
-
-const require = createRequire(import.meta.url);
-const wasmBinary = new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm')));
-
-function createVaultAdapter() {
-  const files = new Map<string, Uint8Array>();
-  return {
-    files,
-    readBinary: vi.fn(async (path: string) => {
-      if (path.endsWith('sql-wasm.wasm')) return wasmBinary;
-      const file = files.get(path);
-      if (!file) throw new Error(`missing ${path}`);
-      return file;
-    }),
-    exists: vi.fn(async (path: string) => {
-      if (path.endsWith('sql-wasm.wasm')) return true;
-      return files.has(path);
-    }),
-    writeBinary: vi.fn(async (path: string, data: Uint8Array | Buffer) => {
-      files.set(path, data instanceof Uint8Array ? data : new Uint8Array(data));
-    }),
-  };
-}
+import {
+  BetterSqliteDataAdapter,
+  closeBetterSqliteDatabases,
+} from '../src/domain/entities/better-sqlite-data-adapter';
 
 function makeFullEntity(path: string, vec: number[]) {
   return {
@@ -73,7 +56,6 @@ function createSavingCollection(entities: any[]) {
   } as any;
 }
 
-/** Loading collection that creates real EmbeddingEntity instances so is_unembedded is computed correctly. */
 function createRealEntityCollection(modelKey: string) {
   const all: EmbeddingEntity<any>[] = [];
   const byKey = new Map<string, EmbeddingEntity<any>>();
@@ -103,44 +85,46 @@ function createRealEntityCollection(modelKey: string) {
   return coll;
 }
 
-afterEach(async () => {
-  const { closeSqliteDatabases } = await import('../src/domain/entities/sqlite-data-adapter');
-  await closeSqliteDatabases();
+let tmpDir: string;
+
+afterEach(() => {
+  closeBetterSqliteDatabases();
+  if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
 });
 
 describe('upsertEmbedding write-asymmetry fix', () => {
   it('is_unembedded stays false after save-with-lazy-vec cycle', async () => {
-    const { SqliteDataAdapter, closeSqliteDatabases } = await import('../src/domain/entities/sqlite-data-adapter');
-    const vaultAdapter = createVaultAdapter();
+    tmpDir = join(tmpdir(), `remap-test-${randomUUID()}`);
+    const vaultAdapter = { getBasePath: () => tmpDir };
     const ns = 'open-connections:/tmp/test-lazy-vec:.obsidian/plugins/open-connections/.smart-env';
 
     // ── Step 1: Save entity with full embedding ──────────────────────────
     const firstColl = createSavingCollection([makeFullEntity('note-a.md#h1', [1, 0])]);
-    const firstAdapter = new SqliteDataAdapter(firstColl, 'smart_blocks', ns);
-    firstAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+    const firstAdapter = new BetterSqliteDataAdapter(firstColl, 'smart_blocks', ns);
+    firstAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
     await firstAdapter.save();
-    await closeSqliteDatabases();
+    closeBetterSqliteDatabases();
 
     // ── Step 2: Reload (vec becomes [] — lazy-loaded) ────────────────────
     const secondColl = createRealEntityCollection('test-model');
-    const secondAdapter = new SqliteDataAdapter(secondColl, 'smart_blocks', ns);
-    secondAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+    const secondAdapter = new BetterSqliteDataAdapter(secondColl, 'smart_blocks', ns);
+    secondAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
     await secondAdapter.load();
 
     expect(secondColl.all).toHaveLength(1);
     const lazyEntity = secondColl.all[0];
-    expect(lazyEntity.vec).toBeNull(); // vec is lazy (not loaded into memory)
-    expect(lazyEntity.is_unembedded).toBe(false); // sanity: should already be embedded
+    expect(lazyEntity.vec).toBeNull();
+    expect(lazyEntity.is_unembedded).toBe(false);
 
     // ── Step 3: Save while vec is lazy (simulates autosave / file-watcher) ──
     (lazyEntity as any)._queue_save = true;
     await secondAdapter.save();
-    await closeSqliteDatabases();
+    closeBetterSqliteDatabases();
 
     // ── Step 4: Reload and verify is_unembedded is still false ───────────
     const thirdColl = createRealEntityCollection('test-model');
-    const thirdAdapter = new SqliteDataAdapter(thirdColl, 'smart_blocks', ns);
-    thirdAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
+    const thirdAdapter = new BetterSqliteDataAdapter(thirdColl, 'smart_blocks', ns);
+    thirdAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
     await thirdAdapter.load();
 
     expect(thirdColl.all).toHaveLength(1);

@@ -29,6 +29,12 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Rebuild better-sqlite3 for Obsidian Electron
+        run: |
+          OBSIDIAN_ELECTRON_VERSION="32.2.1"
+          npx prebuild-install --runtime electron --target $OBSIDIAN_ELECTRON_VERSION --arch x64
+          npx prebuild-install --runtime electron --target $OBSIDIAN_ELECTRON_VERSION --arch arm64
+        working-directory: ./node_modules/better-sqlite3
       - name: Validate release metadata
         shell: bash
         run: |

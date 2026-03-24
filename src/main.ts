@@ -61,7 +61,7 @@ import {
 import {
   EmbeddingKernelJobQueue,
 } from './domain/embedding/kernel';
-import { closeSqliteDatabases, closeBetterSqliteDatabases } from './domain/entities';
+import { closeBetterSqliteDatabases } from './domain/entities';
 import type {
   EmbeddingKernelJob,
 } from './domain/embedding/kernel/types';
@@ -659,9 +659,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     // so ordering (save → save → close) is preserved by the queue.
     if (srcAdapter) srcAdapter.save().catch((e: unknown) => console.warn('[SC] Flush source save failed:', e));
     if (blkAdapter) blkAdapter.save().catch((e: unknown) => console.warn('[SC] Flush block save failed:', e));
-    closeSqliteDatabases().catch((err: unknown) => {
-      console.warn('Failed to close SQLite databases:', err);
-    });
     closeBetterSqliteDatabases();
   }
 }

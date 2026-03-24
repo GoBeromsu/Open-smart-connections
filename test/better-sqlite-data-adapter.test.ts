@@ -86,7 +86,7 @@ describe('BetterSqliteDataAdapter', () => {
     dbPath = join(tmpDir, '.obsidian', 'plugins', 'test-plugin', 'test-plugin.db');
     collection = makeCollection();
     adapter = new BetterSqliteDataAdapter(collection, 'smart_blocks', 'test-ns');
-    adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
+    adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin', process.cwd());
   });
 
   afterEach(() => {
@@ -150,7 +150,7 @@ describe('BetterSqliteDataAdapter', () => {
     closeBetterSqliteDatabases();
     const collection2 = makeCollection();
     const adapter2 = new BetterSqliteDataAdapter(collection2, 'smart_blocks', 'test-ns-2');
-    adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
+    adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin', process.cwd());
 
     await adapter2.load();
 
