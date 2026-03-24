@@ -26,5 +26,7 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Rebuild better-sqlite3 for Node.js
+        run: pnpm rebuild better-sqlite3
       - name: Run CI
         run: pnpm run ci

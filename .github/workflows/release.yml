@@ -29,12 +29,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Rebuild better-sqlite3 for Obsidian Electron
-        run: |
-          OBSIDIAN_ELECTRON_VERSION="32.2.1"
-          npx prebuild-install --runtime electron --target $OBSIDIAN_ELECTRON_VERSION --arch x64
-          npx prebuild-install --runtime electron --target $OBSIDIAN_ELECTRON_VERSION --arch arm64
-        working-directory: ./node_modules/better-sqlite3
+      - name: Rebuild better-sqlite3 for Node.js (tests)
+        run: pnpm rebuild better-sqlite3
       - name: Validate release metadata
         shell: bash
         run: |
@@ -52,6 +48,15 @@ jobs:
           fi
       - name: Run CI
         run: pnpm run ci
+      - name: Package better-sqlite3 for Obsidian Electron
+        run: |
+          OBSIDIAN_ELECTRON_VERSION="39.5.1"
+          mkdir -p sqlite-dist/node_modules
+          npm install --prefix sqlite-dist better-sqlite3 --no-save --ignore-scripts
+          npm install --prefix sqlite-dist @electron/rebuild --no-save
+          ./sqlite-dist/node_modules/.bin/electron-rebuild \
+            --version "$OBSIDIAN_ELECTRON_VERSION" \
+            --module-dir ./sqlite-dist/node_modules/better-sqlite3
       - name: Generate Release Notes
         run: node scripts/release-notes.mjs --output .github-release-body.md
       - name: Prepare Release Assets
@@ -84,6 +89,8 @@ jobs:
           copy_asset "dist/main.js" "true"
           copy_asset "dist/manifest.json" "true"
           copy_asset "dist/styles.css" "true"
+          # Bundle better-sqlite3 so the native addon is available at runtime
+          cp -r sqlite-dist/node_modules "${{ env.PLUGIN_NAME }}/node_modules"
           zip -r "${{ env.PLUGIN_NAME }}.zip" "${{ env.PLUGIN_NAME }}"
           publish_asset "${{ env.PLUGIN_NAME }}.zip" "true"
           publish_asset "dist/main.js" "true"
