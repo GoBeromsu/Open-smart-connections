@@ -270,7 +270,7 @@ export class ConnectionsView extends ItemView {
 
   private scheduleRetryIfStale(gen: number): boolean {
     if (gen === this._renderGen) return false;
-    if (!this._pendingRetry) {
+    if (this._pendingRetry === null) {
       this._pendingRetry = window.setTimeout(() => {
         this._pendingRetry = null;
         void this.renderView();
@@ -298,7 +298,7 @@ export class ConnectionsView extends ItemView {
   /**
    * Auto-queue unembedded blocks for a file.
    * Fire-and-forget — the view will auto-refresh on RUN_FINISHED.
-   * Falls back to a 30s timeout to recover from silent failures.
+   * Falls back to a 10s timeout to recover from silent failures.
    */
   private autoQueueBlockEmbedding(blocks: EmbeddingBlock[]): void {
     if (!this.plugin.embed_ready) return;
@@ -343,8 +343,7 @@ export class ConnectionsView extends ItemView {
   private updateProgressBanner(): void {
     if (!this.container) return;
 
-    const embeddableBlocks = this.plugin.block_collection?.embeddableCount ?? 0;
-    const totalBlocks = embeddableBlocks > 0 ? embeddableBlocks : (this.plugin.block_collection?.size ?? 0);
+    const totalBlocks = this.plugin.block_collection?.effectiveTotal ?? 0;
     const embeddedBlocks = this.plugin.block_collection?.embeddedCount ?? 0;
     const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
 

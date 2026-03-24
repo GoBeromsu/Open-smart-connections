@@ -47,6 +47,7 @@
     "@commitlint/config-conventional": "^19.0.0",
     "@eslint/js": "^8.57.1",
     "@huggingface/transformers": "^3.7.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "@vitest/ui": "^1.0.0",
@@ -73,10 +74,12 @@
   "pnpm": {
     "overrides": {
       "esbuild": "^0.25.0"
-    }
+    },
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
   },
   "dependencies": {
     "base64-js": "^1.5.1",
+    "better-sqlite3": "^12.8.0",
     "js-tiktoken": "^1.0.19",
     "lucide-static": "^0.414.0",
     "node-fetch": "^2.7.0",

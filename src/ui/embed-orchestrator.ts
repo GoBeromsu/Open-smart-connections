@@ -548,10 +548,19 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
   let lastProgressEmit = 0;
 
   try {
+    const dims = ctx.dims ?? 384;
+    // High-dim models (>1024d, e.g. Upstage 4096d) generate large vectors per entity.
+    // More frequent saves → faster evictVec() → less heap pressure when autosave fires.
+    // Concurrency is capped at 3 to avoid simultaneous large allocations in memory.
+    const effectiveSaveInterval = dims > 1024 ? 2 : dims > 512 ? 3 : (plugin.settings.embed_save_interval || 5);
+    const effectiveConcurrency = dims > 1024
+      ? Math.max(1, Math.min(plugin.settings.embed_concurrency || 5, 3))
+      : (plugin.settings.embed_concurrency || 5);
+
     const stats = await plugin.embedding_pipeline.process(entitiesToEmbed, {
       batch_size: 10,
       max_retries: 3,
-      concurrency: plugin.settings.embed_concurrency || 5,
+      concurrency: effectiveConcurrency,
       on_progress: (current, total, progress) => {
         if (plugin.current_embed_context?.runId !== runId) return;
         ctx.current = current;
@@ -579,7 +588,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
           publishEmbedContext(plugin, ctx);
         }
       },
-      save_interval: plugin.settings.embed_save_interval || 5,
+      save_interval: effectiveSaveInterval,
     });
 
     if (plugin.current_embed_context?.runId !== runId) {

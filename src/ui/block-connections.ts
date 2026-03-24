@@ -53,7 +53,7 @@ export async function getBlockConnections(
 
   const excludeKeys = fileBlocks.map(b => b.key);
   let timedOut = false;
-  let timeoutId: number;
+  let timeoutId: number | undefined;
   const mainPromise = (async (): Promise<ConnectionResult[]> => {
     await Promise.all(embedded.map(b => blockCollection.ensure_entity_vector(b)));
     const withVec = embedded.filter(b => b.vec && b.vec.length > 0);
@@ -68,8 +68,12 @@ export async function getBlockConnections(
     timeoutId = window.setTimeout(() => { timedOut = true; resolve([]); }, EMBED_TIMEOUT_MS);
   });
   const results = await Promise.race([mainPromise, timeoutPromise]);
-  window.clearTimeout(timeoutId!);
+  if (timeoutId !== undefined) window.clearTimeout(timeoutId);
   if (timedOut) {
+    // Cleanup: evict vectors loaded by the abandoned promise when it eventually resolves
+    mainPromise.then(abandoned => {
+      for (const r of abandoned) (r.item as EmbeddingBlock).evictVec?.();
+    }).catch(() => {});
     console.warn('[SC] getBlockConnections timed out for:', filePath);
     return [];
   }

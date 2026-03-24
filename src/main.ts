@@ -61,7 +61,7 @@ import {
 import {
   EmbeddingKernelJobQueue,
 } from './domain/embedding/kernel';
-import { closeSqliteDatabases } from './domain/entities';
+import { closeSqliteDatabases, closeBetterSqliteDatabases } from './domain/entities';
 import type {
   EmbeddingKernelJob,
 } from './domain/embedding/kernel/types';
@@ -662,5 +662,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     closeSqliteDatabases().catch((err: unknown) => {
       console.warn('Failed to close SQLite databases:', err);
     });
+    closeBetterSqliteDatabases();
   }
 }

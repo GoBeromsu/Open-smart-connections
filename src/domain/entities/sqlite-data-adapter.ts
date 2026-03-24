@@ -2,6 +2,9 @@
  * @file sqlite-data-adapter.ts
  * @description SQLite (sql.js WASM) data adapter for entity persistence.
  * Replaces PGlite for improved stability and simplicity.
+ *
+ * @deprecated Replaced by BetterSqliteDataAdapter. Kept as fallback reference.
+ * Will be removed in a future release.
  */
 
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
@@ -48,11 +51,17 @@ function vecToBlob(vec: number[] | Float32Array): Uint8Array {
 
 function blobToF32(blob: Uint8Array | ArrayBuffer | null): Float32Array | null {
   if (!blob) return null;
-  const buf = blob instanceof Uint8Array
-    ? blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength)
-    : blob;
-  if (buf.byteLength === 0 || buf.byteLength % 4 !== 0) return null;
-  return new Float32Array(buf);
+  if (blob instanceof ArrayBuffer) {
+    if (blob.byteLength === 0 || blob.byteLength % 4 !== 0) return null;
+    return new Float32Array(blob);
+  }
+  if (blob.byteLength === 0 || blob.byteLength % 4 !== 0) return null;
+  // Direct view when aligned — safe because cos_sim_f32() is read-only
+  if (blob.byteOffset % 4 === 0) {
+    return new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
+  }
+  // Copy only when misaligned (rare)
+  return new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength));
 }
 
 function parseExtra(extra: unknown): Record<string, any> {
@@ -114,6 +123,7 @@ interface DbContext {
   pluginId: string;
   autosaveTimer: ReturnType<typeof setInterval> | null;
   hasPersistedToDisk: boolean;
+  dirtySincePersist: boolean;
 }
 
 const dbContexts = new Map<string, DbContext>();
@@ -276,6 +286,10 @@ async function shouldPersistDb(
     return true;
   }
 
+  if (!ctx.dirtySincePersist) {
+    return false;
+  }
+
   const exists = await probeDbPathExists(ctx.vaultAdapter, ctx.dbPath);
   if (exists === false) {
     dbResetRequests.add(ctx.key);
@@ -329,9 +343,13 @@ function queueDbOperation<T>(
 
 async function persistDbNow(ctx: DbContext): Promise<void> {
   const data = ctx.db.export();
-  const buffer = Buffer.from(data);
-  await ctx.vaultAdapter.writeBinary(ctx.dbPath, buffer);
+  // Verified: sql.js export() returns fresh Uint8Array where byteOffset===0 && byteLength===buffer.byteLength
+  if (data.byteOffset !== 0 || data.byteLength !== data.buffer.byteLength) {
+    throw new Error('[SC] unexpected sql.js export layout — report this bug');
+  }
+  await ctx.vaultAdapter.writeBinary(ctx.dbPath, data.buffer);
   ctx.hasPersistedToDisk = true;
+  ctx.dirtySincePersist = false;
 }
 
 async function shouldSkipPersistOnClose(ctx: DbContext): Promise<boolean> {
@@ -438,6 +456,7 @@ async function createDb(
     pluginId,
     autosaveTimer: setInterval(() => persistDb(ctx), AUTOSAVE_INTERVAL_MS),
     hasPersistedToDisk,
+    dirtySincePersist: false,
   };
   dbContexts.set(dbKey, ctx);
 
@@ -714,6 +733,12 @@ export class SqliteDataAdapter<T extends EmbeddingEntity> {
 
       db.run('COMMIT');
       transactionOpen = false;
+
+      try {
+        getDbContext(this.storage_namespace).dirtySincePersist = true;
+      } catch {
+        // Context may not exist during teardown — skip
+      }
 
       for (const entity of savedEntities) {
         entity._queue_save = false;

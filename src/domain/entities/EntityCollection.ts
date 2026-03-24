@@ -1,10 +1,10 @@
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
-import { SqliteDataAdapter } from './sqlite-data-adapter';
+import { BetterSqliteDataAdapter } from './better-sqlite-data-adapter';
 
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   items: Record<string, T> = {};
-  data_adapter: SqliteDataAdapter<T>;
+  data_adapter: BetterSqliteDataAdapter<T>;
   settings: any;
   data_dir: string;
   collection_key: string;
@@ -30,7 +30,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     this.embed_model_key = embed_model_key;
     this.collection_key = collection_key || 'smart_sources';
     this.storage_namespace = storage_namespace || data_dir;
-    this.data_adapter = new SqliteDataAdapter(this, this.collection_key, this.storage_namespace);
+    this.data_adapter = new BetterSqliteDataAdapter(this, this.collection_key, this.storage_namespace);
   }
 
   abstract get_item_type(): new (collection: EntityCollection<T>, data?: Partial<EntityData>) => T;
@@ -174,9 +174,17 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     return this._cachedEmbeddedCount;
   }
 
-  /** O(1) count of entities eligible for embedding (above min_chars threshold) */
+  /**
+   * O(1) count of entities eligible for embedding (above min_chars threshold).
+   * May drift between `recomputeEmbeddedCount()` calls during chunked processing.
+   */
   get embeddableCount(): number {
     return this._cachedEmbeddableCount;
+  }
+
+  /** Effective denominator for progress display: embeddableCount if available, else total size. */
+  get effectiveTotal(): number {
+    return this._cachedEmbeddableCount > 0 ? this._cachedEmbeddableCount : this.size;
   }
 
   clear(): void {
