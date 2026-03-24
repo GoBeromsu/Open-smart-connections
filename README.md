@@ -83,26 +83,33 @@ Copy `dist/` contents to your vault's `.obsidian/plugins/open-smart-connections/
 ## Project Structure
 
 ```
-obsidian-smart-connections/
+open-connections/
 ├── src/
-│   ├── app/                    # Plugin entry, commands, settings, status bar, file watcher
-│   │   └── main.ts             # SmartConnectionsPlugin (extends Plugin)
-│   ├── features/
-│   │   ├── connections/        # Connections view (related notes for active file)
-│   │   ├── embedding/          # Embedding manager, kernel state machine, job queue
-│   │   └── lookup/             # Lookup view (semantic search across vault)
-│   ├── shared/
-│   │   ├── entities/           # Source/Block data model + PGlite adapter
-│   │   ├── models/embed/       # EmbedModel + provider adapters (7 providers)
-│   │   ├── search/             # find-connections, lookup, vector-search
-│   │   └── utils/              # Cosine similarity, hashing, etc.
-│   └── views/                  # Result context menu
+│   ├── main.ts                   # Composition root — SmartConnectionsPlugin (extends Plugin)
+│   ├── domain/                   # Business logic — NO obsidian imports
+│   │   ├── config.ts             # DEFAULT_SETTINGS, NOTICE_CATALOG, error classes
+│   │   ├── embed-model.ts        # EmbedAdapterRegistry (centralized adapter factory)
+│   │   ├── embedding-pipeline.ts # Batch embedding with concurrent dispatch + retry
+│   │   ├── entities/             # Source/Block data model + PGlite SQLite adapter
+│   │   └── embedding/kernel/     # Redux-style embedding state machine
+│   ├── ui/                       # Obsidian-dependent code
+│   │   ├── ConnectionsView.ts    # Related notes panel (auto-updates on file change)
+│   │   ├── LookupView.ts         # Semantic search panel
+│   │   ├── embed-orchestrator.ts # Model lifecycle, embed jobs, pipeline orchestration
+│   │   ├── embed-adapters/       # 7 provider adapters (transformers, openai, ollama, etc.)
+│   │   ├── settings.ts           # Plugin settings tab
+│   │   ├── file-watcher.ts       # File change detection + re-import queue
+│   │   ├── status-bar.ts         # Status bar rendering
+│   │   └── commands.ts           # Command palette commands
+│   ├── types/                    # Pure type definitions — NO obsidian imports
+│   ├── utils/                    # Pure functions (cos_sim, hashing, vector ops)
+│   └── shared/                   # Boiler-template synced — DO NOT EDIT
 ├── worker/
-│   └── embed-worker.ts         # Web Worker for Transformers.js embedding
-├── test/                       # Vitest tests
-├── dist/                       # Build output (gitignored)
-├── scripts/                    # dev.mjs, version.mjs, release.mjs
-└── manifest.json               # Obsidian plugin manifest
+│   └── embed-worker.ts           # Web Worker for Transformers.js (WebGPU/WASM)
+├── test/                         # Vitest unit tests
+├── dist/                         # Build output (gitignored)
+├── scripts/                      # dev.mjs, version.mjs, release.mjs
+└── manifest.json                 # Obsidian plugin manifest
 ```
 
 ## Development
@@ -128,15 +135,6 @@ pnpm typecheck        # tsc --noEmit
 ## License
 
 **GNU General Public License v3.0** (GPL-3.0)
-
-### Attribution
-
-This is a modified version of [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections) originally created by [Brian Petro](https://github.com/brianpetro).
-
-- Original Copyright (C) Brian Petro
-- Fork maintained by the community
-
-Per GPL-3.0 Section 5, this modified version is clearly marked as different from the original.
 
 ## Links
 
