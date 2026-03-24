@@ -69,6 +69,15 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.source_collection.loaded = true;
     plugin.block_collection.loaded = true;
 
+    // Resolve runtime vault/file references for DB-loaded source entities (#49)
+    for (const source of plugin.source_collection.all) {
+      source.vault = plugin.source_collection.vault;
+      const file = plugin.app.vault.getAbstractFileByPath(source.key);
+      if (file instanceof TFile) {
+        source.file = file;
+      }
+    }
+
     plugin.source_collection.recomputeEmbeddedCount();
     plugin.block_collection.recomputeEmbeddedCount();
 
@@ -94,6 +103,8 @@ export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin
     if (!lastRead) continue;
     const file = plugin.app.vault.getAbstractFileByPath(source.key);
     if (!file || !(file instanceof TFile)) continue;
+    // Store resolved TFile on entity (#49) — vault already set in loadCollections()
+    source.file = file;
     const mtimeMismatch = lastRead.mtime != null && file.stat.mtime !== lastRead.mtime;
     const sizeMismatch = lastRead.size != null && file.stat.size !== lastRead.size;
     if (mtimeMismatch || sizeMismatch) {
