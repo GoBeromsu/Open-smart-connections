@@ -230,7 +230,8 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
         console.warn('[Transformers Iframe] config failed:', err);
         last_error = err;
         const message = (err && err.message) ? String(err.message) : String(err);
-        const is_transient = message.includes('Failed to fetch') || message.includes('NetworkError');
+        const lc = message.toLowerCase();
+        const is_transient = message.includes('Failed to fetch') || lc.includes('networkerror') || lc.includes('cdn') || lc.includes('cors') || lc.includes('err_connection');
         if (attempt < MAX_ATTEMPTS && is_transient) {
           const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
           console.log('[Transformers Iframe] retrying in ' + delay + 'ms...');
