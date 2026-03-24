@@ -3,6 +3,7 @@
  * @description Collection initialization, loading, and embedding context sync
  */
 
+import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { SourceCollection, BlockCollection } from '../domain/entities';
 
@@ -83,6 +84,25 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.notices.show('failed_load_collection_data');
     throw error;
   }
+}
+
+export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin): Promise<number> {
+  if (!plugin.source_collection) return 0;
+  let staleCount = 0;
+  for (const source of plugin.source_collection.all) {
+    const storedMtime = source.data.last_read?.mtime;
+    if (storedMtime == null) continue;
+    const file = plugin.app.vault.getAbstractFileByPath(source.key);
+    if (!file || !(file instanceof TFile)) continue;
+    if (file.stat.mtime !== storedMtime) {
+      plugin.pendingReImportPaths.add(source.key);
+      staleCount++;
+    }
+  }
+  if (staleCount > 0) {
+    console.log(`[SC] Startup: ${staleCount} stale sources detected (mtime mismatch)`);
+  }
+  return staleCount;
 }
 
 /**

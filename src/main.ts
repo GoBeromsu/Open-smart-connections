@@ -33,6 +33,7 @@ import {
 import {
   initCollections as _initCollections,
   loadCollections as _loadCollections,
+  detectStaleSourcesOnStartup as _detectStaleSourcesOnStartup,
   processNewSourcesChunked as _processNewSourcesChunked,
   queueUnembeddedEntities as _queueUnembeddedEntities,
   syncCollectionEmbeddingContext as _syncCollectionEmbeddingContext,
@@ -79,7 +80,6 @@ export interface EmbeddingRunContext {
   phase: 'running' | 'completed' | 'halted' | 'failed' | 'followup-required';
   outcome?: EmbedRunOutcome;
   reason: string;
-  isChunkedPipeline?: boolean;
   adapter: string;
   modelKey: string;
   dims: number | null;
@@ -115,7 +115,6 @@ export interface EmbedProgressEventPayload {
   blockDataDir: string;
   startedAt: number;
   elapsedMs: number;
-  etaMs: number | null;
   followupQueued?: boolean;
   done?: boolean;
   error?: string;
@@ -123,7 +122,6 @@ export interface EmbedProgressEventPayload {
 
 export default class SmartConnectionsPlugin extends Plugin {
   settings: PluginSettings;
-  env: any; // Smart Environment instance
   status_elm?: HTMLElement;
   status_container?: HTMLElement;
   status_msg?: HTMLElement;
@@ -408,6 +406,8 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (!this.isCurrentLifecycle(lifecycle)) return;
     if (!await runStep('Load collections', () => this.loadCollections(), true)) return;
     if (!this.isCurrentLifecycle(lifecycle)) return;
+    await this.detectStaleSourcesOnStartup();
+    if (!this.isCurrentLifecycle(lifecycle)) return;
     await runStep('Register file watchers', () => this.registerFileWatchers());
     if (!this.isCurrentLifecycle(lifecycle)) return;
 
@@ -575,6 +575,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initCollections(): Promise<void> { return _initCollections(this); }
   async loadCollections(): Promise<void> { return _loadCollections(this); }
+  async detectStaleSourcesOnStartup(): Promise<number> { return _detectStaleSourcesOnStartup(this); }
 
   async initPipeline(): Promise<void> { return _initPipeline(this); }
   async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
@@ -643,9 +644,6 @@ export default class SmartConnectionsPlugin extends Plugin {
         console.warn('Failed to unload embed model:', err);
       });
     }
-
-    // Unload environment
-    this.env?.unload?.();
 
     // Flush pending save queues before closing DBs — ensures deleted files
     // and in-memory state changes are persisted. All three calls go through
