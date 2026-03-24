@@ -52,6 +52,7 @@ export class ConnectionsView extends ItemView {
   private _needsRefresh = false;
   private _renderGen: number = 0;
   private _lastResultKeys: string[] = [];
+  private _pendingRetry: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
     super(leaf);
@@ -157,6 +158,10 @@ export class ConnectionsView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearAutoEmbedTimeout();
+    if (this._pendingRetry !== null) {
+      window.clearTimeout(this._pendingRetry);
+      this._pendingRetry = null;
+    }
     this.clearEmbedProgress();
     this.container?.empty();
   }
@@ -253,14 +258,25 @@ export class ConnectionsView extends ItemView {
 
     try {
       const state = await this.deriveViewState(targetPath);
-      if (gen !== this._renderGen) return;
+      if (this.scheduleRetryIfStale(gen)) return;
       this.applyViewState(state);
       this.updateProgressBanner();
     } catch (e) {
-      if (gen !== this._renderGen) return;
+      if (this.scheduleRetryIfStale(gen)) return;
       this.showError('Failed to find connections: ' + (e as Error).message);
       this.updateProgressBanner();
     }
+  }
+
+  private scheduleRetryIfStale(gen: number): boolean {
+    if (gen === this._renderGen) return false;
+    if (!this._pendingRetry) {
+      this._pendingRetry = window.setTimeout(() => {
+        this._pendingRetry = null;
+        void this.renderView();
+      }, 150);
+    }
+    return true;
   }
 
   /**
@@ -298,14 +314,14 @@ export class ConnectionsView extends ItemView {
     } catch (error) {
       console.warn('[SC] Auto-queue block embedding failed (non-critical):', error);
     }
-    // Safety timeout: if no embed-state-changed arrives within 30s, re-derive state
+    // Safety timeout: if no embed-state-changed arrives within 10s, re-derive state
     this._autoEmbedTimeout = window.setTimeout(() => {
       this._autoEmbedTimeout = null;
       if (this.autoEmbedRequestedForPath === sourcePath) {
         this.autoEmbedRequestedForPath = null;
         void this.renderView(this.lastRenderedPath ?? undefined);
       }
-    }, 30000);
+    }, 10000);
   }
 
   private addBanner(message: string): void {
@@ -327,7 +343,8 @@ export class ConnectionsView extends ItemView {
   private updateProgressBanner(): void {
     if (!this.container) return;
 
-    const totalBlocks = this.plugin.block_collection?.size ?? 0;
+    const embeddableBlocks = this.plugin.block_collection?.embeddableCount ?? 0;
+    const totalBlocks = embeddableBlocks > 0 ? embeddableBlocks : (this.plugin.block_collection?.size ?? 0);
     const embeddedBlocks = this.plugin.block_collection?.embeddedCount ?? 0;
     const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
 

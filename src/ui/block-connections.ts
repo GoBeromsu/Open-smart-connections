@@ -9,6 +9,8 @@ import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import type { ConnectionResult } from '../types/entities';
 import { average_vectors } from '../utils';
 
+const EMBED_TIMEOUT_MS = 10_000;
+
 interface CachedResult {
   results: ConnectionResult[];
   ts: number;
@@ -49,14 +51,28 @@ export async function getBlockConnections(
   const embedded = fileBlocks.filter(b => b.has_embed());
   if (embedded.length === 0) return [];
 
-  await Promise.all(embedded.map(b => blockCollection.ensure_entity_vector(b)));
-  const withVec = embedded.filter(b => b.vec && b.vec.length > 0);
-  if (withVec.length === 0) return [];
-
-  const avgVec = average_vectors(withVec.map(b => b.vec!));
-  withVec.forEach(b => b.evictVec());
   const excludeKeys = fileBlocks.map(b => b.key);
-  const results = await blockCollection.nearest(avgVec, { limit: limit * 3, exclude: excludeKeys });
+  let timedOut = false;
+  let timeoutId: number;
+  const mainPromise = (async (): Promise<ConnectionResult[]> => {
+    await Promise.all(embedded.map(b => blockCollection.ensure_entity_vector(b)));
+    const withVec = embedded.filter(b => b.vec && b.vec.length > 0);
+    if (withVec.length === 0) return [];
+    const avgVec = average_vectors(withVec.map(b => b.vec!));
+    withVec.forEach(b => b.evictVec());
+    const raw = await blockCollection.nearest(avgVec, { limit: limit * 3, exclude: excludeKeys });
+    for (const r of raw) (r.item as EmbeddingBlock).evictVec?.();
+    return raw;
+  })();
+  const timeoutPromise = new Promise<ConnectionResult[]>(resolve => {
+    timeoutId = window.setTimeout(() => { timedOut = true; resolve([]); }, EMBED_TIMEOUT_MS);
+  });
+  const results = await Promise.race([mainPromise, timeoutPromise]);
+  window.clearTimeout(timeoutId!);
+  if (timedOut) {
+    console.warn('[SC] getBlockConnections timed out for:', filePath);
+    return [];
+  }
 
   // Dedupe by source path, keep highest score
   const seen = new Map<string, ConnectionResult>();
