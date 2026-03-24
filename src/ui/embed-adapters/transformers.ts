@@ -20,6 +20,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 25,
     description: 'Local, 512 tokens, 384 dim (recommended)',
   },
   'Snowflake/snowflake-arctic-embed-xs': {
@@ -28,6 +29,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 25,
     description: 'Local, 512 tokens, 384 dim',
   },
   'Snowflake/snowflake-arctic-embed-s': {
@@ -36,6 +38,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 35,
     description: 'Local, 512 tokens, 384 dim',
   },
   'Snowflake/snowflake-arctic-embed-m': {
@@ -44,6 +47,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 768,
     max_tokens: 512,
+    size_mb: 90,
     description: 'Local, 512 tokens, 768 dim',
   },
   'TaylorAI/gte-tiny': {
@@ -52,6 +56,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 30,
     description: 'Local, 512 tokens, 384 dim',
   },
   'onnx-community/embeddinggemma-300m-ONNX': {
@@ -60,6 +65,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 768,
     max_tokens: 2048,
+    size_mb: 600,
     description: 'Local, 2,048 tokens, 768 dim',
   },
   'Mihaiii/Ivysaur': {
@@ -68,6 +74,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 25,
     description: 'Local, 512 tokens, 384 dim',
   },
   'andersonbcdefg/bge-small-4096': {
@@ -76,6 +83,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 4096,
+    size_mb: 35,
     description: 'Local, 4,096 tokens, 384 dim',
   },
   'Xenova/jina-embeddings-v2-base-zh': {
@@ -84,6 +92,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 768,
     max_tokens: 8192,
+    size_mb: 170,
     description: 'Local, 8,192 tokens, 768 dim, Chinese/English bilingual',
   },
   'Xenova/jina-embeddings-v2-small-en': {
@@ -92,6 +101,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 512,
     max_tokens: 8192,
+    size_mb: 35,
     description: 'Local, 8,192 tokens, 512 dim',
   },
   'Xenova/bge-m3': {
@@ -100,6 +110,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 1024,
     max_tokens: 8192,
+    size_mb: 500,
     description: 'Local, 8,192 tokens, 1,024 dim',
   },
   'Xenova/multilingual-e5-large': {
@@ -108,6 +119,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 1024,
     max_tokens: 512,
+    size_mb: 400,
     description: 'Local, 512 tokens, 1,024 dim',
   },
   'Xenova/multilingual-e5-small': {
@@ -116,6 +128,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 120,
     description: 'Local, 512 tokens, 384 dim',
   },
   'Xenova/paraphrase-multilingual-MiniLM-L12-v2': {
@@ -124,6 +137,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 128,
+    size_mb: 120,
     description: 'Local, 128 tokens, 384 dim',
   },
   'nomic-ai/nomic-embed-text-v1.5': {
@@ -132,6 +146,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 768,
     max_tokens: 2048,
+    size_mb: 140,
     description: 'Local, 8,192 tokens, 768 dim',
   },
   'Xenova/bge-small-en-v1.5': {
@@ -140,6 +155,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 384,
     max_tokens: 512,
+    size_mb: 35,
     description: 'Local, 512 tokens, 384 dim',
   },
   'nomic-ai/nomic-embed-text-v1': {
@@ -148,6 +164,7 @@ export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
     batch_size: 1,
     dims: 768,
     max_tokens: 2048,
+    size_mb: 140,
     description: 'Local, 2,048 tokens, 768 dim',
   },
 };
@@ -198,7 +215,8 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
 
   let last_error = null;
   for (const config of configs) {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
         console.log(
           '[Transformers Iframe] trying config:',
@@ -212,9 +230,11 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
         console.warn('[Transformers Iframe] config failed:', err);
         last_error = err;
         const message = (err && err.message) ? String(err.message) : String(err);
-        const is_transient_fetch_error = message.includes('Failed to fetch');
-        if (attempt < 2 && is_transient_fetch_error) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+        const is_transient = message.includes('Failed to fetch') || message.includes('NetworkError');
+        if (attempt < MAX_ATTEMPTS && is_transient) {
+          const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+          console.log('[Transformers Iframe] retrying in ' + delay + 'ms...');
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
       }
@@ -226,12 +246,19 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
     const last_message = (last_error && last_error.message)
       ? String(last_error.message)
       : String(last_error || '');
-    if (last_message.includes('Failed to fetch')) {
-      throw new Error(
-        'Failed to download model files (network/CDN unavailable). Please retry or choose a smaller cached model.',
-      );
+    if (last_message.toLowerCase().includes('timed out') || last_message.toLowerCase().includes('timeout')) {
+      throw new Error('[download:timeout] Model download timed out. Try a smaller model or increase timeout in settings.');
     }
-    throw last_error || new Error('Failed to initialize transformers pipeline');
+    if (last_message.toLowerCase().includes('quota') || last_message.toLowerCase().includes('storage')) {
+      throw new Error('[download:quota] Browser storage quota exceeded. Clear browser cache and retry.');
+    }
+    if (last_message.includes('Failed to fetch') || last_message.toLowerCase().includes('network')) {
+      throw new Error('[download:network] Failed to download model files. Check your network connection and retry.');
+    }
+    if (last_message.includes('404') || last_message.toLowerCase().includes('not found')) {
+      throw new Error('[download:model_not_found] Model not found. Try switching to BGE-micro-v2.');
+    }
+    throw last_error || new Error('[download:unknown] Failed to initialize transformers pipeline');
   }
 
   tokenizer = await AutoTokenizer.from_pretrained(model_key);

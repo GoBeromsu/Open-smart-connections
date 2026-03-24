@@ -193,15 +193,19 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
   } catch (error) {
     console.error('[SC][Init]   [model] Failed to initialize embed model:', error);
     const message = errorMessage(error);
-    if (
-      plugin.settings.smart_sources.embed_model.adapter === 'transformers' &&
-      /(failed to fetch|network|cdn|timed out)/i.test(message)
-    ) {
-      plugin.notices.show(
-        'failed_download_transformers_model',
-        { error: message },
-        { timeout: 8000 },
-      );
+    if (plugin.settings.smart_sources.embed_model.adapter === 'transformers') {
+      if (/\[download:timeout\]/i.test(message)) {
+        plugin.notices.show('failed_download_timeout', {}, { timeout: 10000 });
+      } else if (/\[download:quota\]/i.test(message)) {
+        plugin.notices.show('failed_download_quota', {}, { timeout: 10000 });
+      } else if (/\[download:network\]/i.test(message)) {
+        plugin.notices.show('failed_download_network', {}, { timeout: 10000 });
+      } else if (/\[download:model_not_found\]/i.test(message)) {
+        const modelKey = plugin.settings.smart_sources.embed_model.transformers?.model_key ?? 'unknown';
+        plugin.notices.show('failed_download_model_not_found', { modelKey }, { timeout: 10000 });
+      } else if (/(failed to fetch|network|cdn|timed out)/i.test(message)) {
+        plugin.notices.show('failed_download_transformers_model', { error: message }, { timeout: 8000 });
+      }
     }
     plugin.notices.show('failed_init_embed_model');
     throw error;

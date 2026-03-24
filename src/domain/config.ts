@@ -120,6 +120,18 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   failed_download_transformers_model: {
     template: 'Failed to download transformers model assets. Check network/CDN access and retry.',
   },
+  failed_download_timeout: {
+    template: 'Model download timed out. Try a smaller model or increase timeout in settings.',
+  },
+  failed_download_quota: {
+    template: 'Browser storage quota exceeded. Clear IndexedDB in DevTools → Application → Storage and retry.',
+  },
+  failed_download_network: {
+    template: 'Failed to download model files. Check your network connection and retry.',
+  },
+  failed_download_model_not_found: {
+    template: 'Model "{{modelKey}}" not found. Try switching to BGE-micro-v2 (recommended).',
+  },
   failed_init_embed_pipeline: {
     template: 'Failed to initialize embedding pipeline',
   },

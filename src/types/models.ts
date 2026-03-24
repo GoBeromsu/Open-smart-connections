@@ -28,6 +28,9 @@ export interface ModelInfo {
   /** Recommended batch size */
   batch_size?: number;
 
+  /** Approximate ONNX quantized model size in MB */
+  size_mb?: number;
+
   /** URL to sign up for API key */
   signup_url?: string;
 
