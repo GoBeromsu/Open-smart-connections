@@ -158,12 +158,16 @@ export class ConnectionsView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearAutoEmbedTimeout();
+    this.cancelPendingRetry();
+    this.clearEmbedProgress();
+    this.container?.empty();
+  }
+
+  private cancelPendingRetry(): void {
     if (this._pendingRetry !== null) {
       window.clearTimeout(this._pendingRetry);
       this._pendingRetry = null;
     }
-    this.clearEmbedProgress();
-    this.container?.empty();
   }
 
   private clearEmbedProgress(): void {
@@ -278,6 +282,7 @@ export class ConnectionsView extends ItemView {
     }
     return true;
   }
+
 
   /**
    * Queue a list of blocks for embedding via the job queue.

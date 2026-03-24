@@ -43,8 +43,8 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const vaultAdapter = plugin.app.vault.adapter;
     const configDir = plugin.app.vault.configDir;
     const pluginId = plugin.manifest.id;
-    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId, plugin.manifest.dir);
-    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId, plugin.manifest.dir);
+    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
 
     await plugin.source_collection.init();
     await plugin.block_collection.init();
@@ -90,17 +90,19 @@ export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin
   if (!plugin.source_collection) return 0;
   let staleCount = 0;
   for (const source of plugin.source_collection.all) {
-    const storedMtime = source.data.last_read?.mtime;
-    if (storedMtime == null) continue;
+    const lastRead = source.data.last_read;
+    if (!lastRead) continue;
     const file = plugin.app.vault.getAbstractFileByPath(source.key);
     if (!file || !(file instanceof TFile)) continue;
-    if (file.stat.mtime !== storedMtime) {
+    const mtimeMismatch = lastRead.mtime != null && file.stat.mtime !== lastRead.mtime;
+    const sizeMismatch = lastRead.size != null && file.stat.size !== lastRead.size;
+    if (mtimeMismatch || sizeMismatch) {
       plugin.pendingReImportPaths.add(source.key);
       staleCount++;
     }
   }
   if (staleCount > 0) {
-    console.log(`[SC] Startup: ${staleCount} stale sources detected (mtime mismatch)`);
+    console.log(`[SC] Startup: ${staleCount} stale sources detected (mtime/size mismatch)`);
   }
   return staleCount;
 }

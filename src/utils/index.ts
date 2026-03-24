@@ -47,7 +47,8 @@ export function cos_sim(vector1: number[] | Float32Array = [], vector2: number[]
 
 /**
  * Calculate the cosine similarity between two Float32Array vectors.
- * Avoids the `Array.from()` conversion cost of `cos_sim` for binary blob data.
+ * Operates directly on the typed array to avoid JS boxing overhead in the tight
+ * arithmetic loop — faster than `cos_sim` when the caller already holds Float32Array data.
  * @param vector1 First vector
  * @param vector2 Second vector
  * @returns Similarity score between -1 and 1

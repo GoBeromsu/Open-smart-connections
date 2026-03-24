@@ -61,7 +61,7 @@ import {
 import {
   EmbeddingKernelJobQueue,
 } from './domain/embedding/kernel';
-import { closeBetterSqliteDatabases } from './domain/entities';
+import { closeNodeSqliteDatabases } from './domain/entities';
 import type {
   EmbeddingKernelJob,
 } from './domain/embedding/kernel/types';
@@ -415,8 +415,8 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.refreshStatus();
     this.app.workspace.trigger('open-connections:core-ready' as any);
 
-    const sourceCount = this.source_collection ? Object.keys(this.source_collection.items).length : 0;
-    const blockCount = this.block_collection ? Object.keys(this.block_collection.items).length : 0;
+    const sourceCount = this.source_collection?.size ?? 0;
+    const blockCount = this.block_collection?.size ?? 0;
     console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - t0).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`);
   }
 
@@ -511,7 +511,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Migrate legacy Upstage model keys to canonical `embedding-passage`
     const upstageAdapter = settings.smart_sources?.embed_model as Record<string, any> | undefined;
     if (upstageAdapter?.adapter === 'upstage') {
-      const upstageSettings = (settings as any)[`embed_model.upstage`] ?? upstageAdapter;
+      const upstageSettings = upstageAdapter?.upstage ?? upstageAdapter;
       const mk = upstageSettings?.model_key;
       if (mk && mk !== 'embedding-passage') {
         upstageSettings.model_key = 'embedding-passage';
@@ -659,6 +659,6 @@ export default class SmartConnectionsPlugin extends Plugin {
     // so ordering (save → save → close) is preserved by the queue.
     if (srcAdapter) srcAdapter.save().catch((e: unknown) => console.warn('[SC] Flush source save failed:', e));
     if (blkAdapter) blkAdapter.save().catch((e: unknown) => console.warn('[SC] Flush block save failed:', e));
-    closeBetterSqliteDatabases();
+    closeNodeSqliteDatabases();
   }
 }

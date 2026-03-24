@@ -1,37 +1,18 @@
 /**
- * @file better-sqlite-data-adapter.ts
- * @description SQLite (better-sqlite3) data adapter for entity persistence.
- * File-backed database — no db.export(), no Buffer.from(), no OOM risk.
- * Replaces sql.js for high-dimension models (Upstage 4096d, OpenAI 3072d).
+ * @file node-sqlite-data-adapter.ts
+ * @description SQLite (node:sqlite) data adapter for entity persistence.
+ * File-backed database using Node.js 22+ built-in sqlite module.
+ * Replaces better-sqlite3 — no native addon, no ABI matching needed.
  */
 
-import type Database from 'better-sqlite3';
-import { createRequire } from 'module';
-import { join, dirname, isAbsolute } from 'path';
+import { DatabaseSync } from 'node:sqlite';
+import type { StatementSync } from 'node:sqlite';
+import { join, dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
 import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
 import { cos_sim_f32 } from '../../utils';
-
-// Lazily loaded via createRequire(pluginDir) so the Electron ABI-correct prebuilt binary is used.
-let _Database: typeof Database | null = null;
-
-function requireBetterSqlite(pluginDir: string): typeof Database {
-  if (_Database) return _Database;
-  try {
-    const req = createRequire(join(pluginDir, 'package.json'));
-    _Database = req('better-sqlite3') as typeof Database;
-    return _Database;
-  } catch (e: any) {
-    throw new Error(
-      `[open-connections] Failed to load better-sqlite3.\n` +
-      `Plugin directory: ${pluginDir}\n` +
-      `Cause: ${e.message}\n` +
-      `An Electron ABI-matched prebuilt binary is required.`,
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -97,6 +78,17 @@ function getEntityType(collectionKey: string): 'source' | 'block' {
   return collectionKey === 'smart_blocks' ? 'block' : 'source';
 }
 
+function withTransaction(db: DatabaseSync, fn: () => void): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    fn();
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    throw err;
+  }
+}
+
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS entities (
     entity_key TEXT PRIMARY KEY,
@@ -124,7 +116,7 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_embeddings_model_key ON entity_embeddings(model_key)`,
 ];
 
-function ensureSchema(db: Database.Database): void {
+function ensureSchema(db: DatabaseSync): void {
   // NOTE: No FOREIGN KEY with ON DELETE CASCADE. PRAGMA foreign_keys is OFF (SQLite default).
   // Enabling it would break INSERT OR REPLACE (internally DELETE+INSERT), wiping embeddings.
   // Embedding cleanup on entity deletion is handled manually in executeSaveBatch.
@@ -137,37 +129,40 @@ function ensureSchema(db: Database.Database): void {
 // Module-level open databases (one per absolute db path)
 // ---------------------------------------------------------------------------
 
-const openDatabases = new Map<string, Database.Database>();
+const openDatabases = new Map<string, { db: DatabaseSync; closed: boolean }>();
 
 /**
- * Close all open better-sqlite3 databases.
+ * Close all open node:sqlite databases.
  * Call this on plugin unload.
  */
-export function closeBetterSqliteDatabases(): void {
-  for (const db of openDatabases.values()) {
+export function closeNodeSqliteDatabases(): void {
+  for (const entry of openDatabases.values()) {
     try {
-      db.close();
+      if (!entry.closed) {
+        entry.db.close();
+        entry.closed = true;
+      }
     } catch (err) {
-      console.warn('[BetterSQLite] Failed to close database:', err);
+      console.warn('[NodeSQLite] Failed to close database:', err);
     }
   }
   openDatabases.clear();
-  _Database = null;
 }
 
 // ---------------------------------------------------------------------------
-// BetterSqliteDataAdapter
+// NodeSqliteDataAdapter
 // ---------------------------------------------------------------------------
 
 type QueryMatch = { entity_key: string; score: number };
 
-export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
+export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   collection: EntityCollection<T>;
   collection_key: string;
   storage_namespace: string;
   entity_type: 'source' | 'block';
 
-  private db: Database.Database | null = null;
+  private _db: DatabaseSync | null = null;
+  private _closed = false;
 
   constructor(
     collection: EntityCollection<T>,
@@ -180,36 +175,43 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
     this.entity_type = getEntityType(collection_key);
   }
 
-  initVaultContext(vaultAdapter: any, configDir: string, pluginId: string, pluginDir: string): void {
-    const basePath = typeof vaultAdapter.getBasePath === 'function'
-      ? vaultAdapter.getBasePath()
-      : (() => { throw new Error('[BetterSQLite] vaultAdapter.getBasePath() not available'); })();
-    // pluginDir from manifest.dir is vault-relative — resolve to absolute for createRequire().
-    // In tests, pluginDir may already be absolute (e.g. process.cwd()), so skip the join.
-    const absolutePluginDir = isAbsolute(pluginDir) ? pluginDir : join(basePath, pluginDir);
-    const DatabaseConstructor = requireBetterSqlite(absolutePluginDir);
+  initVaultContext(vaultAdapter: unknown, configDir: string, pluginId: string): void {
+    const adapter = vaultAdapter as { getBasePath?: () => string };
+    const basePath = typeof adapter.getBasePath === 'function'
+      ? adapter.getBasePath()
+      : (() => { throw new Error('[NodeSQLite] vaultAdapter.getBasePath() not available'); })();
     const absoluteDbPath = join(basePath, configDir, 'plugins', pluginId, `${pluginId}.db`);
     mkdirSync(dirname(absoluteDbPath), { recursive: true });
 
     const existing = openDatabases.get(absoluteDbPath);
-    if (existing?.open) {
-      this.db = existing;
+    if (existing && !existing.closed) {
+      this._db = existing.db;
+      this._closed = false;
       return;
     }
 
-    const db = new DatabaseConstructor(absoluteDbPath);
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
+    const db = new DatabaseSync(absoluteDbPath);
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA synchronous = NORMAL');
+    db.exec('PRAGMA foreign_keys = OFF');
     ensureSchema(db);
-    openDatabases.set(absoluteDbPath, db);
-    this.db = db;
+    openDatabases.set(absoluteDbPath, { db, closed: false });
+    this._db = db;
+    this._closed = false;
   }
 
-  private requireDb(): Database.Database {
-    if (!this.db?.open) {
-      throw new Error('[BetterSQLite] Database not initialized — call initVaultContext first');
+  private requireDb(): DatabaseSync {
+    if (this._closed || !this._db) {
+      throw new Error('[NodeSQLite] Database not initialized — call initVaultContext first');
     }
-    return this.db;
+    return this._db;
+  }
+
+  close(): void {
+    if (!this._closed) {
+      this._db?.close();
+      this._closed = true;
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -307,7 +309,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
   }
 
   private executeSaveBatch(
-    db: Database.Database,
+    db: DatabaseSync,
     entities: T[],
     deletedKeys: string[],
     restoreDeletedKeys: boolean,
@@ -336,7 +338,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
     const removeAllEmbedStmt = db.prepare('DELETE FROM entity_embeddings WHERE entity_key = ?');
 
     try {
-      const runBatch = db.transaction(() => {
+      withTransaction(db, () => {
         // Manual cascade: delete embeddings first, then entity.
         // This is the ONLY cleanup mechanism — ON DELETE CASCADE is intentionally off.
         for (const key of deletedKeys) {
@@ -355,8 +357,6 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
         }
       });
 
-      runBatch();
-
       for (const entity of savedEntities) {
         entity._queue_save = false;
       }
@@ -368,7 +368,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
     }
   }
 
-  private upsertEntityWith(stmt: Database.Statement, entity: T): void {
+  private upsertEntityWith(stmt: StatementSync, entity: T): void {
     const data = entity.data;
     const { source_path, text_len, extra } = extractEntityCore(data);
     const lastRead = data.last_read;
@@ -387,9 +387,9 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
   }
 
   private upsertEmbeddingWith(
-    upsertStmt: Database.Statement,
-    updateHashStmt: Database.Statement,
-    removeAllStmt: Database.Statement,
+    upsertStmt: StatementSync,
+    updateHashStmt: StatementSync,
+    removeAllStmt: StatementSync,
     entity: T,
   ): void {
     if ((entity as any)._remove_all_embeddings) {
@@ -450,7 +450,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
 
     if (!row) return { vec: null };
 
-    const vec = blobToF32(row.vec as Buffer | null);
+    const vec = blobToF32(row.vec as Buffer | Uint8Array | null);
     const meta = row.embed_hash
       ? {
         hash: row.embed_hash as string,
@@ -532,7 +532,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
     const scored: QueryMatch[] = [];
 
     for (const row of rows) {
-      const candidateVec = blobToF32(row.vec as Buffer | null);
+      const candidateVec = blobToF32(row.vec as Buffer | Uint8Array | null);
       if (!candidateVec || candidateVec.length !== queryF32.length) continue;
 
       const score = cos_sim_f32(queryF32, candidateVec);

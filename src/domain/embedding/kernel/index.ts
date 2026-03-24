@@ -1,7 +1,6 @@
 /**
  * @file embedding/kernel/index.ts
  * @description Embedding job queue and model fingerprint helper.
- * The Redux-style store/reducer was removed — state is now a plain object on the plugin.
  */
 
 import type { EmbeddingKernelJob } from './types';

@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'obsidian': path.resolve(__dirname, './test/mocks/obsidian.ts'),
+      'node:sqlite': path.resolve(__dirname, './test/mocks/node-sqlite.ts'),
     },
   },
   test: {
@@ -17,3 +18,4 @@ export default defineConfig({
     },
   },
 });
+

@@ -1,9 +1,10 @@
 /**
- * @file better-sqlite-data-adapter.test.ts
- * @description Phase 2 tests: BetterSqliteDataAdapter full lifecycle, vector roundtrip,
+ * @file node-sqlite-data-adapter.test.ts
+ * @description Phase 2 tests: NodeSqliteDataAdapter full lifecycle, vector roundtrip,
  * memory safety (1000 × 4096d), WAL mode, graceful close, schema, and cosine query.
  *
- * Uses real better-sqlite3 with a temp file — no mocks for the DB layer.
+ * Uses real node:sqlite with a temp file — no mocks for the DB layer.
+ * Verification queries bypass the Vitest alias via createRequire.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,11 +12,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { rmSync } from 'fs';
 import { randomUUID } from 'crypto';
-import Database from 'better-sqlite3';
+import { DatabaseSync as RealDatabaseSync } from 'node:sqlite';
 import {
-  BetterSqliteDataAdapter,
-  closeBetterSqliteDatabases,
-} from '../src/domain/entities/better-sqlite-data-adapter';
+  NodeSqliteDataAdapter,
+  closeNodeSqliteDatabases,
+} from '../src/domain/entities/node-sqlite-data-adapter';
 import type { EntityData } from '../src/types/entities';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,29 +76,29 @@ function makeEntity(path: string, vec: number[] | null = null, hash = `h-${path}
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe('BetterSqliteDataAdapter', () => {
+describe('NodeSqliteDataAdapter', () => {
   let tmpDir: string;
   let dbPath: string;
   let collection: ReturnType<typeof makeCollection>;
-  let adapter: BetterSqliteDataAdapter<any>;
+  let adapter: NodeSqliteDataAdapter<any>;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `bsq-test-${randomUUID()}`);
+    tmpDir = join(tmpdir(), `nsq-test-${randomUUID()}`);
     dbPath = join(tmpDir, '.obsidian', 'plugins', 'test-plugin', 'test-plugin.db');
     collection = makeCollection();
-    adapter = new BetterSqliteDataAdapter(collection, 'smart_blocks', 'test-ns');
-    adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin', process.cwd());
+    adapter = new NodeSqliteDataAdapter(collection, 'smart_blocks', 'test-ns');
+    adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
   });
 
   afterEach(() => {
-    closeBetterSqliteDatabases();
+    closeNodeSqliteDatabases();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   // ── Schema matches sql.js ─────────────────────────────────────────────────
 
   it('creates entities and entity_embeddings tables (matches sql.js schema)', () => {
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const tables = (db.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
     ).all() as any[]).map((r) => r.name);
@@ -108,7 +109,7 @@ describe('BetterSqliteDataAdapter', () => {
   });
 
   it('entities table has all required columns', () => {
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const cols = (db.prepare('PRAGMA table_info(entities)').all() as any[]).map((r) => r.name);
     db.close();
 
@@ -119,7 +120,7 @@ describe('BetterSqliteDataAdapter', () => {
   });
 
   it('entity_embeddings table has all required columns', () => {
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const cols = (db.prepare('PRAGMA table_info(entity_embeddings)').all() as any[]).map((r) => r.name);
     db.close();
 
@@ -131,8 +132,7 @@ describe('BetterSqliteDataAdapter', () => {
   // ── WAL mode ──────────────────────────────────────────────────────────────
 
   it('enables WAL journal mode on open', () => {
-    // ensureSchema() runs CREATE TABLE statements which commit to WAL
-    const probe = new Database(dbPath, { readonly: true });
+    const probe = new RealDatabaseSync(dbPath, { readOnly: true });
     const row = probe.prepare('PRAGMA journal_mode').get() as any;
     probe.close();
 
@@ -147,10 +147,10 @@ describe('BetterSqliteDataAdapter', () => {
     expect(entity._queue_save).toBe(false);
 
     // Reopen with a fresh adapter on the same db file
-    closeBetterSqliteDatabases();
+    closeNodeSqliteDatabases();
     const collection2 = makeCollection();
-    const adapter2 = new BetterSqliteDataAdapter(collection2, 'smart_blocks', 'test-ns-2');
-    adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin', process.cwd());
+    const adapter2 = new NodeSqliteDataAdapter(collection2, 'smart_blocks', 'test-ns-2');
+    adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
 
     await adapter2.load();
 
@@ -166,7 +166,7 @@ describe('BetterSqliteDataAdapter', () => {
     await adapter.save();
 
     expect(entity._queue_save).toBe(false);
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const row = db.prepare('SELECT entity_key FROM entities WHERE entity_key = ?').get('queued.md');
     db.close();
     expect(row).toBeTruthy();
@@ -177,7 +177,7 @@ describe('BetterSqliteDataAdapter', () => {
 
     await adapter.save_batch([], ['to-delete.md']);
 
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const entityRow = db.prepare('SELECT entity_key FROM entities WHERE entity_key = ?').get('to-delete.md');
     const embedRow = db.prepare('SELECT entity_key FROM entity_embeddings WHERE entity_key = ?').get('to-delete.md');
     db.close();
@@ -186,10 +186,10 @@ describe('BetterSqliteDataAdapter', () => {
     expect(embedRow).toBeUndefined();
   });
 
-  it('throws on use after closeBetterSqliteDatabases()', async () => {
-    closeBetterSqliteDatabases(); // closes this.db
+  it('throws on use after closeNodeSqliteDatabases()', async () => {
+    closeNodeSqliteDatabases();
     const entity = makeEntity('x.md', [0.1, 0.2, 0.3, 0.4]);
-    await expect(adapter.save_batch([entity])).rejects.toThrow(/not initialized/i);
+    await expect(adapter.save_batch([entity])).rejects.toThrow(/not initialized|database is not open/i);
   });
 
   // ── Vector roundtrip ──────────────────────────────────────────────────────
@@ -220,7 +220,6 @@ describe('BetterSqliteDataAdapter', () => {
 
     const entities = Array.from({ length: 1000 }, (_, i) => {
       const vec = new Float32Array(4096);
-      // Unique per entity to prevent degenerate similarity scores
       for (let j = 0; j < 4096; j++) {
         vec[j] = (i * 4096 + j + 1) / (1000 * 4096 + 1);
       }
@@ -229,7 +228,7 @@ describe('BetterSqliteDataAdapter', () => {
 
     await expect(adapter.save_batch(entities)).resolves.toBeUndefined();
 
-    const db = new Database(dbPath, { readonly: true });
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
     const { n } = db.prepare('SELECT COUNT(*) as n FROM entity_embeddings').get() as any;
     db.close();
 
@@ -251,7 +250,6 @@ describe('BetterSqliteDataAdapter', () => {
 
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].entity_key).toBe('a.md');
-    // Scores must be in descending order
     for (let i = 1; i < results.length; i++) {
       expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
     }
@@ -261,8 +259,8 @@ describe('BetterSqliteDataAdapter', () => {
     collection.embed_model_dims = 4;
 
     await adapter.save_batch([
-      makeEntity('close.md', [1.0, 0.0, 0.0, 0.0]),  // cosine sim ≈ 1.0
-      makeEntity('far.md', [0.0, 0.0, 0.0, 1.0]),    // cosine sim = 0.0
+      makeEntity('close.md', [1.0, 0.0, 0.0, 0.0]),
+      makeEntity('far.md', [0.0, 0.0, 0.0, 1.0]),
     ]);
 
     const results = await adapter.query_nearest([1.0, 0.0, 0.0, 0.0], { min_score: 0.9 });
@@ -283,5 +281,31 @@ describe('BetterSqliteDataAdapter', () => {
     const results = await adapter.query_nearest([1.0, 0.0, 0.0, 0.0], { exclude: ['a.md'] });
     expect(results.map((r) => r.entity_key)).not.toContain('a.md');
     expect(results.map((r) => r.entity_key)).toContain('b.md');
+  });
+
+  // ── Rollback on mid-batch error ───────────────────────────────────────────
+
+  it('batch save rolls back on mid-batch error', async () => {
+    // Save one valid entity first to confirm it survives the failed second batch
+    await adapter.save_batch([makeEntity('existing.md', [1.0, 0.0, 0.0, 0.0])]);
+
+    const goodEntity = makeEntity('good.md', [0.5, 0.5, 0.0, 0.0]);
+    const badEntity = {
+      ...makeEntity('bad.md', [0.0, 0.5, 0.5, 0.0]),
+      validate_save: () => { throw new Error('forced mid-batch error'); },
+    };
+
+    await expect(adapter.save_batch([goodEntity, badEntity])).rejects.toThrow('forced mid-batch error');
+
+    // Neither good.md nor bad.md should have been written (transaction rolled back)
+    const db = new RealDatabaseSync(dbPath, { readOnly: true });
+    const goodRow = db.prepare('SELECT entity_key FROM entities WHERE entity_key = ?').get('good.md');
+    const badRow = db.prepare('SELECT entity_key FROM entities WHERE entity_key = ?').get('bad.md');
+    const existingRow = db.prepare('SELECT entity_key FROM entities WHERE entity_key = ?').get('existing.md');
+    db.close();
+
+    expect(goodRow).toBeUndefined();
+    expect(badRow).toBeUndefined();
+    expect(existingRow).toBeTruthy();
   });
 });

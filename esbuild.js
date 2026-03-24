@@ -169,7 +169,7 @@ const build_options = {
     '@huggingface/transformers',
     'http',
     'url',
-    'better-sqlite3',
+    'node:sqlite',
   ],
   define: {
     'process.env.DEFAULT_OPEN_ROUTER_API_KEY': JSON.stringify(process.env.DEFAULT_OPEN_ROUTER_API_KEY || ''),

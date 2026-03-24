@@ -1,10 +1,10 @@
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
-import { BetterSqliteDataAdapter } from './better-sqlite-data-adapter';
+import { NodeSqliteDataAdapter } from './node-sqlite-data-adapter';
 
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   items: Record<string, T> = {};
-  data_adapter: BetterSqliteDataAdapter<T>;
+  data_adapter: NodeSqliteDataAdapter<T>;
   settings: any;
   data_dir: string;
   collection_key: string;
@@ -30,7 +30,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     this.embed_model_key = embed_model_key;
     this.collection_key = collection_key || 'smart_sources';
     this.storage_namespace = storage_namespace || data_dir;
-    this.data_adapter = new BetterSqliteDataAdapter(this, this.collection_key, this.storage_namespace);
+    this.data_adapter = new NodeSqliteDataAdapter(this, this.collection_key, this.storage_namespace);
   }
 
   abstract get_item_type(): new (collection: EntityCollection<T>, data?: Partial<EntityData>) => T;

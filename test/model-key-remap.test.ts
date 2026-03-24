@@ -15,9 +15,9 @@ import { randomUUID } from 'crypto';
 import type { EntityData } from '../src/types/entities';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
 import {
-  BetterSqliteDataAdapter,
-  closeBetterSqliteDatabases,
-} from '../src/domain/entities/better-sqlite-data-adapter';
+  NodeSqliteDataAdapter,
+  closeNodeSqliteDatabases,
+} from '../src/domain/entities/node-sqlite-data-adapter';
 
 function makeFullEntity(path: string, vec: number[]) {
   return {
@@ -88,7 +88,7 @@ function createRealEntityCollection(modelKey: string) {
 let tmpDir: string;
 
 afterEach(() => {
-  closeBetterSqliteDatabases();
+  closeNodeSqliteDatabases();
   if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -100,15 +100,15 @@ describe('upsertEmbedding write-asymmetry fix', () => {
 
     // ── Step 1: Save entity with full embedding ──────────────────────────
     const firstColl = createSavingCollection([makeFullEntity('note-a.md#h1', [1, 0])]);
-    const firstAdapter = new BetterSqliteDataAdapter(firstColl, 'smart_blocks', ns);
-    firstAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
+    const firstAdapter = new NodeSqliteDataAdapter(firstColl, 'smart_blocks', ns);
+    firstAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
     await firstAdapter.save();
-    closeBetterSqliteDatabases();
+    closeNodeSqliteDatabases();
 
     // ── Step 2: Reload (vec becomes [] — lazy-loaded) ────────────────────
     const secondColl = createRealEntityCollection('test-model');
-    const secondAdapter = new BetterSqliteDataAdapter(secondColl, 'smart_blocks', ns);
-    secondAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
+    const secondAdapter = new NodeSqliteDataAdapter(secondColl, 'smart_blocks', ns);
+    secondAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
     await secondAdapter.load();
 
     expect(secondColl.all).toHaveLength(1);
@@ -119,12 +119,12 @@ describe('upsertEmbedding write-asymmetry fix', () => {
     // ── Step 3: Save while vec is lazy (simulates autosave / file-watcher) ──
     (lazyEntity as any)._queue_save = true;
     await secondAdapter.save();
-    closeBetterSqliteDatabases();
+    closeNodeSqliteDatabases();
 
     // ── Step 4: Reload and verify is_unembedded is still false ───────────
     const thirdColl = createRealEntityCollection('test-model');
-    const thirdAdapter = new BetterSqliteDataAdapter(thirdColl, 'smart_blocks', ns);
-    thirdAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections', process.cwd());
+    const thirdAdapter = new NodeSqliteDataAdapter(thirdColl, 'smart_blocks', ns);
+    thirdAdapter.initVaultContext(vaultAdapter, '.obsidian', 'open-connections');
     await thirdAdapter.load();
 
     expect(thirdColl.all).toHaveLength(1);
