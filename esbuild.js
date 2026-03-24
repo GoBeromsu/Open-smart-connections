@@ -67,12 +67,6 @@ const main_path = path.join(process.cwd(), 'dist', 'main.js');
 const manifest_path = path.join(process.cwd(), 'manifest.json');
 const styles_path = path.join(process.cwd(), 'src', 'styles.css');
 
-// Copy sql.js WASM binary to dist/
-const sqlWasmSrc = path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
-const sqlWasmDest = path.join(process.cwd(), 'dist', 'sql-wasm.wasm');
-if (fs.existsSync(sqlWasmSrc)) {
-  fs.copyFileSync(sqlWasmSrc, sqlWasmDest);
-}
 // Update manifest.json version
 const package_json = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json')));
 const manifest_json = JSON.parse(fs.readFileSync(manifest_path));
@@ -119,7 +113,7 @@ const markdown_plugin = {
     });
   }
 };
-const release_file_paths = [manifest_path, styles_path, main_path, sqlWasmDest];
+const release_file_paths = [manifest_path, styles_path, main_path];
 
 function copy_output_plugin() {
   return {

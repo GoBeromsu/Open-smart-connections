@@ -5,13 +5,33 @@
  * Replaces sql.js for high-dimension models (Upstage 4096d, OpenAI 3072d).
  */
 
-import Database from 'better-sqlite3';
-import { join, dirname } from 'path';
+import type Database from 'better-sqlite3';
+import { createRequire } from 'module';
+import { join, dirname, isAbsolute } from 'path';
 import { mkdirSync } from 'fs';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
 import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
 import { cos_sim_f32 } from '../../utils';
+
+// Lazily loaded via createRequire(pluginDir) so the Electron ABI-correct prebuilt binary is used.
+let _Database: typeof Database | null = null;
+
+function requireBetterSqlite(pluginDir: string): typeof Database {
+  if (_Database) return _Database;
+  try {
+    const req = createRequire(join(pluginDir, 'package.json'));
+    _Database = req('better-sqlite3') as typeof Database;
+    return _Database;
+  } catch (e: any) {
+    throw new Error(
+      `[open-connections] Failed to load better-sqlite3.\n` +
+      `Plugin directory: ${pluginDir}\n` +
+      `Cause: ${e.message}\n` +
+      `An Electron ABI-matched prebuilt binary is required.`,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,6 +152,7 @@ export function closeBetterSqliteDatabases(): void {
     }
   }
   openDatabases.clear();
+  _Database = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,10 +180,14 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
     this.entity_type = getEntityType(collection_key);
   }
 
-  initVaultContext(vaultAdapter: any, configDir: string, pluginId: string): void {
+  initVaultContext(vaultAdapter: any, configDir: string, pluginId: string, pluginDir: string): void {
     const basePath = typeof vaultAdapter.getBasePath === 'function'
       ? vaultAdapter.getBasePath()
       : (() => { throw new Error('[BetterSQLite] vaultAdapter.getBasePath() not available'); })();
+    // pluginDir from manifest.dir is vault-relative — resolve to absolute for createRequire().
+    // In tests, pluginDir may already be absolute (e.g. process.cwd()), so skip the join.
+    const absolutePluginDir = isAbsolute(pluginDir) ? pluginDir : join(basePath, pluginDir);
+    const DatabaseConstructor = requireBetterSqlite(absolutePluginDir);
     const absoluteDbPath = join(basePath, configDir, 'plugins', pluginId, `${pluginId}.db`);
     mkdirSync(dirname(absoluteDbPath), { recursive: true });
 
@@ -172,7 +197,7 @@ export class BetterSqliteDataAdapter<T extends EmbeddingEntity> {
       return;
     }
 
-    const db = new Database(absoluteDbPath);
+    const db = new DatabaseConstructor(absoluteDbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     ensureSchema(db);

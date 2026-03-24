@@ -43,8 +43,8 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const vaultAdapter = plugin.app.vault.adapter;
     const configDir = plugin.app.vault.configDir;
     const pluginId = plugin.manifest.id;
-    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
-    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId, plugin.manifest.dir);
+    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId, plugin.manifest.dir);
 
     await plugin.source_collection.init();
     await plugin.block_collection.init();
