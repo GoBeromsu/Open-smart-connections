@@ -73,10 +73,6 @@ describe('SmartConnectionsPlugin onunload', () => {
     const embedAdapter = {
       unload: vi.fn(async () => {}),
     };
-    const env = {
-      unload: vi.fn(),
-    };
-
     (plugin as any)._notices = notices;
     plugin.ready = true;
     plugin.embed_run_seq = 41;
@@ -105,8 +101,6 @@ describe('SmartConnectionsPlugin onunload', () => {
     plugin.embedding_pipeline = embeddingPipeline as any;
     plugin.embedding_job_queue = embeddingJobQueue as any;
     plugin.embed_adapter = embedAdapter as any;
-    plugin.env = env as any;
-
     plugin.onunload();
 
     expect(plugin._unloading).toBe(true);
@@ -123,7 +117,6 @@ describe('SmartConnectionsPlugin onunload', () => {
     expect(embeddingJobQueue.clear).toHaveBeenCalledWith('Plugin reset');
     expect(notices.unload).toHaveBeenCalledTimes(1);
     expect(embedAdapter.unload).toHaveBeenCalledTimes(1);
-    expect(env.unload).toHaveBeenCalledTimes(1);
     expect(closeSqliteDatabases).toHaveBeenCalledTimes(1);
   });
 

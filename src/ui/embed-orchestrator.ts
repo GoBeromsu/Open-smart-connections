@@ -47,8 +47,6 @@ function publishEmbedContext(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunCo
   plugin.current_embed_context = { ...ctx };
 }
 
-// dispatchQueueSnapshot removed — snapshot computed on demand by status bar
-
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeoutId: number | undefined;
   const timeoutPromise = new Promise<T>((_, reject) => {
@@ -144,11 +142,6 @@ export function emitEmbedProgress(
 ): void {
   const elapsedMs = Date.now() - ctx.startedAt;
   const percent = ctx.total > 0 ? Math.round((ctx.current / ctx.total) * 100) : 0;
-  const etaMs =
-    ctx.current > 0 && ctx.total > ctx.current
-      ? Math.round((elapsedMs / ctx.current) * (ctx.total - ctx.current))
-      : null;
-
   const payload: EmbedProgressEventPayload = {
     runId: ctx.runId,
     phase: ctx.phase,
@@ -168,7 +161,6 @@ export function emitEmbedProgress(
     blockDataDir: ctx.blockDataDir,
     startedAt: ctx.startedAt,
     elapsedMs,
-    etaMs,
     followupQueued: ctx.followupQueued,
     done: opts.done,
     error: opts.error ?? ctx.error ?? undefined,

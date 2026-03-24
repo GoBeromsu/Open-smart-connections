@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { cos_sim, results_acc, create_hash, formatEta } from '../src/utils';
+import { cos_sim, results_acc, create_hash } from '../src/utils';
 import type { ResultsAccumulator } from '../src/utils';
 
 describe('cos_sim', () => {
@@ -107,35 +107,6 @@ describe('results_acc', () => {
   });
 });
 
-describe('formatEta', () => {
-  it('returns empty string for null', () => {
-    expect(formatEta(null)).toBe('');
-  });
-
-  it('returns empty string for zero', () => {
-    expect(formatEta(0)).toBe('');
-  });
-
-  it('returns empty string for negative values', () => {
-    expect(formatEta(-1000)).toBe('');
-  });
-
-  it('formats seconds only when under a minute', () => {
-    expect(formatEta(30000)).toBe('30s');
-  });
-
-  it('rounds up partial seconds', () => {
-    expect(formatEta(1500)).toBe('2s');
-  });
-
-  it('formats minutes and seconds', () => {
-    expect(formatEta(90000)).toBe('1m 30s');
-  });
-
-  it('formats minutes with zero seconds', () => {
-    expect(formatEta(120000)).toBe('2m 0s');
-  });
-});
 
 describe('create_hash', () => {
   it('should generate consistent hash for same input', async () => {

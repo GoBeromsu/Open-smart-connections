@@ -188,20 +188,6 @@ export function results_acc<T>(
   }
 }
 
-// ── ETA formatting ───────────────────────────────────────────────────────────
-
-/**
- * Format an ETA in milliseconds as a human-readable string.
- * Returns an empty string when etaMs is null or non-positive.
- */
-export function formatEta(etaMs: number | null): string {
-  if (etaMs == null || etaMs <= 0) return '';
-  const totalSec = Math.ceil(etaMs / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-}
-
 // ── Score sorting ────────────────────────────────────────────────────────────
 
 /** Sort comparator for descending scores (highest first) */
