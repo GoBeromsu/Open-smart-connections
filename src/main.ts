@@ -430,6 +430,24 @@ export default class SmartConnectionsPlugin extends Plugin {
       if (!this.isCurrentLifecycle(lifecycle)) return;
       await _processNewSourcesChunked(this);
       if (!this.isCurrentLifecycle(lifecycle)) return;
+
+      // Trigger re-import for stale sources detected during startup (#36)
+      if (!this._unloading && this.pendingReImportPaths.size > 0) {
+        console.log(`[SC][Init] Processing ${this.pendingReImportPaths.size} stale sources from startup detection`);
+        this.debounceReImport();
+      }
+      if (!this.isCurrentLifecycle(lifecycle)) return;
+
+      // Resume stranded unembedded blocks from interrupted runs (#50)
+      if (this.embedding_pipeline && !this._unloading) {
+        const resumeCount = this.queueUnembeddedEntities();
+        if (resumeCount > 0) {
+          console.log(`[SC][Init] Resuming ${resumeCount} stranded unembedded blocks`);
+          await this.runEmbeddingJob('[startup] resume stranded blocks');
+        }
+      }
+      if (!this.isCurrentLifecycle(lifecycle)) return;
+
       console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
       if (!this.isCurrentLifecycle(lifecycle)) return;
@@ -508,14 +526,20 @@ export default class SmartConnectionsPlugin extends Plugin {
       settings.smart_notices = { muted: {} };
       removedLegacyKeys = true;
     }
-    // Migrate legacy Upstage model keys to canonical `embedding-passage`
+    // Migrate legacy Upstage model keys to canonical `embedding-passage` (#42)
     const upstageAdapter = settings.smart_sources?.embed_model as Record<string, any> | undefined;
     if (upstageAdapter?.adapter === 'upstage') {
-      const upstageSettings = upstageAdapter?.upstage ?? upstageAdapter;
-      const mk = upstageSettings?.model_key;
-      if (mk && mk !== 'embedding-passage') {
-        upstageSettings.model_key = 'embedding-passage';
+      let upstageSettings = (upstageAdapter as any)?.['upstage'];
+      if (!upstageSettings) {
+        upstageSettings = { model_key: 'embedding-passage' };
+        (upstageAdapter as any)['upstage'] = upstageSettings;
         removedLegacyKeys = true;
+      } else {
+        const mk = upstageSettings.model_key;
+        if (mk && mk !== 'embedding-passage') {
+          upstageSettings.model_key = 'embedding-passage';
+          removedLegacyKeys = true;
+        }
       }
     }
 
