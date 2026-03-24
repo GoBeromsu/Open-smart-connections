@@ -50,7 +50,8 @@ export function renderEmbedProgress(
   function update(): void {
     if (destroyed) return;
 
-    const totalBlocks = plugin.block_collection?.size ?? 0;
+    const embeddableBlocks = plugin.block_collection?.embeddableCount ?? 0;
+    const totalBlocks = embeddableBlocks > 0 ? embeddableBlocks : (plugin.block_collection?.size ?? 0);
     const embeddedBlocks = plugin.block_collection?.embeddedCount ?? 0;
 
     const notesTotal = plugin.app?.vault?.getMarkdownFiles()?.length ?? 0;

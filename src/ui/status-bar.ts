@@ -42,11 +42,12 @@ function getVaultTag(plugin: SmartConnectionsPlugin): string {
   const now = Date.now();
   if (now - lastComputeMs < CACHE_TTL_MS && cachedVaultTag) return cachedVaultTag;
 
-  const totalBlocks = plugin.block_collection?.size ?? 0;
+  const embeddableBlocks = plugin.block_collection?.embeddableCount ?? 0;
   const embeddedBlocks = plugin.block_collection?.embeddedCount ?? 0;
-  const vaultPercent = totalBlocks > 0 ? Math.round((embeddedBlocks / totalBlocks) * 100) : 0;
+  const denominator = embeddableBlocks > 0 ? embeddableBlocks : (plugin.block_collection?.size ?? 0);
+  const vaultPercent = denominator > 0 ? Math.round((embeddedBlocks / denominator) * 100) : 0;
 
-  cachedVaultTag = `${embeddedBlocks}/${totalBlocks} (${vaultPercent}%)`;
+  cachedVaultTag = `${embeddedBlocks}/${denominator} (${vaultPercent}%)`;
   lastComputeMs = now;
   return cachedVaultTag;
 }

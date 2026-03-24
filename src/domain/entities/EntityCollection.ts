@@ -16,6 +16,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
 
   /** Cached embedded count — recomputed at event boundaries (load, save, clear) */
   private _cachedEmbeddedCount = 0;
+  private _cachedEmbeddableCount = 0;
 
   constructor(
     data_dir: string,
@@ -158,7 +159,14 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
 
   /** Recompute the embedded count from source of truth. Call after load, save, or clear. */
   recomputeEmbeddedCount(): void {
-    this._cachedEmbeddedCount = this.all.filter(item => item.has_embed()).length;
+    let embedded = 0;
+    let embeddable = 0;
+    for (const item of this.all) {
+      if (item.has_embed()) embedded++;
+      if (item.should_embed) embeddable++;
+    }
+    this._cachedEmbeddedCount = embedded;
+    this._cachedEmbeddableCount = embeddable;
   }
 
   /** O(1) count of entities with valid embeddings */
@@ -166,9 +174,15 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     return this._cachedEmbeddedCount;
   }
 
+  /** O(1) count of entities eligible for embedding (above min_chars threshold) */
+  get embeddableCount(): number {
+    return this._cachedEmbeddableCount;
+  }
+
   clear(): void {
     this.items = {};
     this._cachedEmbeddedCount = 0;
+    this._cachedEmbeddableCount = 0;
   }
 
   async ensure_entity_vector(entity: T): Promise<void> {
