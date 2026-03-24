@@ -51,12 +51,11 @@ jobs:
       - name: Package better-sqlite3 for Obsidian Electron
         run: |
           OBSIDIAN_ELECTRON_VERSION="39.5.1"
-          mkdir -p sqlite-dist/node_modules
-          npm install --prefix sqlite-dist better-sqlite3 --no-save --ignore-scripts
-          npm install --prefix sqlite-dist @electron/rebuild --no-save
-          ./sqlite-dist/node_modules/.bin/electron-rebuild \
-            --version "$OBSIDIAN_ELECTRON_VERSION" \
-            --module-dir ./sqlite-dist/node_modules/better-sqlite3
+          mkdir sqlite-dist && cd sqlite-dist
+          npm init -y
+          npm install better-sqlite3 @electron/rebuild
+          ./node_modules/.bin/electron-rebuild --version "$OBSIDIAN_ELECTRON_VERSION"
+          cd ..
       - name: Generate Release Notes
         run: node scripts/release-notes.mjs --output .github-release-body.md
       - name: Prepare Release Assets
