@@ -182,12 +182,6 @@ export class ConnectionsView extends ItemView {
     if (!this.plugin.ready || !this.plugin.block_collection) {
       return { type: 'plugin_loading' };
     }
-    if (this.plugin.status_state === 'error') {
-      return { type: 'model_error' };
-    }
-    if (!this.plugin.embed_ready) {
-      return { type: 'embed_loading' };
-    }
 
     const allFileBlocks = this.plugin.block_collection.for_source(targetPath);
     if (allFileBlocks.length === 0) {
@@ -199,16 +193,27 @@ export class ConnectionsView extends ItemView {
     }
 
     const embedded = allFileBlocks.filter(b => b.has_embed());
+    if (embedded.length > 0) {
+      const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
+      if (results.length === 0) {
+        return { type: 'no_connections' };
+      }
+      return { type: 'results', path: targetPath, results };
+    }
+
+    // Existing embeddings should remain browsable even if a fresh embedding run failed.
+    // Only block the view when this note still depends on new embeddings.
+    if (this.plugin.status_state === 'error') {
+      return { type: 'model_error' };
+    }
+    if (!this.plugin.embed_ready) {
+      return { type: 'embed_loading' };
+    }
+
     if (embedded.length === 0) {
       this.autoQueueBlockEmbedding(allFileBlocks);
       return { type: 'embedding_in_progress', path: targetPath };
     }
-
-    const results = await getBlockConnections(this.plugin.block_collection, targetPath, { limit: 50 });
-    if (results.length === 0) {
-      return { type: 'no_connections' };
-    }
-    return { type: 'results', path: targetPath, results };
   }
 
   private applyViewState(state: ViewState): void {

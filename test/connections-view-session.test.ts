@@ -144,6 +144,32 @@ describe('ConnectionsView rendering states', () => {
     expect(text).toContain('Embedding');
   });
 
+  it('renders existing connections even when the latest embedding run failed', async () => {
+    const plugin = createPluginStub();
+    plugin.status_state = 'error';
+    plugin.embed_ready = false;
+    const embeddedBlock = {
+      key: 'failed-note.md#Section',
+      source_key: 'failed-note.md',
+      vec: [1, 2, 3],
+      is_unembedded: false,
+      has_embed: () => true,
+      evictVec: vi.fn(),
+    };
+    plugin.block_collection.all = [embeddedBlock];
+    plugin.block_collection.nearest = vi.fn(async () => [
+      { item: { key: 'other.md#Topic', source_key: 'other.md' }, score: 0.9 },
+    ]);
+
+    const view = new ConnectionsView({} as any, plugin);
+    (view as any).container = createObsidianLikeContainer();
+
+    await view.renderView('failed-note.md');
+
+    expect(plugin.block_collection.nearest).toHaveBeenCalled();
+    expect((view as any).container.textContent).not.toContain('Embedding model failed to initialize');
+  });
+
   it('refresh button triggers re-embed from loading state', async () => {
     const plugin = createPluginStub();
     const view = new ConnectionsView({} as any, plugin);
