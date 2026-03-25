@@ -27,14 +27,15 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/domain/` | Business logic — NO obsidian imports |
-| `src/domain/entities/` | EmbeddingSource, EmbeddingBlock, EntityCollection, SQLite adapter |
-| `src/domain/embedding/kernel/` | Redux-style embedding state machine (store, reducer, selectors, effects) |
-| `src/ui/` | Obsidian-dependent views, modals, commands, settings, adapters |
-| `src/ui/embed-adapters/` | Provider adapters: transformers, openai, gemini, ollama, lm-studio, open-router, upstage |
-| `src/types/` | Pure type definitions + obsidian-augments.d.ts |
-| `src/utils/` | Pure utility functions (cos_sim, create_hash, results_acc) |
-| `src/shared/` | Boiler-template synced files — DO NOT EDIT |
+| `src/` | Source layers (see `src/AGENTS.md`) |
+| `src/domain/` | Business logic — NO obsidian imports (see `src/domain/AGENTS.md`) |
+| `src/domain/entities/` | EmbeddingSource, EmbeddingBlock, EntityCollection, SQLite adapter (see `src/domain/entities/AGENTS.md`) |
+| `src/domain/embedding/kernel/` | Redux-style embedding state machine (see `src/domain/embedding/kernel/AGENTS.md`) |
+| `src/ui/` | Obsidian-dependent views, modals, commands, settings, adapters (see `src/ui/AGENTS.md`) |
+| `src/ui/embed-adapters/` | Provider adapters (see `src/ui/embed-adapters/AGENTS.md`) |
+| `src/types/` | Pure type definitions + obsidian-augments.d.ts (see `src/types/AGENTS.md`) |
+| `src/utils/` | Pure utility functions (see `src/utils/AGENTS.md`) |
+| `src/shared/` | Boiler-template synced files — DO NOT EDIT (see `src/shared/AGENTS.md`) |
 | `worker/` | Transformers.js embed worker |
 | `test/` | Vitest unit + sqlite-integration tests |
 
