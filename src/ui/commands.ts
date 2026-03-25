@@ -43,7 +43,7 @@ export function registerCommands(plugin: Plugin): void {
       if (view) {
         const activeFile = plugin.app.workspace.getActiveFile();
         if (activeFile) {
-          view.renderView(activeFile.path);
+          void view.renderView(activeFile.path);
         }
       } else {
         ConnectionsView.open(plugin.app.workspace);

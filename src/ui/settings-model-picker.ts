@@ -417,7 +417,7 @@ export function renderHostField(
     .addText((text) => {
       text.setPlaceholder(defaultHost);
       text.setValue(currentHost);
-      text.onChange(async (value) => {
+      text.onChange((value) => {
         config.setConfig(`smart_sources.embed_model.${adapterName}.host`, value);
       });
     });

@@ -89,7 +89,7 @@ export class LookupView extends ItemView {
       (chip as HTMLElement).toggleClass('osc-lookup-chip--active', (chip as HTMLElement).dataset.filter === filter);
     });
     if (this.lastQuery) {
-      this.performSearch(this.lastQuery);
+      void this.performSearch(this.lastQuery);
     }
   }
 
@@ -199,7 +199,7 @@ export class LookupView extends ItemView {
 
     this.registerDomEvent(this.searchInput, 'keydown', (e) => {
       if (e.key === 'Enter') {
-        this.performSearch(this.searchInput.value);
+        void this.performSearch(this.searchInput.value);
       } else if (e.key === 'Escape') {
         this.clearSearch();
       }
@@ -355,13 +355,13 @@ export class LookupView extends ItemView {
 
       // Click to open
       this.registerDomEvent(item, 'click', (e) => {
-        this.plugin.open_note(key, e);
+        void this.plugin.open_note(key, e);
       });
 
       // Keyboard navigation
       this.registerDomEvent(item, 'keydown', (e) => {
         if (e.key === 'Enter') {
-          this.plugin.open_note(key);
+          void this.plugin.open_note(key);
         } else if (e.key === 'ArrowDown') {
           e.preventDefault();
           (item.nextElementSibling as HTMLElement)?.focus();
@@ -428,7 +428,7 @@ export class LookupView extends ItemView {
       .setButtonText('Try again')
       .onClick(() => {
         if (this.lastQuery) {
-          this.performSearch(this.lastQuery);
+          void this.performSearch(this.lastQuery);
         }
       });
   }
@@ -438,9 +438,9 @@ export class LookupView extends ItemView {
   static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(LOOKUP_VIEW_TYPE);
     if (existing.length) {
-      workspace.revealLeaf(existing[0]);
+      void workspace.revealLeaf(existing[0]);
     } else {
-      workspace.getRightLeaf(false)?.setViewState({
+      void workspace.getRightLeaf(false)?.setViewState({
         type: LOOKUP_VIEW_TYPE,
         active: true,
       });

@@ -96,7 +96,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
   }
 }
 
-export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin): Promise<number> {
+export function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin): number {
   if (!plugin.source_collection) return 0;
   let staleCount = 0;
   for (const source of plugin.source_collection.all) {
@@ -128,8 +128,8 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
   if (!plugin.source_collection?.vault || !plugin.block_collection) return;
 
   const knownPaths = new Set(plugin.source_collection.all.map(s => s.key));
-  const folderExclusions = (plugin.settings?.smart_sources?.folder_exclusions as string) || "";
-  const fileExclusions = (plugin.settings?.smart_sources?.file_exclusions as string) || "";
+  const folderExclusions = String(plugin.settings?.smart_sources?.folder_exclusions ?? "");
+  const fileExclusions = String(plugin.settings?.smart_sources?.file_exclusions ?? "");
   const newFiles = plugin.app.vault.getMarkdownFiles().filter(
     f => !knownPaths.has(f.path) && !isExcludedPath(f.path, folderExclusions, fileExclusions),
   );

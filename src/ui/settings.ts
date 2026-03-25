@@ -300,7 +300,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .addText((text) => {
         text.inputEl.type = 'number';
         text.setValue(String(this.getConfig('smart_sources.min_chars', 200)));
-        text.onChange(async (value) => {
+        text.onChange((value) => {
           this.setConfig('smart_sources.min_chars', parseInt(value) || 200);
         });
       });
@@ -311,7 +311,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .addText((text) => {
         text.setPlaceholder('Untitled, templates');
         text.setValue(this.getConfig('smart_sources.file_exclusions', ''));
-        text.onChange(async (value) => {
+        text.onChange((value) => {
           this.setConfig('smart_sources.file_exclusions', value);
         });
       });
@@ -322,7 +322,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .addText((text) => {
         text.setPlaceholder('Archive/, templates/');
         text.setValue(this.getConfig('smart_sources.folder_exclusions', ''));
-        text.onChange(async (value) => {
+        text.onChange((value) => {
           this.setConfig('smart_sources.folder_exclusions', value);
         });
       });
@@ -333,7 +333,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .addText((text) => {
         text.setPlaceholder('#draft, #ignore');
         text.setValue(this.getConfig('smart_sources.excluded_headings', ''));
-        text.onChange(async (value) => {
+        text.onChange((value) => {
           this.setConfig('smart_sources.excluded_headings', value);
         });
       });
@@ -345,7 +345,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setDesc('Embed individual sections for more granular connections')
       .addToggle((toggle) => {
         toggle.setValue(this.getConfig('smart_blocks.embed_blocks', true));
-        toggle.onChange(async (value) => {
+        toggle.onChange((value) => {
           this.setConfig('smart_blocks.embed_blocks', value);
         });
       });
@@ -356,7 +356,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .addText((text) => {
         text.inputEl.type = 'number';
         text.setValue(String(this.getConfig('smart_blocks.min_chars', 200)));
-        text.onChange(async (value) => {
+        text.onChange((value) => {
           this.setConfig('smart_blocks.min_chars', parseInt(value) || 200);
         });
       });
@@ -369,7 +369,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           .setLimits(1, 6, 1)
           .setValue(this.getConfig('smart_blocks.block_heading_depth', 3))
           .setDynamicTooltip()
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.setConfig('smart_blocks.block_heading_depth', value);
           });
       });
@@ -382,7 +382,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           .setLimits(1, 50, 1)
           .setValue(this.getConfig('embed_save_interval', 5))
           .setDynamicTooltip()
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.setConfig('embed_save_interval', value);
           });
       });
@@ -395,7 +395,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           .setLimits(1, 10, 1)
           .setValue(this.getConfig('embed_concurrency', 5))
           .setDynamicTooltip()
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.setConfig('embed_concurrency', value);
           });
       });
@@ -408,7 +408,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           .setLimits(100, 5000, 100)
           .setValue(this.getConfig('discovery_chunk_size', 1000))
           .setDynamicTooltip()
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.setConfig('discovery_chunk_size', value);
           });
       });
@@ -420,7 +420,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setDesc('Display folder path in result titles')
       .addToggle((toggle) => {
         toggle.setValue(this.getConfig('smart_view_filter.show_full_path', false));
-        toggle.onChange(async (value) => {
+        toggle.onChange((value) => {
           this.setConfig('smart_view_filter.show_full_path', value);
         });
       });
@@ -430,7 +430,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setDesc('Render Markdown formatting in hover previews')
       .addToggle((toggle) => {
         toggle.setValue(this.getConfig('smart_view_filter.render_markdown', true));
-        toggle.onChange(async (value) => {
+        toggle.onChange((value) => {
           this.setConfig('smart_view_filter.render_markdown', value);
         });
       });
@@ -440,7 +440,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setDesc('Show expanded connection details')
       .addToggle((toggle) => {
         toggle.setValue(this.getConfig('smart_view_filter.expanded_view', false));
-        toggle.onChange(async (value) => {
+        toggle.onChange((value) => {
           this.setConfig('smart_view_filter.expanded_view', value);
         });
       });
@@ -708,7 +708,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     obj[lastKey] = value;
 
     // Save settings
-    this.plugin.saveSettings?.();
+    void this.plugin.saveSettings?.();
 
     // Emit settings changed event with the changed key
     this.app.workspace.trigger('open-connections:settings-changed', {

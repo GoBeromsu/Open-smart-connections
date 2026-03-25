@@ -41,7 +41,7 @@ export function migrateInstalledAtFromLocalStorage(plugin: SmartConnectionsPlugi
     const oldValue = stored !== 'false';
     if (!oldValue) {
       plugin._installed_at = Date.now();
-      saveInstalledAt(plugin, plugin._installed_at);
+      void saveInstalledAt(plugin, plugin._installed_at);
     }
     plugin.app.saveLocalStorage(key, null);
     return true;

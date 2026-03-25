@@ -248,7 +248,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   // load
   // -----------------------------------------------------------------------
 
-  async load(): Promise<void> {
+  load(): void {
     const db = this.requireDb();
     const modelKey = this.collection.embed_model_key;
 
@@ -322,20 +322,30 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   // save
   // -----------------------------------------------------------------------
 
-  async save(): Promise<void> {
-    const db = this.requireDb();
-    const queue = [...this.collection.save_queue];
-    const deletedKeys = this.collection.consume_deleted_keys();
-    if (queue.length === 0 && deletedKeys.length === 0) return;
-    this.executeSaveBatch(db, queue, deletedKeys, true);
+  save(): Promise<void> {
+    try {
+      const db = this.requireDb();
+      const queue = [...this.collection.save_queue];
+      const deletedKeys = this.collection.consume_deleted_keys();
+      if (queue.length === 0 && deletedKeys.length === 0) return Promise.resolve();
+      this.executeSaveBatch(db, queue, deletedKeys, true);
+      return Promise.resolve();
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
-  async save_batch(entities: T[], deletedKeys: string[] = []): Promise<void> {
-    const db = this.requireDb();
-    const queue = [...entities];
-    const pendingDeletedKeys = [...deletedKeys];
-    if (queue.length === 0 && pendingDeletedKeys.length === 0) return;
-    this.executeSaveBatch(db, queue, pendingDeletedKeys, false);
+  save_batch(entities: T[], deletedKeys: string[] = []): Promise<void> {
+    try {
+      const db = this.requireDb();
+      const queue = [...entities];
+      const pendingDeletedKeys = [...deletedKeys];
+      if (queue.length === 0 && pendingDeletedKeys.length === 0) return Promise.resolve();
+      this.executeSaveBatch(db, queue, pendingDeletedKeys, false);
+      return Promise.resolve();
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   private executeSaveBatch(
@@ -463,7 +473,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   // load_entity_vector
   // -----------------------------------------------------------------------
 
-  async load_entity_vector(
+  load_entity_vector(
     entityKey: string,
     modelKey: string,
   ): Promise<{
@@ -471,30 +481,34 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     tokens?: number;
     meta?: EmbeddingModelMeta;
   }> {
-    const db = this.requireDb();
-    const row = db.prepare(`
-      SELECT vec, tokens, embed_hash, dims, updated_at
-      FROM entity_embeddings
-      WHERE entity_key = ? AND model_key = ?
-      LIMIT 1
-    `).get(entityKey, modelKey) as EmbeddingRow | undefined;
+    try {
+      const db = this.requireDb();
+      const row = db.prepare(`
+        SELECT vec, tokens, embed_hash, dims, updated_at
+        FROM entity_embeddings
+        WHERE entity_key = ? AND model_key = ?
+        LIMIT 1
+      `).get(entityKey, modelKey) as EmbeddingRow | undefined;
 
-    if (!row) return { vec: null };
+      if (!row) return Promise.resolve({ vec: null });
 
-    const vec = blobToF32(row.vec);
-    const meta = row.embed_hash
-      ? {
-        hash: row.embed_hash,
-        dims: row.dims ?? undefined,
-        updated_at: row.updated_at ?? undefined,
-      }
-      : undefined;
+      const vec = blobToF32(row.vec);
+      const meta = row.embed_hash
+        ? {
+          hash: row.embed_hash,
+          dims: row.dims ?? undefined,
+          updated_at: row.updated_at ?? undefined,
+        }
+        : undefined;
 
-    return {
-      vec,
-      tokens: row.tokens ?? undefined,
-      meta,
-    };
+      return Promise.resolve({
+        vec,
+        tokens: row.tokens ?? undefined,
+        meta,
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   // -----------------------------------------------------------------------

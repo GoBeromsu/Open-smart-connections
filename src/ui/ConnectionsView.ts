@@ -681,9 +681,9 @@ export class ConnectionsView extends ItemView {
   static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
     if (existing.length) {
-      workspace.revealLeaf(existing[0]);
+      void workspace.revealLeaf(existing[0]);
     } else {
-      workspace.getRightLeaf(false)?.setViewState({
+      void workspace.getRightLeaf(false)?.setViewState({
         type: CONNECTIONS_VIEW_TYPE,
         active: true,
       });

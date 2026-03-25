@@ -339,7 +339,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           li.createSpan({ text: ` (${score}%)`, cls: 'osc-score--medium' });
           link.addEventListener('click', (e) => {
             e.preventDefault();
-            this.open_note(r.path);
+            void this.open_note(r.path);
           });
         }
       } catch (e) {
@@ -360,7 +360,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Phase 2: Embedding (background, fire-and-forget)
     this.initializeEmbedding(lifecycle).then(() => {
       if (!this.isCurrentLifecycle(lifecycle)) return;
-      this.handleNewUser();
+      void this.handleNewUser();
     }).catch(e => {
       this.logger.error('Background embedding init failed:', e);
     });
@@ -406,7 +406,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (!this.isCurrentLifecycle(lifecycle)) return;
     if (!await runStep('Load collections', () => this.loadCollections(), true)) return;
     if (!this.isCurrentLifecycle(lifecycle)) return;
-    await this.detectStaleSourcesOnStartup();
+    this.detectStaleSourcesOnStartup();
     if (!this.isCurrentLifecycle(lifecycle)) return;
     await runStep('Register file watchers', () => this.registerFileWatchers());
     if (!this.isCurrentLifecycle(lifecycle)) return;
@@ -529,10 +529,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Migrate legacy Upstage model keys to canonical `embedding-passage` (#42)
     const upstageAdapter = settings.smart_sources?.embed_model as Record<string, unknown> | undefined;
     if (upstageAdapter?.adapter === 'upstage') {
-      let upstageSettings = (upstageAdapter as Record<string, unknown>)['upstage'] as Record<string, unknown> | undefined;
+      let upstageSettings = upstageAdapter['upstage'] as Record<string, unknown> | undefined;
       if (!upstageSettings) {
         upstageSettings = { model_key: 'embedding-passage' };
-        (upstageAdapter as Record<string, unknown>)['upstage'] = upstageSettings;
+        upstageAdapter['upstage'] = upstageSettings;
         removedLegacyKeys = true;
       } else {
         const mk = upstageSettings.model_key;
@@ -599,7 +599,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   initCollections(): Promise<void> { return _initCollections(this); }
   loadCollections(): Promise<void> { return _loadCollections(this); }
-  detectStaleSourcesOnStartup(): Promise<number> { return _detectStaleSourcesOnStartup(this); }
+  detectStaleSourcesOnStartup(): number { return _detectStaleSourcesOnStartup(this); }
 
   initPipeline(): Promise<void> { _initPipeline(this); return Promise.resolve(); }
   runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }

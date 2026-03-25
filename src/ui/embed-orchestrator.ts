@@ -348,7 +348,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
 function getModelLoadTimeoutMs(plugin: SmartConnectionsPlugin): number {
   const embedModel = plugin.settings?.smart_sources?.embed_model;
   if (!embedModel) return 180000;
-  const targetAdapterSettings = plugin.getEmbedAdapterSettings(embedModel) as Record<string, unknown>;
+  const targetAdapterSettings = plugin.getEmbedAdapterSettings(embedModel);
   const configuredLoadTimeoutMs = Number(targetAdapterSettings?.request_timeout_ms);
   return Number.isFinite(configuredLoadTimeoutMs) && configuredLoadTimeoutMs > 0
     ? configuredLoadTimeoutMs
@@ -361,7 +361,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
   const previousModelKey = plugin.embed_adapter?.model_key ?? '';
   const embedModel = plugin.settings?.smart_sources?.embed_model;
   const targetAdapterSettings = embedModel
-    ? (plugin.getEmbedAdapterSettings(embedModel) as Record<string, unknown>)
+    ? plugin.getEmbedAdapterSettings(embedModel)
     : null;
   const targetAdapter = embedModel?.adapter ?? '';
   const targetModelKey = typeof targetAdapterSettings?.model_key === 'string' ? targetAdapterSettings.model_key : '';
@@ -445,7 +445,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     const active = getCurrentModelInfo(plugin);
     const activeEmbedModel = plugin.settings?.smart_sources?.embed_model;
     const activeAdapterSettings = activeEmbedModel
-      ? (plugin.getEmbedAdapterSettings(activeEmbedModel) as Record<string, unknown>)
+      ? plugin.getEmbedAdapterSettings(activeEmbedModel)
       : null;
     const kernelModel = buildKernelModel(
       active.adapter,

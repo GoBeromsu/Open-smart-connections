@@ -559,12 +559,12 @@ export class EmbeddingPipeline {
 
     if (last_error instanceof Error) {
       error.name = last_error.name;
-      const last_any = last_error as any;
-      if (typeof last_any.status === 'number') {
-        (error as any).status = last_any.status;
+      const last_ext = last_error as Error & { status?: unknown; retryAfterMs?: unknown };
+      if (typeof last_ext.status === 'number') {
+        (error as Error & { status?: number }).status = last_ext.status;
       }
-      if (typeof last_any.retryAfterMs === 'number') {
-        (error as any).retryAfterMs = last_any.retryAfterMs;
+      if (typeof last_ext.retryAfterMs === 'number') {
+        (error as Error & { retryAfterMs?: number }).retryAfterMs = last_ext.retryAfterMs;
       }
     }
 
@@ -586,12 +586,12 @@ export class EmbeddingPipeline {
     );
 
     batch_error.name = exhausted.name || 'Error';
-    const exhausted_any = exhausted as any;
-    if (typeof exhausted_any.status === 'number') {
-      (batch_error as any).status = exhausted_any.status;
+    const exhausted_ext = exhausted as Error & { status?: unknown; retryAfterMs?: unknown };
+    if (typeof exhausted_ext.status === 'number') {
+      (batch_error as Error & { status?: number }).status = exhausted_ext.status;
     }
-    if (typeof exhausted_any.retryAfterMs === 'number') {
-      (batch_error as any).retryAfterMs = exhausted_any.retryAfterMs;
+    if (typeof exhausted_ext.retryAfterMs === 'number') {
+      (batch_error as Error & { retryAfterMs?: number }).retryAfterMs = exhausted_ext.retryAfterMs;
     }
 
     return batch_error;

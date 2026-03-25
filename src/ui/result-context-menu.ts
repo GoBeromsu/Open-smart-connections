@@ -30,7 +30,7 @@ export function showResultContextMenu(
       .setIcon('external-link')
       .onClick(() => {
         const file = app.vault.getAbstractFileByPath(fullPath);
-        if (file instanceof TFile) app.workspace.getLeaf('tab').openFile(file);
+        if (file instanceof TFile) void app.workspace.getLeaf('tab').openFile(file);
       }),
   );
 
@@ -40,7 +40,7 @@ export function showResultContextMenu(
       .setIcon('separator-vertical')
       .onClick(() => {
         const file = app.vault.getAbstractFileByPath(fullPath);
-        if (file instanceof TFile) app.workspace.getLeaf('split').openFile(file);
+        if (file instanceof TFile) void app.workspace.getLeaf('split').openFile(file);
       }),
   );
 
