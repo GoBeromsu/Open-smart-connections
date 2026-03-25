@@ -19,13 +19,16 @@ export const LM_STUDIO_SIGNUP_URL = 'https://lmstudio.ai/';
  * @param list - Response from LM Studio /v1/models endpoint
  * @returns Parsed models map
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio API response is not formally typed
 export function parse_lm_studio_models(list: any): Record<string, ModelInfo> {
   if (list.object !== 'list' || !Array.isArray(list.data)) {
     return { _: { model_key: 'No models found.' } };
   }
 
   return list.data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio model item shape is not formally typed
     .filter((m: any) => m.id && m.type === 'embeddings')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio model item shape is not formally typed
     .reduce((acc: Record<string, ModelInfo>, m: any) => {
       acc[m.id] = {
         model_key: m.id,
@@ -43,6 +46,7 @@ export function parse_lm_studio_models(list: any): Record<string, ModelInfo> {
 export class LmStudioEmbedAdapter extends EmbedModelApiAdapter {
   host: string;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
   constructor(config: any) {
     super(config);
     this.host = config.host || 'http://localhost:1234';
@@ -141,6 +145,7 @@ class LmStudioEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for LM Studio API
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
   prepare_request_body(): Record<string, any> {
     return {
       model: this.model_id,
@@ -159,10 +164,10 @@ class LmStudioEmbedResponseAdapter extends EmbedModelResponseAdapter {
   parse_response(): EmbedResult[] {
     const resp = this.response;
     if (!resp || !resp.data) {
-      console.error('Invalid response format', resp);
       return [];
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio response item shape is not formally typed
     return resp.data.map((item: any) => ({
       vec: item.embedding,
       tokens: 0, // LM Studio doesn't provide token usage

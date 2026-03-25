@@ -371,6 +371,7 @@ export class TransformersEmbedAdapter {
   model_key: string;
   dims: number;
   models: Record<string, ModelInfo>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
   settings: any;
   loaded: boolean = false;
   iframe: HTMLIFrameElement | null = null;
@@ -395,8 +396,10 @@ export class TransformersEmbedAdapter {
     model_key: string;
     dims: number;
     models: Record<string, ModelInfo>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
     settings: any;
     plugin_dir?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fs_adapter is an optional untyped vault adapter
     fs_adapter?: any;
   }) {
     this.adapter = config.adapter;
@@ -513,6 +516,7 @@ ${'</'}script></body></html>`;
   /**
    * Send message to iframe and wait for response
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- iframe message params and response shapes are dynamic
   private send_message(method: string, params?: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.iframe?.contentWindow) {

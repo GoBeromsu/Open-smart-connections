@@ -1,6 +1,7 @@
 import {
   ItemView,
   WorkspaceLeaf,
+  Workspace,
   TFile,
   ButtonComponent,
   Menu,
@@ -62,6 +63,7 @@ export class ConnectionsView extends ItemView {
   }
 
   private loadSession(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session state stored as untyped settings extension
     const saved = (this.plugin.settings as any)._connections_session;
     if (saved && typeof saved === 'object') {
       this.session = {
@@ -74,6 +76,7 @@ export class ConnectionsView extends ItemView {
   }
 
   private async saveSession(): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session state stored as untyped settings extension
     (this.plugin.settings as any)._connections_session = this.session;
     await this.plugin.saveSettings();
   }
@@ -102,6 +105,7 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.on('open-connections:core-ready' as any, () => {
         const file = this.app.workspace.getActiveFile();
         if (file) void this.renderView(file.path);
@@ -109,22 +113,26 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.on('open-connections:embed-ready' as any, () => {
         void this.renderView();
       }),
     );
 
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       (this.app.workspace as any).on('open-connections:model-switched', () => {
         this.handleModelSwitched();
       }),
     );
 
     this.registerEvent(
-      this.app.workspace.on('open-connections:embed-state-changed' as any, (payload: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
+      this.app.workspace.on('open-connections:embed-state-changed' as any, (payload: unknown) => {
         this.updateProgressBanner();
         // Auto-refresh when embedding finishes (running → idle) and we have a stale view
-        if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
+        const p = payload as Record<string, unknown> | undefined;
+        if (p?.['prev'] === 'running' && p?.['phase'] === 'idle' && this.lastRenderedPath) {
           invalidateConnectionsCache(); // Clear all — embeddings changed
           this.autoEmbedRequestedForPath = null;
           this.clearAutoEmbedTimeout();
@@ -135,6 +143,7 @@ export class ConnectionsView extends ItemView {
 
     // Live progress updates from the embedding pipeline (fires ~1/sec)
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.on('open-connections:embed-progress' as any, () => {
         this.updateProgressBanner();
       }),
@@ -316,8 +325,8 @@ export class ConnectionsView extends ItemView {
     try {
       this.enqueueBlocksForEmbedding(blocks);
       void this.plugin.runEmbeddingJob('Auto embed blocks for connections view');
-    } catch (error) {
-      console.warn('[SC] Auto-queue block embedding failed (non-critical):', error);
+    } catch (_error) {
+      // Auto-embed is non-critical; view will retry via embed-state-changed event
     }
     // Safety timeout: if no embed-state-changed arrives within 10s, re-derive state
     this._autoEmbedTimeout = window.setTimeout(() => {
@@ -464,8 +473,8 @@ export class ConnectionsView extends ItemView {
           this.enqueueBlocksForEmbedding(fileBlocks);
           await this.plugin.runEmbeddingJob('Connections view refresh');
         }
-      } catch (e) {
-        console.error('Failed to refresh embedding:', e);
+      } catch (_e) {
+        // Refresh is user-initiated; failure is visible via embed state
       }
       void this.renderView(targetPath);
     });
@@ -672,7 +681,7 @@ export class ConnectionsView extends ItemView {
       .onClick(() => { void this.renderView(); });
   }
 
-  static open(workspace: any): void {
+  static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
     if (existing.length) {
       workspace.revealLeaf(existing[0]);
@@ -684,7 +693,7 @@ export class ConnectionsView extends ItemView {
     }
   }
 
-  static getView(workspace: any): ConnectionsView | null {
+  static getView(workspace: Workspace): ConnectionsView | null {
     const leaves = workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
     return leaves.length ? (leaves[0].view as ConnectionsView) : null;
   }

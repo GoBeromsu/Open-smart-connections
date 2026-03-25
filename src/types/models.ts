@@ -117,7 +117,7 @@ export interface EmbedModelAdapter {
   models: Record<string, ModelInfo>;
 
   /** Model configuration settings */
-  settings: any;
+  settings: Record<string, unknown>;
 
   /**
    * Embed a batch of inputs

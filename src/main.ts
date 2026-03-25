@@ -225,7 +225,8 @@ export default class SmartConnectionsPlugin extends Plugin {
       lastError: phase === 'error' ? (opts.error ?? this._embed_state.lastError) : null,
     };
     if (prev !== phase) {
-      console.log(`[Open Connections] ${prev} → ${phase}${opts.error ? `: ${opts.error}` : ''}`);
+      this.logger.debug(`[Open Connections] ${prev} → ${phase}${opts.error ? `: ${opts.error}` : ''}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.trigger('open-connections:embed-state-changed' as any, { phase, prev });
       this.refreshStatus();
     }
@@ -241,7 +242,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     this._unloading = false;
     const lifecycle = this.beginLifecycle();
     this.resetTransientRuntimeState();
-    console.log('Loading Open Connections plugin');
+    this.logger.debug('Loading Open Connections plugin');
 
     await this.loadSettings();
     if (!this.isCurrentLifecycle(lifecycle)) return;
@@ -293,26 +294,28 @@ export default class SmartConnectionsPlugin extends Plugin {
       if (!activeFile) return;
 
       // Find embedded blocks for this file and load their vectors on demand
-      const fileBlocks = this.block_collection.all.filter(
-        (b: any) => b.source_key === activeFile.path && b.has_embed(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- block_collection.all items are untyped domain objects
+      const fileBlocks = (this.block_collection.all as any[]).filter(
+        (b) => b.source_key === activeFile.path && b.has_embed(),
       );
       if (fileBlocks.length === 0) {
         el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
         return;
       }
 
-      await Promise.all(fileBlocks.map((b: any) => this.block_collection.ensure_entity_vector(b)));
-      const loadedBlocks = fileBlocks.filter((b: any) => b.vec && b.vec.length > 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- block_collection.ensure_entity_vector accepts untyped entity
+      await Promise.all(fileBlocks.map((b) => (this.block_collection as any).ensure_entity_vector(b)));
+      const loadedBlocks = fileBlocks.filter((b) => b.vec && b.vec.length > 0);
       if (loadedBlocks.length === 0) {
         el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
         return;
       }
 
-      const avgVec = average_vectors(loadedBlocks.map((b: any) => b.vec));
-      loadedBlocks.forEach((b: any) => (b as any).evictVec?.());
+      const avgVec = average_vectors(loadedBlocks.map((b) => b.vec));
+      loadedBlocks.forEach((b) => b.evictVec?.());
 
       try {
-        const blockKeys = fileBlocks.map((b: any) => b.key);
+        const blockKeys = fileBlocks.map((b) => b.key);
         const results = await this.block_collection.nearest(avgVec, { limit: limit * 3, exclude: blockKeys });
         // Dedupe by source path, keep highest score
         const seen = new Map<string, { score: number; path: string; heading: string }>();
@@ -343,7 +346,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           });
         }
       } catch (e) {
-        console.error("[SC] Codeblock: failed to load connections:", e);
+        this.logger.error("[SC] Codeblock: failed to load connections:", e);
         el.createEl('p', { text: 'Failed to load connections.', cls: 'osc-state-text' });
       }
     });
@@ -351,7 +354,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initialize(lifecycle: number = this._lifecycle_epoch): Promise<void> {
     if (!this.isCurrentLifecycle(lifecycle)) return;
-    console.log('[SC][Init] ▶ Initialization starting');
+    this.logger.debug('[SC][Init] ▶ Initialization starting');
 
     // Phase 1: Core init (blocking)
     await this.initializeCore(lifecycle);
@@ -362,14 +365,14 @@ export default class SmartConnectionsPlugin extends Plugin {
       if (!this.isCurrentLifecycle(lifecycle)) return;
       this.handleNewUser();
     }).catch(e => {
-      console.error('Background embedding init failed:', e);
+      this.logger.error('Background embedding init failed:', e);
     });
   }
 
   async initializeCore(lifecycle: number = this._lifecycle_epoch): Promise<void> {
     if (!this.isCurrentLifecycle(lifecycle)) return;
     const t0 = performance.now();
-    console.log('[SC][Init] ▶ Phase 1: Core initialization');
+    this.logger.debug('[SC][Init] ▶ Phase 1: Core initialization');
 
     this.setupStatusBar();
 
@@ -389,7 +392,7 @@ export default class SmartConnectionsPlugin extends Plugin {
           return false;
         }
         this.init_errors.push({ phase: name, error: e as Error });
-        console.error(`[SC][Init] ${name} failed:`, e);
+        this.logger.error(`[SC][Init] ${name} failed:`, e);
         if (critical) {
           this.ready = false;
           this.setEmbedPhase('error', { error: `Failed: ${name}` });
@@ -413,17 +416,18 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     this.ready = true;
     this.refreshStatus();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
     this.app.workspace.trigger('open-connections:core-ready' as any);
 
     const sourceCount = this.source_collection?.size ?? 0;
     const blockCount = this.block_collection?.size ?? 0;
-    console.log(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - t0).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`);
+    this.logger.debug(`[SC][Init] ✓ Phase 1 complete (${(performance.now() - t0).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`);
   }
 
   async initializeEmbedding(lifecycle: number = this._lifecycle_epoch): Promise<void> {
     if (!this.isCurrentLifecycle(lifecycle)) return;
     const t0 = performance.now();
-    console.log('[SC][Init] ▶ Phase 2: Embedding initialization');
+    this.logger.debug('[SC][Init] ▶ Phase 2: Embedding initialization');
     try {
       if (!this.isCurrentLifecycle(lifecycle)) return;
       await this.switchEmbeddingModel('Initial embedding setup');
@@ -433,7 +437,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
       // Trigger re-import for stale sources detected during startup (#36)
       if (!this._unloading && this.pendingReImportPaths.size > 0) {
-        console.log(`[SC][Init] Processing ${this.pendingReImportPaths.size} stale sources from startup detection`);
+        this.logger.debug(`[SC][Init] Processing ${this.pendingReImportPaths.size} stale sources from startup detection`);
         this.debounceReImport();
       }
       if (!this.isCurrentLifecycle(lifecycle)) return;
@@ -442,17 +446,17 @@ export default class SmartConnectionsPlugin extends Plugin {
       if (this.embedding_pipeline && !this._unloading) {
         const resumeCount = this.queueUnembeddedEntities();
         if (resumeCount > 0) {
-          console.log(`[SC][Init] Resuming ${resumeCount} stranded unembedded blocks`);
+          this.logger.debug(`[SC][Init] Resuming ${resumeCount} stranded unembedded blocks`);
           await this.runEmbeddingJob('[startup] resume stranded blocks');
         }
       }
       if (!this.isCurrentLifecycle(lifecycle)) return;
 
-      console.log(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
+      this.logger.debug(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - t0).toFixed(0)}ms)`);
     } catch (e) {
       if (!this.isCurrentLifecycle(lifecycle)) return;
       this.init_errors.push({ phase: 'initializeEmbedding', error: e as Error });
-      console.error('[SC][Init] ✗ Phase 2 failed:', e);
+      this.logger.error('[SC][Init] ✗ Phase 2 failed:', e);
       this.setEmbedPhase('error', { error: e instanceof Error ? e.message : String(e) });
     }
   }
@@ -484,6 +488,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Without this, a saved smart_sources without the adapter sub-key
     // causes embed_model_key to resolve to 'None' → full re-embed on update.
     if (loadedSettings.smart_sources && typeof loadedSettings.smart_sources === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deep-merging untyped persisted settings
       const loaded = loadedSettings.smart_sources as Record<string, any>;
       settings.smart_sources = { ...DEFAULT_SETTINGS.smart_sources, ...loaded };
       if (loaded.embed_model && typeof loaded.embed_model === 'object') {
@@ -492,9 +497,12 @@ export default class SmartConnectionsPlugin extends Plugin {
           ...loaded.embed_model,
         };
         const adapter = settings.smart_sources.embed_model.adapter;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key lookup
         const defaults = (DEFAULT_SETTINGS.smart_sources.embed_model as Record<string, any>)[adapter];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key lookup
         const saved = (loaded.embed_model as Record<string, any>)[adapter];
         if (defaults && typeof defaults === 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key assignment
           (settings.smart_sources.embed_model as Record<string, any>)[adapter] = {
             ...defaults,
             ...(saved && typeof saved === 'object' ? saved : {}),
@@ -503,9 +511,11 @@ export default class SmartConnectionsPlugin extends Plugin {
       }
     }
     if (loadedSettings.smart_blocks && typeof loadedSettings.smart_blocks === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merging untyped persisted settings
       settings.smart_blocks = { ...DEFAULT_SETTINGS.smart_blocks, ...(loadedSettings.smart_blocks as Record<string, any>) };
     }
     if (loadedSettings.smart_view_filter && typeof loadedSettings.smart_view_filter === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merging untyped persisted settings
       settings.smart_view_filter = { ...DEFAULT_SETTINGS.smart_view_filter, ...(loadedSettings.smart_view_filter as Record<string, any>) };
     }
     // Migrate legacy smart_notices.muted → plugin_notices.muted
@@ -527,12 +537,15 @@ export default class SmartConnectionsPlugin extends Plugin {
       removedLegacyKeys = true;
     }
     // Migrate legacy Upstage model keys to canonical `embedding-passage` (#42)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic embed_model shape during migration
     const upstageAdapter = settings.smart_sources?.embed_model as Record<string, any> | undefined;
     if (upstageAdapter?.adapter === 'upstage') {
-      let upstageSettings = (upstageAdapter as any)?.['upstage'];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing dynamic adapter sub-key
+      let upstageSettings = (upstageAdapter as Record<string, any>)['upstage'];
       if (!upstageSettings) {
         upstageSettings = { model_key: 'embedding-passage' };
-        (upstageAdapter as any)['upstage'] = upstageSettings;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- writing dynamic adapter sub-key
+        (upstageAdapter as Record<string, any>)['upstage'] = upstageSettings;
         removedLegacyKeys = true;
       } else {
         const mk = upstageSettings.model_key;
@@ -565,24 +578,25 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async waitForSync(): Promise<void> {
     if (!this.obsidianIsSyncing()) return;
-    console.log('[SC][Init] Waiting for Obsidian Sync to finish...');
+    this.logger.debug('[SC][Init] Waiting for Obsidian Sync to finish...');
     const deadline = Date.now() + 60_000; // 60s timeout
     await new Promise(r => setTimeout(r, 1000));
     while (this.obsidianIsSyncing()) {
       if (this._unloading) {
-        console.warn('[SC][Init] Plugin unloading during sync wait, aborting');
+        this.logger.warn('[SC][Init] Plugin unloading during sync wait, aborting');
         return;
       }
       if (Date.now() > deadline) {
-        console.warn('[SC][Init] Sync wait timed out after 60s, proceeding without sync completion');
+        this.logger.warn('[SC][Init] Sync wait timed out after 60s, proceeding without sync completion');
         return;
       }
       await new Promise(r => setTimeout(r, 1000));
     }
-    console.log('[SC][Init] Obsidian Sync complete');
+    this.logger.debug('[SC][Init] Obsidian Sync complete');
   }
 
   obsidianIsSyncing(): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing Obsidian internal sync plugin
     const syncInstance = (this.app as any)?.internalPlugins?.plugins?.sync?.instance;
     if (!syncInstance) return false;
     if (syncInstance?.syncStatus?.startsWith('Uploading')) return false;
@@ -592,6 +606,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initEmbedModel(): Promise<void> { return _initEmbedModel(this); }
   syncCollectionEmbeddingContext(): void { _syncCollectionEmbeddingContext(this); }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass-through to untyped adapter settings helper
   getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> { return _getEmbedAdapterSettings(embedSettings); }
   queueUnembeddedEntities(): number { return _queueUnembeddedEntities(this); }
   async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
@@ -640,7 +655,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   onunload(): void {
-    console.log('Unloading Open Connections plugin');
+    this.logger.debug('Unloading Open Connections plugin');
     this.beginLifecycle();
     this._unloading = true;
 
@@ -659,13 +674,13 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Obsidian does not await onunload, so we cannot use await here
     if (this._search_embed_model?.unload) {
       this._search_embed_model.unload().catch((err: unknown) => {
-        console.warn('Failed to unload search embed model:', err);
+        this.logger.warn('Failed to unload search embed model:', err);
       });
     }
 
     if (this.embed_adapter?.unload) {
       this.embed_adapter.unload().catch((err: unknown) => {
-        console.warn('Failed to unload embed model:', err);
+        this.logger.warn('Failed to unload embed model:', err);
       });
     }
 
@@ -681,8 +696,8 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Fire-and-forget: saves enqueue into the same DB operation queue as close,
     // so ordering (save → save → close) is preserved by the queue.
-    if (srcAdapter) srcAdapter.save().catch((e: unknown) => console.warn('[SC] Flush source save failed:', e));
-    if (blkAdapter) blkAdapter.save().catch((e: unknown) => console.warn('[SC] Flush block save failed:', e));
+    if (srcAdapter) srcAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush source save failed:', e));
+    if (blkAdapter) blkAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush block save failed:', e));
     closeNodeSqliteDatabases();
   }
 }

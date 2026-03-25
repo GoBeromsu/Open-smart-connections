@@ -86,7 +86,6 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     if (embed_input.length === 0) {
-      console.log('Warning: prepare_embed_input received an empty string');
       return null;
     }
 
@@ -135,6 +134,7 @@ class UpstageEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for Upstage API (OpenAI-compatible format)
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
   prepare_request_body(): Record<string, any> {
     return {
       model: this.model_id,
@@ -153,11 +153,11 @@ class UpstageEmbedResponseAdapter extends EmbedModelResponseAdapter {
   parse_response(): EmbedResult[] {
     const resp = this.response;
     if (!resp || !resp.data || !resp.usage) {
-      console.error('Invalid response format', resp);
       return [];
     }
 
     const avg_tokens = resp.usage.total_tokens / resp.data.length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Upstage response item shape is not formally typed
     return resp.data.map((item: any) => ({
       vec: item.embedding,
       tokens: avg_tokens,

@@ -11,15 +11,18 @@ export class PluginLogger {
 
 	debug(message: string, data?: Record<string, unknown>): void {
 		if (!this.isDebug()) return;
-console.debug(this.format('debug', message, data));
+		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
+		console.debug(this.format('debug', message, data));
 	}
 
 	info(message: string, data?: Record<string, unknown>): void {
-console.debug(this.format('info', message, data));
+		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
+		console.debug(this.format('info', message, data));
 	}
 
 	warn(message: string, data?: Record<string, unknown>): void {
-console.warn(this.format('warn', message, data));
+		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
+		console.warn(this.format('warn', message, data));
 	}
 
 	error(message: string, error?: unknown): void {
@@ -29,7 +32,8 @@ console.warn(this.format('warn', message, data));
 		} else if (error) {
 			suffix = ` | ${typeof error === 'object' ? JSON.stringify(error) : String(error)}`;
 		}
-console.error(`[${this.prefix}] error | ${message}${suffix}`);
+		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
+		console.error(`[${this.prefix}] error | ${message}${suffix}`);
 	}
 
 	noticeError(message: string, error?: unknown): void {

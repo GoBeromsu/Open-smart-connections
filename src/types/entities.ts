@@ -88,7 +88,7 @@ export interface EntityData {
   embedding_meta?: Record<string, EmbeddingModelMeta>;
 
   /** Additional metadata */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -187,7 +187,7 @@ export interface EmbeddingEntity {
   /**
    * Find nearest entities to this one
    */
-  nearest(filter?: any): Promise<ConnectionResult[]>;
+  nearest(filter?: SearchFilter): Promise<ConnectionResult[]>;
 
   /**
    * Check if entity has valid embedding
@@ -239,5 +239,5 @@ export interface SearchFilter {
   key_does_not_start_with?: string;
 
   /** Custom filter function */
-  filter_fn?: (item: any) => boolean;
+  filter_fn?: (item: unknown) => boolean;
 }

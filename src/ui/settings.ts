@@ -24,13 +24,20 @@ import { renderEmbedProgress } from './embed-progress';
 interface SmartConnectionsPlugin extends Plugin {
   settings?: PluginSettings;
   saveSettings?: () => Promise<void>;
-  embed_model?: any;
-  source_collection?: any;
-  block_collection?: any;
+  embed_model?: unknown;
+  source_collection?: { size?: number };
+  block_collection?: { embeddedSourceCount?: number };
   embed_ready?: boolean;
   ready?: boolean;
   status_state?: 'idle' | 'embedding' | 'error';
-  embedding_pipeline?: any;
+  embedding_pipeline?: unknown;
+  current_embed_context?: {
+    runId: number;
+    current: number;
+    total: number;
+    currentSourcePath?: string | null;
+    currentEntityKey?: string | null;
+  } | null;
   initEmbedModel?: () => Promise<void>;
   initPipeline?: () => Promise<void>;
   syncCollectionEmbeddingContext?: () => void;
@@ -151,11 +158,13 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     // Register live-update listeners for the status section
     this.eventRefs.push(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.on('open-connections:embed-progress' as any, () => {
         this.updateEmbeddingStatusOnly();
       }),
     );
     this.eventRefs.push(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       this.app.workspace.on('open-connections:embed-state-changed' as any, () => {
         this.updateEmbeddingStatusOnly();
       }),
@@ -165,8 +174,8 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   private renderEmbeddingModelSection(containerEl: HTMLElement): void {
     const currentAdapter = this.getConfig('smart_sources.embed_model.adapter', 'transformers');
     const configAccessor = {
-      getConfig: (path: string, fallback: any) => this.getConfig(path, fallback),
-      setConfig: (path: string, value: any) => this.setConfig(path, value),
+      getConfig: <T>(path: string, fallback: T): T => this.getConfig(path, fallback),
+      setConfig: (path: string, value: unknown) => this.setConfig(path, value),
     };
 
     // Provider dropdown
@@ -282,7 +291,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       searchModel?.adapter === 'upstage' &&
       searchModel?.model_key === 'embedding-query'
     ) {
-      this.setConfig('smart_sources.search_model', undefined as any);
+      this.setConfig('smart_sources.search_model', undefined);
     }
   }
 
@@ -572,7 +581,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     // Live-update progress bars and current run section
     this.embedProgress?.update();
-    const ctx = (this.plugin as any).current_embed_context;
+    const ctx = this.plugin.current_embed_context;
     const status = this.plugin.status_state ?? 'idle';
     if (this.currentRunEl) {
       if (status === 'embedding' && ctx) {
@@ -674,26 +683,26 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     return await new ConfirmModal(this.app, message).openModal();
   }
 
-  private getConfig(path: string, fallback: any): any {
+  private getConfig<T>(path: string, fallback: T): T {
     const settings = this.plugin.settings;
     if (!settings) return fallback;
     const keys = path.split('.');
-    let val: any = settings;
+    let val: unknown = settings;
     for (const key of keys) {
-      val = val?.[key];
+      val = (val as Record<string, unknown>)?.[key];
       if (val === undefined) return fallback;
     }
-    return val;
+    return val as T;
   }
 
-  private setConfig(path: string, value: any): void {
+  private setConfig(path: string, value: unknown): void {
     const settings = this.plugin.settings;
     if (!settings) return;
     const keys = path.split('.');
-    let obj: any = settings;
+    let obj: Record<string, unknown> = settings as unknown as Record<string, unknown>;
     for (let i = 0; i < keys.length - 1; i++) {
       if (!obj[keys[i]]) obj[keys[i]] = {};
-      obj = obj[keys[i]];
+      obj = obj[keys[i]] as Record<string, unknown>;
     }
 
     const lastKey = keys[keys.length - 1];
@@ -704,6 +713,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.plugin.saveSettings?.();
 
     // Emit settings changed event with the changed key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
     this.app.workspace.trigger('open-connections:settings-changed' as any, {
       key: path,
       oldValue,
@@ -720,16 +730,15 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
       plugin.notices?.show?.('embedding_model_switched');
       this.display();
-    } catch (e) {
+    } catch (_e) {
       plugin.notices?.show?.('failed_reinitialize_model');
-      console.error('Re-embed failed:', e);
     }
   }
 
   private triggerSearchModelReInit(): void {
     // Re-init search model without re-embedding (search model change doesn't affect stored vectors)
-    this.plugin.switchEmbeddingModel?.('Search model changed').catch((e) => {
-      console.error('Search model re-init failed:', e);
+    this.plugin.switchEmbeddingModel?.('Search model changed').catch(() => {
+      // Search model re-init failure is non-critical; user will see stale search model
     });
   }
 }

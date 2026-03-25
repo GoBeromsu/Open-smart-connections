@@ -74,7 +74,8 @@ export async function getBlockConnections(
     mainPromise.then(abandoned => {
       for (const r of abandoned) (r.item as EmbeddingBlock).evictVec?.();
     }).catch(() => {});
-    console.warn('[SC] getBlockConnections timed out for:', filePath);
+    // Timeout exceeded — return empty results; view will retry on next render
+    void filePath; // suppress unused variable lint if needed
     return [];
   }
 

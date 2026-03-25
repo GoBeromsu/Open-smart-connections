@@ -53,7 +53,7 @@ export function showResultContextMenu(
       .onClick(() => {
         navigator.clipboard
           .writeText(`[[${fullPath.replace(/\.md$/, '')}]]`)
-          .catch((err) => console.error('Failed to copy link to clipboard:', err));
+          .catch((_err: unknown) => { /* clipboard write failure — no logger available at this scope */ });
       }),
   );
 

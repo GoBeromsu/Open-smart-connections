@@ -16,7 +16,7 @@ const CACHE_TTL_MS = 2000;
  * Create the status bar item, wire up click handler, and render initial state.
  */
 export function setupStatusBar(plugin: SmartConnectionsPlugin): void {
-  const app_any = plugin.app as any;
+  const app_any = plugin.app as unknown as { statusBar?: { containerEl?: HTMLElement } };
   const status_bar_container: HTMLElement | undefined = app_any?.statusBar?.containerEl;
   if (!status_bar_container) return;
 
@@ -111,7 +111,7 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
 export function handleStatusBarClick(plugin: SmartConnectionsPlugin): void {
   switch (plugin.status_state) {
     case 'error':
-      (plugin.app as any).setting?.open?.();
+      (plugin.app as unknown as { setting?: { open?(): void } }).setting?.open?.();
       break;
     default:
       ConnectionsView.open(plugin.app.workspace);

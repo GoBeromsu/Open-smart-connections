@@ -5,9 +5,17 @@ const COMPLETION_FADE_MS = 300;
 
 type Phase = 0 | 1 | 2 | 3;
 
+interface EmbedProgressPlugin {
+  embed_ready?: boolean;
+  status_state?: string;
+  block_collection?: { effectiveTotal?: number; embeddedCount?: number; embeddedSourceCount?: number };
+  app?: { vault?: { getMarkdownFiles?(): { length: number } } };
+  current_embed_context?: { currentSourcePath?: string | null };
+}
+
 export function renderEmbedProgress(
   container: HTMLElement,
-  plugin: any,
+  plugin: EmbedProgressPlugin,
   { prepend = false }: { prepend?: boolean } = {},
 ): { update(): void; destroy(): void } {
   const wrapper = container.createDiv({ cls: 'osc-embed-progress' });

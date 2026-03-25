@@ -5,7 +5,7 @@ import { NodeSqliteDataAdapter } from './node-sqlite-data-adapter';
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   items: Record<string, T> = {};
   data_adapter: NodeSqliteDataAdapter<T>;
-  settings: any;
+  settings: Record<string, unknown>;
   data_dir: string;
   collection_key: string;
   storage_namespace: string;
@@ -20,7 +20,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
 
   constructor(
     data_dir: string,
-    settings: any = {},
+    settings: Record<string, unknown> = {},
     embed_model_key: string = 'None',
     collection_key?: string,
     storage_namespace?: string,

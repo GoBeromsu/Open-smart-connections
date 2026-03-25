@@ -13,12 +13,13 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const storageNamespace = resolveStorageNamespace(plugin, dataDir);
 
     const adapterSettings = getEmbedAdapterSettings(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model shape is dynamic and untyped
       plugin.settings.smart_sources.embed_model as unknown as Record<string, any>,
     );
     const modelKey =
       plugin.embed_adapter?.model_key || adapterSettings.model_key || 'None';
 
-    console.log(`[SC][Init]   [collections] Initializing with model_key=${modelKey}, data_dir=${dataDir}`);
+    plugin.logger.debug(`[SC][Init]   [collections] Initializing with model_key=${modelKey}, data_dir=${dataDir}`);
 
     plugin.source_collection = new SourceCollection(
       `${dataDir}/sources`,
@@ -49,9 +50,9 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     await plugin.source_collection.init();
     await plugin.block_collection.init();
 
-    console.log('Collections initialized successfully');
+    plugin.logger.debug('Collections initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize collections:', error);
+    plugin.logger.error('Failed to initialize collections:', error);
     throw error;
   }
 }
@@ -84,12 +85,12 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.source_collection._initializing = false;
 
     const mk = plugin.source_collection.embed_model_key;
-    console.log(
+    plugin.logger.debug(
       `[SC][Init]   [collections] Loaded: ${plugin.source_collection.size} sources (${plugin.source_collection.embeddedCount} embedded), ` +
       `${plugin.block_collection.size} blocks (${plugin.block_collection.embeddedCount} embedded) [model_key=${mk}]`,
     );
   } catch (error) {
-    console.error('[SC][Init]   [collections] Failed to load collections:', error);
+    plugin.logger.error('[SC][Init]   [collections] Failed to load collections:', error);
     plugin.notices.show('failed_load_collection_data');
     throw error;
   }
@@ -113,7 +114,7 @@ export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin
     }
   }
   if (staleCount > 0) {
-    console.log(`[SC] Startup: ${staleCount} stale sources detected (mtime/size mismatch)`);
+    plugin.logger.debug(`[SC] Startup: ${staleCount} stale sources detected (mtime/size mismatch)`);
   }
   return staleCount;
 }
@@ -143,7 +144,7 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
       try {
         await plugin.source_collection.import_source(file);
       } catch (err) {
-        console.warn(`[SC] Failed to import ${file.path}:`, err);
+        plugin.logger.warn(`[SC] Failed to import ${file.path}:`, err);
       }
     }
 
@@ -159,7 +160,7 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
       await plugin.runEmbeddingJob(`[chunked-pipeline] ${processed}/${total}`);
     }
 
-    console.log(`[SC] Processed ${processed}/${total} files`);
+    plugin.logger.debug(`[SC] Processed ${processed}/${total} files`);
     plugin.refreshStatus?.();
     await new Promise(r => setTimeout(r, 0));
   }
@@ -167,17 +168,17 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
   if (!plugin._unloading) {
     const remaining = queueUnembeddedEntities(plugin);
     if (remaining > 0 && plugin.embedding_pipeline) {
-      console.log(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
+      plugin.logger.debug(`[SC] Final sweep: ${remaining} remaining blocks to embed`);
       await plugin.runEmbeddingJob('[chunked-pipeline] final sweep');
     }
   }
 
-  console.log(`[SC] All ${total} new files processed`);
+  plugin.logger.debug(`[SC] All ${total} new files processed`);
 
   // If file changes were collected during chunked processing, trigger re-import
   if (!plugin._unloading && plugin.pendingReImportPaths.size > 0) {
     const { debounceReImport } = await import('./file-watcher');
-    console.log(`[SC] Post-chunked: ${plugin.pendingReImportPaths.size} source paths need re-import`);
+    plugin.logger.debug(`[SC] Post-chunked: ${plugin.pendingReImportPaths.size} source paths need re-import`);
     debounceReImport(plugin);
   }
 }
@@ -205,7 +206,7 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
     if (newModelKey) {
       const oldKey = plugin.source_collection.embed_model_key;
       if (oldKey && oldKey !== 'None' && oldKey !== newModelKey) {
-        console.warn(`[SC][Init] [collections] WARNING: source model_key changed ${oldKey} → ${newModelKey}`);
+        plugin.logger.warn(`[SC][Init] [collections] WARNING: source model_key changed ${oldKey} → ${newModelKey}`);
       }
       plugin.source_collection.embed_model_key = newModelKey;
     }
@@ -216,7 +217,7 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
     if (newModelKey) {
       const oldKey = plugin.block_collection.embed_model_key;
       if (oldKey && oldKey !== 'None' && oldKey !== newModelKey) {
-        console.warn(`[SC][Init] [collections] WARNING: block model_key changed ${oldKey} → ${newModelKey}`);
+        plugin.logger.warn(`[SC][Init] [collections] WARNING: block model_key changed ${oldKey} → ${newModelKey}`);
       }
       plugin.block_collection.embed_model_key = newModelKey;
     }
@@ -224,6 +225,7 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape is dynamic and varies per provider
 export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> {
   if (!embedSettings) return {};
   const adapterType = embedSettings.adapter;
@@ -233,6 +235,7 @@ export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Re
 }
 
 function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing DataAdapter.getBasePath() which is desktop-only and not in types
   const adapter = plugin.app.vault.adapter as any;
   const basePath = typeof adapter?.getBasePath === 'function'
     ? String(adapter.getBasePath())

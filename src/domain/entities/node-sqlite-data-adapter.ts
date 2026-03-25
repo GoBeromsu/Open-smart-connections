@@ -34,15 +34,15 @@ function blobToF32(blob: Buffer | Uint8Array | null): Float32Array | null {
   return new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength));
 }
 
-function parseExtra(extra: unknown): Record<string, any> {
+function parseExtra(extra: unknown): Record<string, unknown> {
   if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
-    return extra as Record<string, any>;
+    return extra as Record<string, unknown>;
   }
   if (typeof extra === 'string') {
     try {
-      const parsed = JSON.parse(extra);
+      const parsed = JSON.parse(extra) as unknown;
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, any>;
+        return parsed as Record<string, unknown>;
       }
     } catch {
       return {};
@@ -54,7 +54,7 @@ function parseExtra(extra: unknown): Record<string, any> {
 function extractEntityCore(data: EntityData): {
   source_path: string | null;
   text_len: number | null;
-  extra: Record<string, any>;
+  extra: Record<string, unknown>;
 } {
   const source_path = typeof data.source_path === 'string' ? data.source_path : null;
   const text_len =
@@ -64,7 +64,7 @@ function extractEntityCore(data: EntityData): {
         ? data.text.length
         : null;
 
-  const extra: Record<string, any> = { ...data };
+  const extra: Record<string, unknown> = { ...data };
   delete extra.path;
   delete extra.embeddings;
   delete extra.embedding_meta;
@@ -143,6 +143,7 @@ export function closeNodeSqliteDatabases(): void {
         entry.closed = true;
       }
     } catch (err) {
+      // eslint-disable-next-line no-console -- closeNodeSqliteDatabases is a module-level cleanup function without a logger instance
       console.warn('[NodeSQLite] Failed to close database:', err);
     }
   }
@@ -154,6 +155,35 @@ export function closeNodeSqliteDatabases(): void {
 // ---------------------------------------------------------------------------
 
 type QueryMatch = { entity_key: string; score: number };
+
+// Typed shapes for node:sqlite row results (node:sqlite returns plain objects with no type info)
+interface EntityRow {
+  entity_key: string;
+  path: string;
+  source_path: string | null;
+  last_read_hash: string | null;
+  last_read_size: number | null;
+  last_read_mtime: number | null;
+  text_len: number | null;
+  extra: string;
+  tokens: number | null;
+  embed_hash: string | null;
+  dims: number | null;
+  updated_at: number | null;
+}
+
+interface EmbeddingRow {
+  vec: Buffer | Uint8Array | null;
+  tokens: number | null;
+  embed_hash: string | null;
+  dims: number | null;
+  updated_at: number | null;
+}
+
+interface NearestRow {
+  entity_key: string;
+  vec: Buffer | Uint8Array | null;
+}
 
 export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   collection: EntityCollection<T>;
@@ -242,40 +272,40 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
         AND em.model_key = ?
       WHERE e.entity_type = ?
       ORDER BY e.entity_key ASC
-    `).all(modelKey, this.entity_type) as any[];
+    `).all(modelKey, this.entity_type) as EntityRow[];
 
     for (const row of rows) {
       const extra = parseExtra(row.extra);
       const data: Partial<EntityData> = {
         ...extra,
-        path: row.path as string,
+        path: row.path,
         embeddings: {},
       };
 
       if (row.last_read_hash) {
         data.last_read = {
-          hash: row.last_read_hash as string,
-          size: row.last_read_size as number ?? undefined,
-          mtime: row.last_read_mtime as number ?? undefined,
+          hash: row.last_read_hash,
+          size: row.last_read_size ?? undefined,
+          mtime: row.last_read_mtime ?? undefined,
         };
       }
 
       if (row.embed_hash && modelKey && modelKey !== 'None') {
         data.last_embed = {
-          hash: row.embed_hash as string,
-          size: row.last_read_size as number ?? undefined,
-          mtime: row.last_read_mtime as number ?? undefined,
+          hash: row.embed_hash,
+          size: row.last_read_size ?? undefined,
+          mtime: row.last_read_mtime ?? undefined,
         };
         data.embeddings = {
-          [modelKey]: { vec: [], tokens: row.tokens as number ?? undefined },
+          [modelKey]: { vec: [], tokens: row.tokens ?? undefined },
         };
         data.embedding_meta = {
           [modelKey]: {
-            hash: row.embed_hash as string,
-            size: row.last_read_size as number ?? undefined,
-            mtime: row.last_read_mtime as number ?? undefined,
-            dims: row.dims as number ?? undefined,
-            updated_at: row.updated_at as number ?? undefined,
+            hash: row.embed_hash,
+            size: row.last_read_size ?? undefined,
+            mtime: row.last_read_mtime ?? undefined,
+            dims: row.dims ?? undefined,
+            updated_at: row.updated_at ?? undefined,
           },
         };
       }
@@ -392,9 +422,10 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     removeAllStmt: StatementSync,
     entity: T,
   ): void {
-    if ((entity as any)._remove_all_embeddings) {
+    const entityWithFlags = entity as unknown as { _remove_all_embeddings?: boolean };
+    if (entityWithFlags._remove_all_embeddings) {
       removeAllStmt.run(entity.key);
-      (entity as any)._remove_all_embeddings = false;
+      entityWithFlags._remove_all_embeddings = false;
       return;
     }
 
@@ -446,22 +477,22 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       FROM entity_embeddings
       WHERE entity_key = ? AND model_key = ?
       LIMIT 1
-    `).get(entityKey, modelKey) as any;
+    `).get(entityKey, modelKey) as EmbeddingRow | undefined;
 
     if (!row) return { vec: null };
 
-    const vec = blobToF32(row.vec as Buffer | Uint8Array | null);
+    const vec = blobToF32(row.vec);
     const meta = row.embed_hash
       ? {
-        hash: row.embed_hash as string,
-        dims: row.dims as number ?? undefined,
-        updated_at: row.updated_at as number ?? undefined,
+        hash: row.embed_hash,
+        dims: row.dims ?? undefined,
+        updated_at: row.updated_at ?? undefined,
       }
       : undefined;
 
     return {
       vec,
-      tokens: row.tokens as number ?? undefined,
+      tokens: row.tokens ?? undefined,
       meta,
     };
   }
@@ -490,7 +521,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       'e.last_read_hash IS NOT NULL',
       'em.embed_hash = e.last_read_hash',
     ];
-    const params: any[] = [modelKey, this.entity_type];
+    const params: (string | number)[] = [modelKey, this.entity_type];
 
     const expectedDims = this.collection.embed_model_dims;
     if (typeof expectedDims === 'number' && expectedDims > 0) {
@@ -527,12 +558,12 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       WHERE ${conditions.join(' AND ')}
     `;
 
-    const rows = db.prepare(sql).all(...params) as any[];
+    const rows = db.prepare(sql).all(...params) as NearestRow[];
     const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
     const scored: QueryMatch[] = [];
 
     for (const row of rows) {
-      const candidateVec = blobToF32(row.vec as Buffer | Uint8Array | null);
+      const candidateVec = blobToF32(row.vec);
       if (!candidateVec || candidateVec.length !== queryF32.length) continue;
 
       const score = cos_sim_f32(queryF32, candidateVec);

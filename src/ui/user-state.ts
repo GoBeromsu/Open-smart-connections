@@ -71,8 +71,9 @@ export async function handleNewUser(plugin: SmartConnectionsPlugin): Promise<voi
     ConnectionsView.open(plugin.app.workspace);
   }, 1000);
 
-  if ((plugin.app.workspace as any).rightSplit?.collapsed) {
-    (plugin.app.workspace as any).rightSplit?.toggle();
+  const ws = plugin.app.workspace as unknown as { rightSplit?: { collapsed: boolean; toggle(): void } };
+  if (ws.rightSplit?.collapsed) {
+    ws.rightSplit?.toggle();
   }
 
   await addToGitignore(plugin, '\n\n# Ignore Smart Environment folder\n.smart-env');

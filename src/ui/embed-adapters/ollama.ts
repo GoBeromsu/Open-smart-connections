@@ -16,6 +16,7 @@ export const OLLAMA_SIGNUP_URL = 'https://ollama.com/download';
 
 interface OllamaModel {
   name: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model fields are not formally typed
   [key: string]: any;
 }
 
@@ -27,6 +28,7 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
   host: string;
   model_data: Record<string, ModelInfo> | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
   constructor(config: any) {
     super(config);
     this.host = config.host || 'http://localhost:11434';
@@ -107,6 +109,7 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
       }
 
       const list_data = list_resp.json;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model data shape is not formally typed
       const models_raw: any[] = [];
 
       for (const m of filter_embedding_models(list_data.models || [])) {
@@ -131,9 +134,9 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
    * @param model_data - Raw model data from Ollama
    * @returns Map of model objects with capabilities and limits
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model data shape is not formally typed
   parse_model_data(model_data: any[]): Record<string, ModelInfo> {
     if (!Array.isArray(model_data)) {
-      console.error('Invalid model data format from Ollama:', model_data);
       return {};
     }
 
@@ -174,6 +177,7 @@ class OllamaEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Convert request to Ollama's embed API format
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- platform request shape is provider-specific
   to_platform(): Record<string, any> {
     return {
       url: (this.adapter as OllamaEmbedAdapter).endpoint,
@@ -198,7 +202,6 @@ class OllamaEmbedResponseAdapter extends EmbedModelResponseAdapter {
     const resp = this.response;
 
     if (!resp || !resp.embeddings) {
-      console.error('Invalid response format from Ollama:', resp);
       return [];
     }
 

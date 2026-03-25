@@ -5,6 +5,7 @@
 
 import type SmartConnectionsPlugin from '../main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../main';
+import type { EmbeddingEntity } from '../types/entities';
 import { CONNECTIONS_VIEW_TYPE } from './ConnectionsView';
 
 import { embedAdapterRegistry } from '../domain/embed-model';
@@ -32,6 +33,7 @@ export function getCurrentModelInfo(plugin: SmartConnectionsPlugin): { adapter: 
     ?? plugin.settings?.smart_sources?.embed_model?.adapter
     ?? 'unknown';
   const modelKey = plugin.embed_adapter?.model_key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model shape is dynamic during model switch
     ?? plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as any)?.model_key
     ?? 'unknown';
   const dims = plugin.embed_adapter?.dims ?? null;
@@ -85,7 +87,7 @@ export function logEmbed(plugin: SmartConnectionsPlugin, event: string, context:
   const note = context.currentSourcePath ? ` ${context.currentSourcePath}` : '';
   const reason = context.reason ? ` reason="${context.reason}"` : '';
   const error = context.error ? ` error="${context.error}"` : '';
-  console.log(`[SC][Embed] ${event} run=${runId}${progress}${model}${note}${reason}${error}`);
+  plugin.logger.info(`[Embed] ${event} run=${runId}${progress}${model}${note}${reason}${error}`);
 }
 
 // ── Notice helpers ──────────────────────────────────────────────────
@@ -98,11 +100,11 @@ export function clearEmbedNotice(plugin: SmartConnectionsPlugin): void {
 
 export function updateEmbedNotice(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext, force: boolean = false): void {
   const connectionsLeaves = plugin.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
-  const isViewVisible = connectionsLeaves.some((leaf: any) =>
-    typeof leaf.view?.containerEl?.checkVisibility === 'function'
-      ? leaf.view.containerEl.checkVisibility()
-      : false,
-  );
+  const isViewVisible = connectionsLeaves.some((leaf) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WorkspaceLeaf.view.containerEl is not typed in Obsidian API
+    const containerEl = (leaf.view as any)?.containerEl;
+    return typeof containerEl?.checkVisibility === 'function' ? containerEl.checkVisibility() : false;
+  });
   if (isViewVisible) {
     clearEmbedNotice(plugin);
     return;
@@ -166,6 +168,7 @@ export function emitEmbedProgress(
     error: opts.error ?? ctx.error ?? undefined,
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
   plugin.app.workspace.trigger('open-connections:embed-progress' as any, payload);
 }
 
@@ -184,14 +187,14 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       adapterSettings,
     );
 
-    if (requiresLoad && typeof (adapter as any).load === 'function') {
-      await (adapter as any).load();
+    if (requiresLoad && typeof (adapter as { load?: () => Promise<void> }).load === 'function') {
+      await (adapter as { load: () => Promise<void> }).load();
     }
 
     plugin.embed_adapter = adapter;
-    console.log(`[SC][Init] Embed model initialized (${adapterType}/${modelKey})`);
+    plugin.logger.info(`[Init] Embed model initialized (${adapterType}/${modelKey})`);
   } catch (error) {
-    console.error('[SC][Init]   [model] Failed to initialize embed model:', error);
+    plugin.logger.error('[Init] Failed to initialize embed model', error);
     const message = errorMessage(error);
     if (plugin.settings.smart_sources.embed_model.adapter === 'transformers') {
       if (/\[download:timeout\]/i.test(message)) {
@@ -234,6 +237,7 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
   try {
     const searchAdapterSettings = searchModelSettings.adapter === embedSettings.adapter
       ? { ...indexingAdapterSettings }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model sub-key lookup is dynamic per adapter
       : { ...(embedSettings[searchModelSettings.adapter as keyof typeof embedSettings] as Record<string, any> || {}) };
 
     const { adapter, requiresLoad } = embedAdapterRegistry.createAdapter(
@@ -242,14 +246,14 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
       searchAdapterSettings,
     );
 
-    if (requiresLoad && typeof (adapter as any).load === 'function') {
-      await (adapter as any).load();
+    if (requiresLoad && typeof (adapter as { load?: () => Promise<void> }).load === 'function') {
+      await (adapter as { load: () => Promise<void> }).load();
     }
 
-    plugin._search_embed_model = adapter as any;
-    console.log(`[SC][Init]   [search-model] Search model initialized ✓ (${searchModelSettings.adapter}/${searchModelSettings.model_key})`);
-  } catch (error) {
-    console.warn('[SC][Init]   [search-model] Failed to initialize search model, will use indexing model:', error);
+    plugin._search_embed_model = adapter;
+    plugin.logger.info(`[Init] Search model initialized (${searchModelSettings.adapter}/${searchModelSettings.model_key})`);
+  } catch (_error) {
+    plugin.logger.warn('[Init] Failed to initialize search model, will use indexing model');
     plugin._search_embed_model = undefined;
   }
 }
@@ -262,7 +266,7 @@ export function initPipeline(plugin: SmartConnectionsPlugin): void {
     throw new Error('Embed adapter must be initialized before pipeline');
   }
   plugin.embedding_pipeline = new EmbeddingPipeline(plugin.embed_adapter);
-  console.log('[SC][Init]   [pipeline] Embedding pipeline initialized');
+  plugin.logger.debug('[SC][Init]   [pipeline] Embedding pipeline initialized');
 }
 
 // ── Re-embed stale entities ─────────────────────────────────────────
@@ -304,7 +308,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
     try {
       await plugin._search_embed_model.unload();
     } catch (error) {
-      console.warn('Failed to unload previous search embed model during switch:', error);
+      plugin.logger.warn('Failed to unload previous search embed model during switch', { error: String(error) });
     }
     plugin._search_embed_model = undefined;
   }
@@ -313,15 +317,15 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
   try {
     await plugin.embed_adapter.unload?.();
   } catch (error) {
-    console.warn('Failed to unload previous embed model during switch:', error);
+    plugin.logger.warn('Failed to unload previous embed model during switch', { error: String(error) });
   }
 }
 
 function getModelLoadTimeoutMs(plugin: SmartConnectionsPlugin): number {
-  const targetAdapterSettings = plugin.getEmbedAdapterSettings(
-    plugin.settings?.smart_sources?.embed_model as any,
-  );
-  const configuredLoadTimeoutMs = Number((targetAdapterSettings as any)?.request_timeout_ms);
+  const embedModel = plugin.settings?.smart_sources?.embed_model;
+  if (!embedModel) return 180000;
+  const targetAdapterSettings = plugin.getEmbedAdapterSettings(embedModel) as Record<string, unknown>;
+  const configuredLoadTimeoutMs = Number(targetAdapterSettings?.request_timeout_ms);
   return Number.isFinite(configuredLoadTimeoutMs) && configuredLoadTimeoutMs > 0
     ? configuredLoadTimeoutMs
     : 180000;
@@ -331,11 +335,12 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
   plugin.resetError();
   const previous = getCurrentModelInfo(plugin);
   const previousModelKey = plugin.embed_adapter?.model_key ?? '';
-  const targetAdapterSettings = plugin.getEmbedAdapterSettings(
-    plugin.settings?.smart_sources?.embed_model as any,
-  );
-  const targetAdapter = plugin.settings?.smart_sources?.embed_model?.adapter ?? '';
-  const targetModelKey = (targetAdapterSettings as any)?.model_key ?? '';
+  const embedModel = plugin.settings?.smart_sources?.embed_model;
+  const targetAdapterSettings = embedModel
+    ? (plugin.getEmbedAdapterSettings(embedModel) as Record<string, unknown>)
+    : null;
+  const targetAdapter = embedModel?.adapter ?? '';
+  const targetModelKey = String(targetAdapterSettings?.model_key ?? '');
   const shouldForceReembed =
     !!plugin.embed_adapter && (previousModelKey !== targetModelKey || previous.adapter !== targetAdapter);
   plugin.logEmbed('switch-start', {
@@ -406,7 +411,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
         }
       }
       plugin.logEmbed('switch-queued', { adapter: targetAdapter, modelKey: targetModelKey, current: queuedAfterSync, total: queuedAfterSync });
-      console.log(`[SC][Embed] switch-queued breakdown: missingMeta=${missingMeta} hashMismatch=${hashMismatch} dimsMismatch=${dimsMismatch}`);
+      plugin.logger.debug('[SC][Embed] switch-queued breakdown', { missingMeta, hashMismatch, dimsMismatch });
     }
 
     await saveCollections(plugin);
@@ -414,17 +419,19 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
 
     // Notify success
     const active = getCurrentModelInfo(plugin);
-    const activeAdapterSettings = plugin.getEmbedAdapterSettings(
-      plugin.settings?.smart_sources?.embed_model as any,
-    );
+    const activeEmbedModel = plugin.settings?.smart_sources?.embed_model;
+    const activeAdapterSettings = activeEmbedModel
+      ? (plugin.getEmbedAdapterSettings(activeEmbedModel) as Record<string, unknown>)
+      : null;
     const kernelModel = buildKernelModel(
       active.adapter,
       active.modelKey,
-      String((activeAdapterSettings as any)?.host || ''),
+      String(activeAdapterSettings?.host || ''),
       active.dims,
     );
     plugin.setEmbedPhase('idle', { fingerprint: kernelModel.fingerprint });
     plugin.app.workspace.trigger('open-connections:embed-ready');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
     plugin.app.workspace.trigger('open-connections:model-switched' as any, {
       ...active,
       switchedAt: Date.now(),
@@ -435,7 +442,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
       current: queuedAfterSync,
       total: queuedAfterSync,
     });
-    console.log(`[SC][Init] Model switch complete (${active.adapter}/${active.modelKey}, ${queuedAfterSync} queued)`);
+    plugin.logger.info('[SC][Init] Model switch complete', { adapter: active.adapter, modelKey: active.modelKey, queued: queuedAfterSync });
   } catch (error) {
     plugin.setEmbedPhase('error', { error: errorMessage(error) });
     plugin.logEmbed('switch-failed', {
@@ -463,7 +470,7 @@ function scheduleFollowupRun(plugin: SmartConnectionsPlugin, reason: string, run
     priority: 31,
     run: async () => runEmbeddingJobNow(plugin, reason),
   }).catch((error) => {
-    console.warn('[SC] Failed to schedule embedding follow-up run:', error);
+    plugin.logger.warn('[SC] Failed to schedule embedding follow-up run', { error: String(error) });
   });
 }
 
@@ -480,12 +487,12 @@ export async function runEmbeddingJob(plugin: SmartConnectionsPlugin, reason: st
 
 export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> {
   if (plugin.status_state === 'error') {
-    console.warn('[SC] runEmbeddingJobNow rejected: embed phase is error');
+    plugin.logger.warn('[SC] runEmbeddingJobNow rejected: embed phase is error');
     return null;
   }
 
   if (plugin._unloading) {
-    console.warn('[SC] runEmbeddingJobNow rejected: plugin is unloading');
+    plugin.logger.warn('[SC] runEmbeddingJobNow rejected: plugin is unloading');
     return null;
   }
 
@@ -499,7 +506,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
   }
 
   const entitiesToEmbed = (plugin.block_collection?.all || []).filter(
-    (b: any) => b._queue_embed && b.should_embed,
+    (b: EmbeddingEntity) => b._queue_embed && b.should_embed,
   );
 
   if (entitiesToEmbed.length === 0) {

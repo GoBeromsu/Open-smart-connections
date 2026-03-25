@@ -24,6 +24,7 @@ export class EmbeddingEntity {
   data: EntityData;
 
   /** Parent collection */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic; EmbeddingEntity is the base for all entity types
   collection: EntityCollection<any>;
 
   /** Whether entity needs embedding */
@@ -38,6 +39,7 @@ export class EmbeddingEntity {
   /** Flag for deleting all persisted embeddings for this entity */
   _remove_all_embeddings: boolean = false;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic constructor
   constructor(collection: EntityCollection<any>, data: Partial<EntityData> = {}, defaults?: EntityData) {
     this.collection = collection;
     this.data = defaults ?? this.get_defaults();
@@ -79,7 +81,7 @@ export class EmbeddingEntity {
   }
 
   private has_dim_mismatch(vec: number[] | Float32Array | null): boolean {
-    const expected_dims = (this.collection as any).embed_model_dims;
+    const expected_dims = this.collection.embed_model_dims;
     return (
       typeof expected_dims === 'number' &&
       expected_dims > 0 &&
@@ -281,7 +283,7 @@ export class EmbeddingEntity {
     const current_vec = this.vec;
     const read_hash = this.read_hash;
     const active_hash = this.active_embedding_meta?.hash;
-    const expected_dims = (this.collection as any).embed_model_dims;
+    const expected_dims = this.collection.embed_model_dims;
     const active_dims = this.active_embedding_meta?.dims;
 
     if (!current_vec) {

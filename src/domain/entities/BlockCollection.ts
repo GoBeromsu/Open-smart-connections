@@ -22,7 +22,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
 
   constructor(
     data_dir: string,
-    settings: any = {},
+    settings: Record<string, unknown> = {},
     embed_model_key: string = 'None',
     source_collection?: SourceCollection,
     storage_namespace?: string,

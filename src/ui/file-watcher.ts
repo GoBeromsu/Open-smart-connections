@@ -86,8 +86,8 @@ export function debounceReImport(plugin: SmartConnectionsPlugin): void {
 
   const waitTime = (plugin.settings.re_import_wait_time || 13) * 1000;
   plugin.re_import_timeout = window.setTimeout(() => {
-    void enqueueReImportJob(plugin).catch((error) => {
-      console.error('Failed to enqueue debounced re-import:', error);
+    void enqueueReImportJob(plugin).catch((error: unknown) => {
+      plugin.logger.error('Failed to enqueue debounced re-import', error);
     });
   }, waitTime);
 }
@@ -103,7 +103,7 @@ function enqueueReImportJob(plugin: SmartConnectionsPlugin): Promise<void> {
 
 export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void> {
   if (!plugin.source_collection || !plugin.embedding_pipeline) {
-    console.warn('Collections or pipeline not initialized');
+    plugin.logger.warn('Collections or pipeline not initialized');
     return;
   }
 
@@ -112,7 +112,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
   plugin.pendingReImportPaths.clear();
   if (paths.length === 0) return;
 
-  console.log(`Re-importing ${paths.length} sources...`);
+  plugin.logger.info(`Re-importing ${paths.length} sources...`);
 
   try {
     if (plugin.status_msg) {
@@ -138,16 +138,16 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
     await runEmbeddingJobNow(plugin, `Re-import (${paths.length} files)`);
 
     plugin.refreshStatus();
-    console.log('Re-import completed');
+    plugin.logger.info('Re-import completed');
 
     // If new paths were added during processing, re-enqueue
     if (!plugin._unloading && plugin.pendingReImportPaths.size > 0) {
-      void enqueueReImportJob(plugin).catch((error) => {
-        console.error('Failed to re-enqueue re-import:', error);
+      void enqueueReImportJob(plugin).catch((error: unknown) => {
+        plugin.logger.error('Failed to re-enqueue re-import', error);
       });
     }
   } catch (error) {
-    console.error('Re-import failed:', error);
+    plugin.logger.error('Re-import failed', error);
     plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
     plugin.notices.show('reimport_failed');
     plugin.refreshStatus();

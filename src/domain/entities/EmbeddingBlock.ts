@@ -17,6 +17,7 @@ import type { EmbeddingSource } from './EmbeddingSource';
 export class EmbeddingBlock extends EmbeddingEntity {
   data: BlockData;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic constructor
   constructor(collection: EntityCollection<any>, data: Partial<BlockData> = {}) {
     super(collection, data, { path: '', text: '', length: 0, embeddings: {} } as EntityData);
   }
@@ -115,10 +116,8 @@ export class EmbeddingBlock extends EmbeddingEntity {
   get source(): EmbeddingSource | undefined {
     // Access SourceCollection through collection reference
     // This assumes BlockCollection has a reference to SourceCollection
-    const source_collection = (this.collection as any).source_collection;
-    if (!source_collection) return undefined;
-
-    return source_collection.get(this.source_key);
+    const col = this.collection as unknown as { source_collection?: { get(key: string): EmbeddingSource | undefined } };
+    return col.source_collection?.get(this.source_key);
   }
 
   /**

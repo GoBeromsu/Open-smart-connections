@@ -21,6 +21,7 @@ export const OPEN_ROUTER_SIGNUP_URL = 'https://openrouter.ai/keys';
 export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
   static readonly MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/models';
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
   constructor(config: any) {
     super(config);
   }
@@ -85,7 +86,6 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     if (!this.api_key) {
-      console.warn('[OpenRouterEmbedAdapter] API key missing; cannot fetch models from OpenRouter.');
       const fallback_id = 'text-embedding-3-small';
       return {
         [fallback_id]: {
@@ -109,8 +109,7 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
       const parsed = this.parse_model_data(resp.json);
       this.models = parsed;
       return parsed;
-    } catch (error) {
-      console.error('[OpenRouterEmbedAdapter] Failed to fetch models:', error);
+    } catch (_error) {
       const fallback_id = 'text-embedding-3-small';
       return {
         [fallback_id]: {
@@ -129,12 +128,13 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
    * @param model_data - Raw models payload from OpenRouter
    * @returns Map of model objects keyed by id
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenRouter model data payload is not formally typed
   parse_model_data(model_data: any): Record<string, ModelInfo> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- model list items are untyped API response
     let list: any[] = [];
     if (Array.isArray(model_data?.data)) list = model_data.data;
     else if (Array.isArray(model_data)) list = model_data;
     else {
-      console.error('[OpenRouterEmbedAdapter] Invalid model data format from OpenRouter:', model_data);
       return { _: { model_key: 'No models found.' } };
     }
 
@@ -167,6 +167,7 @@ class OpenRouterEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for OpenRouter API
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
   prepare_request_body(): Record<string, any> {
     return {
       model: this.model_id,
@@ -185,7 +186,6 @@ class OpenRouterEmbedResponseAdapter extends EmbedModelResponseAdapter {
   parse_response(): EmbedResult[] {
     const resp = this.response;
     if (!resp || !Array.isArray(resp.data)) {
-      console.error('[OpenRouterEmbedResponseAdapter] Invalid embedding response format:', resp);
       return [];
     }
 
@@ -194,6 +194,7 @@ class OpenRouterEmbedResponseAdapter extends EmbedModelResponseAdapter {
       avg_tokens = resp.usage.total_tokens / resp.data.length;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenRouter response item shape is not formally typed
     return resp.data.map((item: any) => {
       const vec = item.embedding || item.data || [];
       return {

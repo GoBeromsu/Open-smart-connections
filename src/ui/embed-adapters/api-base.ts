@@ -16,7 +16,9 @@ export class EmbedModelApiAdapter {
   model_key: string;
   dims: number;
   models: Record<string, ModelInfo>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
   settings: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tiktoken is a dynamically loaded external module
   tiktoken: any;
 
   constructor(config: {
@@ -24,6 +26,7 @@ export class EmbedModelApiAdapter {
     model_key: string;
     dims: number;
     models: Record<string, ModelInfo>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
     settings: any;
   }) {
     this.adapter = config.adapter;
@@ -135,7 +138,6 @@ export class EmbedModelApiAdapter {
     } as EmbedResult));
 
     if (valid.length === 0) {
-      console.log('Empty batch (or all items have empty embed_input)');
       return results;
     }
 
@@ -148,7 +150,6 @@ export class EmbedModelApiAdapter {
     const _res = new this.res_adapter(this, resp);
     const embeddings = _res.to_openai();
     if (!embeddings) {
-      console.error('Failed to parse embeddings.');
       return results;
     }
 
@@ -188,6 +189,7 @@ export class EmbedModelApiAdapter {
    * @param req - Request configuration
    * @returns API response JSON
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request/response shapes vary per API provider
   async request(req: Record<string, any>): Promise<any> {
     try {
       const resp = await requestUrl({
@@ -207,13 +209,14 @@ export class EmbedModelApiAdapter {
       }
 
       return resp.json;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Re-throw typed errors
       if (error instanceof TransientError || error instanceof FatalError) {
         throw error;
       }
       // Network/unknown errors are transient
-      throw new TransientError(error.message || 'Network error', 0);
+      const msg = error instanceof Error ? error.message : 'Network error';
+      throw new TransientError(msg, 0);
     }
   }
 
@@ -307,6 +310,7 @@ export class EmbedModelRequestAdapter {
    * Convert request to platform-specific format
    * @returns Platform-specific request parameters
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- platform request shape varies per provider
   to_platform(): Record<string, any> {
     return {
       method: 'POST',
@@ -319,6 +323,7 @@ export class EmbedModelRequestAdapter {
    * Prepare request body for API call
    * @returns Request body object
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape varies per provider
   prepare_request_body(): Record<string, any> {
     throw new Error('prepare_request_body not implemented');
   }
@@ -329,8 +334,10 @@ export class EmbedModelRequestAdapter {
  */
 export class EmbedModelResponseAdapter {
   adapter: EmbedModelApiAdapter;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape varies per provider
   response: any;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape varies per provider
   constructor(adapter: EmbedModelApiAdapter, response: any) {
     this.adapter = adapter;
     this.response = response;

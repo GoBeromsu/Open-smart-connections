@@ -20,14 +20,14 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
   metadata_cache?: MetadataCache;
 
   /** Block collection reference */
-  block_collection?: any;
+  block_collection?: { settings?: Record<string, unknown>; embed_blocks?: boolean; import_source_blocks(source: EmbeddingSource): Promise<void> };
 
   /** False once SQLite load is complete; import_source only parses blocks when this is false */
   _initializing = true;
 
   constructor(
     data_dir: string,
-    settings: any = {},
+    settings: Record<string, unknown> = {},
     embed_model_key: string = 'None',
     vault?: Vault,
     metadata_cache?: MetadataCache,

@@ -96,8 +96,8 @@ export class EmbeddingKernelJobQueue {
     this.scheduled = true;
     queueMicrotask(() => {
       this.scheduled = false;
-      this.process().catch((error) => {
-        console.error('Kernel job queue processing failed:', error);
+      this.process().catch((_error) => {
+        // Job queue processing errors are handled per-job via reject()
       });
     });
   }

@@ -12,8 +12,8 @@ interface ConfirmReembedFn {
 }
 
 interface ConfigAccessor {
-  getConfig(path: string, fallback: any): any;
-  setConfig(path: string, value: any): void;
+  getConfig<T>(path: string, fallback: T): T;
+  setConfig(path: string, value: unknown): void;
 }
 
 interface ModelPickerDeps {
@@ -55,7 +55,7 @@ const TRANSFORMERS_MODEL_ORDER = [
 export function getTransformersKnownModels(): Array<{ value: string; name: string }> {
   const configuredOrder = TRANSFORMERS_MODEL_ORDER.filter((key) => !!TRANSFORMERS_EMBED_MODELS[key]);
   const remaining = Object.keys(TRANSFORMERS_EMBED_MODELS)
-    .filter((key) => !configuredOrder.includes(key as any))
+    .filter((key) => !(configuredOrder as string[]).includes(key))
     .sort((a, b) => a.localeCompare(b));
   const orderedKeys = [...configuredOrder, ...remaining];
 
@@ -299,7 +299,7 @@ async function validateApiKey(
     return;
   }
 
-  const adapterSettings: Record<string, any> = {
+  const adapterSettings: Record<string, unknown> = {
     [`${adapterName}.api_key`]: apiKey,
     api_key: apiKey,
   };
@@ -499,7 +499,7 @@ export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
       dropdown.onChange((value) => {
         if (value === '') {
           // Clear search model — revert to indexing model
-          config.setConfig('smart_sources.search_model', undefined as any);
+          config.setConfig('smart_sources.search_model', undefined);
           onChanged();
           display();
           return;

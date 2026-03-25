@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, ButtonComponent, debounce, setIcon, Platform } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Workspace, ButtonComponent, debounce, setIcon, Platform } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import type { SearchFilter, ConnectionResult } from '../types/entities';
 import { showResultContextMenu } from './result-context-menu';
@@ -45,8 +45,8 @@ export class LookupView extends ItemView {
 
   /* ─── Helper Methods ─── */
 
-  private getActiveCollections(): any[] {
-    const collections: any[] = [];
+  private getActiveCollections(): unknown[] {
+    const collections: unknown[] = [];
     if (this.activeFilter !== 'blocks' && this.plugin.source_collection) {
       collections.push(this.plugin.source_collection);
     }
@@ -59,7 +59,8 @@ export class LookupView extends ItemView {
   private getEntityCount(): number {
     let count = 0;
     for (const collection of this.getActiveCollections()) {
-      count += collection.all.length;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- collection is untyped domain object
+      count += (collection as any).all.length;
     }
     return count;
   }
@@ -114,9 +115,9 @@ export class LookupView extends ItemView {
     const perCollection = await Promise.all(
       collections.map(async (collection) => {
         try {
-          return await collection.nearest(queryVec, filter);
-        } catch (error) {
-          console.warn('[LookupView] Collection nearest query failed:', error);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- collection is untyped domain object
+          return await (collection as any).nearest(queryVec, filter);
+        } catch (_error) {
           return [];
         }
       }),
@@ -212,6 +213,7 @@ export class LookupView extends ItemView {
     });
 
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
       (this.app.workspace as any).on('open-connections:model-switched', () => {
         this.handleModelSwitched();
       }),
@@ -284,6 +286,7 @@ export class LookupView extends ItemView {
 
   /* ─── Rendering ─── */
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- result items may carry legacy .sim and .key fields not in ConnectionResult
   renderResults(query: string, results: any[], elapsedMs?: number): void {
     this.resultsContainer.empty();
 
@@ -436,7 +439,7 @@ export class LookupView extends ItemView {
 
   /* ─── Static Helpers ─── */
 
-  static open(workspace: any): void {
+  static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(LOOKUP_VIEW_TYPE);
     if (existing.length) {
       workspace.revealLeaf(existing[0]);

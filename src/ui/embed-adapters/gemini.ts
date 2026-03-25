@@ -57,7 +57,6 @@ export class GeminiEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     if (embed_input.length === 0) {
-      console.log('Warning: prepare_embed_input received an empty string');
       return null;
     }
 
@@ -125,6 +124,7 @@ class GeminiEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for Gemini API
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gemini request body shape is complex and not formally typed
   prepare_request_body(): Record<string, any> {
     const requests = this.embed_inputs.map((input) => {
       const [title, ...content] = input.split('\n');
@@ -167,13 +167,12 @@ class GeminiEmbedResponseAdapter extends EmbedModelResponseAdapter {
     const resp = this.response;
 
     if (!resp || !resp.embeddings || !resp.embeddings[0]?.values) {
-      console.error('Invalid Gemini embedding response format', resp);
       return [];
     }
 
-    return resp.embeddings.map((embedding: any, i: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gemini response embedding shape is not formally typed
+    return resp.embeddings.map((embedding: any, _i: number) => {
       if (!embedding.values || embedding.values.length === 0) {
-        console.warn(`No values for embedding at index ${i}`);
         return { vec: [], tokens: 0 };
       }
       return {
