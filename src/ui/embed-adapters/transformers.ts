@@ -423,7 +423,7 @@ export class TransformersEmbedAdapter {
 
     // Create hidden iframe
     this.iframe = document.createElement('iframe');
-    this.iframe.style.display = 'none';
+    this.iframe.classList.add('osc-hidden');
     this.iframe.id = this.iframe_id;
     document.body.appendChild(this.iframe);
 

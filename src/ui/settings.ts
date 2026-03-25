@@ -534,7 +534,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       this.currentRunEl = runSetting.descEl;
       this.currentRunSettingEl = runSetting.settingEl;
       if (status === 'idle') {
-        runSetting.settingEl.style.display = 'none';
+        runSetting.settingEl.addClass('osc-hidden');
       }
     }
 
@@ -576,7 +576,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     const status = this.plugin.status_state ?? 'idle';
     if (this.currentRunEl) {
       if (status === 'embedding' && ctx) {
-        if (this.currentRunSettingEl) this.currentRunSettingEl.style.display = '';
+        if (this.currentRunSettingEl) this.currentRunSettingEl.removeClass('osc-hidden');
         const runCurrent: number = ctx.current ?? 0;
         const runTotal: number = ctx.total ?? 0;
         const runPercent = runTotal > 0 ? Math.round((runCurrent / runTotal) * 100) : 0;
@@ -585,7 +585,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
           `Run #${ctx.runId ?? '-'} • ${runCurrent.toLocaleString()}/${runTotal.toLocaleString()} (${runPercent}%) • ${currentItem}`,
         );
       } else {
-        if (this.currentRunSettingEl) this.currentRunSettingEl.style.display = 'none';
+        if (this.currentRunSettingEl) this.currentRunSettingEl.addClass('osc-hidden');
       }
     }
   }

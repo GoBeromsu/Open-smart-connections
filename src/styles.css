@@ -103,6 +103,14 @@
   opacity: 0;
 }
 
+.osc-embed-progress-heartbeat--hidden {
+  display: none;
+}
+
+.osc-hidden {
+  display: none;
+}
+
 /* Indeterminate bar animation (phase 0 & 1) */
 .osc-embed-progress--indeterminate .setting-progress-bar-inner {
   width: 30% !important;

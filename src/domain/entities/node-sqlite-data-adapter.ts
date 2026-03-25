@@ -470,7 +470,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   // query_nearest (JS-based cosine similarity)
   // -----------------------------------------------------------------------
 
-  async query_nearest(
+  query_nearest(
     vec: number[] | Float32Array,
     filter: SearchFilter = {},
     fetchMultiplier: number = 3,
@@ -541,6 +541,6 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     }
 
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, fetchLimit);
+    return Promise.resolve(scored.slice(0, fetchLimit));
   }
 }
