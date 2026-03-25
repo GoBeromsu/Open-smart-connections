@@ -204,7 +204,6 @@ export class PluginNotices {
 					this.show('notice_muted', {}, { timeout: 2000 });
 				})
 				.catch((err: unknown) => {
-					// eslint-disable-next-line no-console
 					console.error(`[${this.prefix}] Failed to mute notice:`, err);
 				});
 		});
