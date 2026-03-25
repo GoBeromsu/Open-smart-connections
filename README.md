@@ -331,3 +331,16 @@ Per GPL-3.0 Section 5, this modified version is clearly marked as different from
 ---
 
 **Built with TypeScript · Powered by Transformers.js · Encrypted by Obsidian**
+
+## Community Submission Checklist
+
+Before submitting to [obsidian-releases](https://github.com/obsidianmd/obsidian-releases), run `pnpm lint` to catch all [ObsidianReviewBot](https://github.com/obsidianmd/eslint-plugin) violations:
+
+| Rule | What to verify |
+|------|---------------|
+| Command names | No plugin name prefix — Obsidian adds it automatically |
+| Sentence case | All `setName()`, `setDesc()`, placeholders use sentence case |
+| Settings headings | `new Setting(el).setName('...').setHeading()` not `createEl('h2', ...)` |
+| No inline styles | `addClass()` / `setCssProps()` instead of `el.style.X = value` |
+| `vault.configDir` | No hardcoded `.obsidian` strings |
+| No async without await | Remove `async` from methods with no `await` inside |

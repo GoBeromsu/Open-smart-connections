@@ -288,6 +288,7 @@ export class LookupView extends ItemView {
     this.resultsContainer.empty();
 
     if (!results || results.length === 0) {
+      if (this.searchMetaEl) this.searchMetaEl.empty();
       this.showEmpty('No results found for "' + query + '"', false);
       return;
     }
