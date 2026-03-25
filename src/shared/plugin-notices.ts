@@ -135,7 +135,7 @@ export class PluginNotices {
 		return template.replace(/{{\s*([\w.-]+)\s*}}/g, (_match, key: string) => {
 			const value = params[key];
 			if (value === null || value === undefined) return '';
-			return typeof value === 'object' ? JSON.stringify(value) : String(value);
+			return String(value);
 		});
 	}
 
@@ -204,7 +204,6 @@ export class PluginNotices {
 					this.show('notice_muted', {}, { timeout: 2000 });
 				})
 				.catch((err: unknown) => {
-					// eslint-disable-next-line no-console -- PluginNotices is shared infrastructure without a logger instance
 					console.error(`[${this.prefix}] Failed to mute notice:`, err);
 				});
 		});

@@ -11,17 +11,14 @@ export class PluginLogger {
 
 	debug(message: string, data?: Record<string, unknown>): void {
 		if (!this.isDebug()) return;
-		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
 		console.debug(this.format('debug', message, data));
 	}
 
 	info(message: string, data?: Record<string, unknown>): void {
-		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
 		console.debug(this.format('info', message, data));
 	}
 
 	warn(message: string, data?: Record<string, unknown>): void {
-		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
 		console.warn(this.format('warn', message, data));
 	}
 
@@ -29,10 +26,9 @@ export class PluginLogger {
 		let suffix = '';
 		if (error instanceof Error) {
 			suffix = ` | ${error.message}`;
-		} else if (error) {
+		} else if (error !== undefined && error !== null) {
 			suffix = ` | ${typeof error === 'object' ? JSON.stringify(error) : String(error)}`;
 		}
-		// eslint-disable-next-line no-console -- PluginLogger is the logging infrastructure itself
 		console.error(`[${this.prefix}] error | ${message}${suffix}`);
 	}
 

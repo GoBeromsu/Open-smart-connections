@@ -21,50 +21,6 @@ function run(command, args) {
   }
 }
 
-function runWithEnv(command, args, env) {
-  const result = spawnSync(command, args, {
-    stdio: 'inherit',
-    env: { ...process.env, ...env },
-  });
-  if (result.error) {
-    console.error(`Failed to run ${command}: ${result.error.message}`);
-    process.exit(1);
-  }
-  if ((result.status ?? 0) !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
-function readPackageVersion() {
-  return JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
-}
-
-function normalizeManifest() {
-  if (!fs.existsSync('manifest.json')) {
-    return;
-  }
-  const raw = fs.readFileSync('manifest.json', 'utf8');
-  const normalized = `${JSON.stringify(JSON.parse(raw), null, '\t')}\n`;
-  if (raw !== normalized) {
-    fs.writeFileSync('manifest.json', normalized);
-  }
-}
-
-function requireCleanWorktree() {
-  const result = spawnSync('git', ['status', '--short'], { encoding: 'utf8' });
-  if (result.error) {
-    console.error(`Failed to check git status: ${result.error.message}`);
-    process.exit(1);
-  }
-  if ((result.status ?? 0) !== 0) {
-    process.exit(result.status ?? 1);
-  }
-  if (result.stdout.trim().length > 0) {
-    console.error('Release requires a clean git worktree.');
-    process.exit(1);
-  }
-}
-
 const level = process.argv[2];
 if (!RELEASE_LEVELS.has(level)) {
   console.error(`Usage: node scripts/release.mjs <patch|minor|major>`);
@@ -73,18 +29,21 @@ if (!RELEASE_LEVELS.has(level)) {
 
 const pnpm = getPnpmCommand();
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-requireCleanWorktree();
 if (pkg.scripts?.['sync:check']) {
   run(pnpm, ['sync:check']);
 }
 run(pnpm, ['run', 'ci']);
-normalizeManifest();
-requireCleanWorktree();
-run(pnpm, ['version', level, '--no-git-tag-version', '--ignore-scripts']);
-const version = readPackageVersion();
-runWithEnv('node', ['scripts/version.mjs'], { npm_package_version: version });
-run('git', ['add', 'package.json', 'manifest.json', 'versions.json']);
-run('git', ['commit', '-m', `chore(release): ${version}`]);
-run('git', ['tag', '-a', version, '-m', `chore(release): ${version}`]);
-run('git', ['push']);
-run('git', ['push', '--tags']);
+
+// After CI (which runs build), manifest.json may be reformatted by esbuild.
+// Normalize to tab-indented format and auto-commit if dirty to unblock npm version.
+if (fs.existsSync('manifest.json')) {
+  const raw = fs.readFileSync('manifest.json', 'utf8');
+  const normalized = `${JSON.stringify(JSON.parse(raw), null, '\t')}\n`;
+  if (raw !== normalized) {
+    fs.writeFileSync('manifest.json', normalized);
+    run('git', ['add', 'manifest.json']);
+    run('git', ['commit', '-m', 'chore: normalize manifest.json formatting']);
+  }
+}
+
+run(pnpm, ['version', level]);
