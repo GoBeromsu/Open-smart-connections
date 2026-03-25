@@ -332,7 +332,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
     try {
       await plugin._search_embed_model.unload();
     } catch (error) {
-      plugin.logger.warn('Failed to unload previous search embed model during switch', { error: String(error) });
+      plugin.logger.warn('Failed to unload previous search embed model during switch', { error: error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error as Record<string, unknown>) : String(error as string | number | boolean | bigint | symbol) });
     }
     plugin._search_embed_model = undefined;
   }
@@ -341,7 +341,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
   try {
     await plugin.embed_adapter.unload?.();
   } catch (error) {
-    plugin.logger.warn('Failed to unload previous embed model during switch', { error: String(error) });
+    plugin.logger.warn('Failed to unload previous embed model during switch', { error: error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error as Record<string, unknown>) : String(error as string | number | boolean | bigint | symbol) });
   }
 }
 
@@ -364,7 +364,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     ? (plugin.getEmbedAdapterSettings(embedModel) as Record<string, unknown>)
     : null;
   const targetAdapter = embedModel?.adapter ?? '';
-  const targetModelKey = String(targetAdapterSettings?.model_key ?? '');
+  const targetModelKey = typeof targetAdapterSettings?.model_key === 'string' ? targetAdapterSettings.model_key : '';
   const shouldForceReembed =
     !!plugin.embed_adapter && (previousModelKey !== targetModelKey || previous.adapter !== targetAdapter);
   plugin.logEmbed('switch-start', {
@@ -450,7 +450,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     const kernelModel = buildKernelModel(
       active.adapter,
       active.modelKey,
-      String(activeAdapterSettings?.host || ''),
+      typeof activeAdapterSettings?.host === 'string' ? activeAdapterSettings.host : '',
       active.dims,
     );
     plugin.setEmbedPhase('idle', { fingerprint: kernelModel.fingerprint });
