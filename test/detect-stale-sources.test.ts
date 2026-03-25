@@ -54,6 +54,7 @@ function makePlugin(
         getAbstractFileByPath: (path: string) => vaultFiles[path] ?? null,
       },
     },
+    logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn() },
   };
 }
 

@@ -40,6 +40,7 @@ function makePlugin(opts: {
     notices: { show: vi.fn() },
     refreshStatus: vi.fn(),
     logEmbed: vi.fn(),
+    logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn() },
     queueUnembeddedEntities: vi.fn(() => 0),
     setEmbedPhase: vi.fn(),
     enqueueEmbeddingJob: vi.fn(async () => undefined),

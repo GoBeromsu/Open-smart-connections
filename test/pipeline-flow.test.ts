@@ -97,6 +97,7 @@ function makePlugin(overrides: Partial<{
     refreshStatus: vi.fn(),
     embed_notice_last_update: 0,
     embed_notice_last_percent: 0,
+    logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn() },
   };
 
   return plugin;
