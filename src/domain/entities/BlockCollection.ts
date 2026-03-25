@@ -81,14 +81,12 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
    */
   async import_source_blocks(source: EmbeddingSource): Promise<void> {
     if (!source.file || !source.vault) {
-      console.warn(`Cannot import blocks for ${source.key}: no file or vault`);
       return;
     }
 
     // Read source content
     const content = await source.read();
     if (!content) {
-      console.warn(`Cannot import blocks for ${source.key}: no content`);
       return;
     }
 

@@ -68,14 +68,12 @@ export class EmbeddingSource extends EmbeddingEntity {
    */
   async read(): Promise<string> {
     if (!this.vault || !this.file) {
-      console.warn(`No vault or file available for ${this.key}`);
       return '';
     }
 
     try {
       return await this.vault.cachedRead(this.file);
-    } catch (error) {
-      console.error(`Error reading ${this.key}:`, error);
+    } catch {
       return '';
     }
   }
@@ -94,7 +92,6 @@ export class EmbeddingSource extends EmbeddingEntity {
     }
 
     if (!content) {
-      console.warn(`No content available for embedding: ${this.path}`);
       this._embed_input = '';
       return;
     }

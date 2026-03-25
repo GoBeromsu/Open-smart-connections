@@ -115,7 +115,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     const queue = this.save_queue;
     if (queue.length === 0) return;
 
-    console.log(`Saving ${queue.length} items...`);
     await this.data_adapter.save_batch(queue);
   }
 

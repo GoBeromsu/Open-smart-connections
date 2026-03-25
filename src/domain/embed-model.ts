@@ -107,8 +107,6 @@ class EmbedAdapterRegistry {
 
     const dims = modelInfo?.dims ?? adapterSettings.dims ?? reg.defaultDims;
 
-    console.log(`[SC][Init]   [model] Creating ${adapterType} adapter for ${modelKey} (dims=${dims})`);
-
     const adapter = new reg.AdapterClass({
       adapter: adapterType,
       model_key: modelKey,
