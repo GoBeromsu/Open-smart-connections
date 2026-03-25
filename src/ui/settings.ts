@@ -126,27 +126,27 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     containerEl.addClass('open-connections-settings');
 
     // Embedding Model Section
-    new Setting(containerEl).setName('Embedding Model').setHeading();
+    new Setting(containerEl).setName('Embedding model').setHeading();
     this.renderEmbeddingModelSection(containerEl);
 
     // Source Settings
-    new Setting(containerEl).setName('Source Settings').setHeading();
+    new Setting(containerEl).setName('Sources').setHeading();
     this.renderSourceSettings(containerEl);
 
     // Block Settings
-    new Setting(containerEl).setName('Block Settings').setHeading();
+    new Setting(containerEl).setName('Blocks').setHeading();
     this.renderBlockSettings(containerEl);
 
     // View Settings
-    new Setting(containerEl).setName('View Settings').setHeading();
+    new Setting(containerEl).setName('View').setHeading();
     this.renderViewSettings(containerEl);
 
     // Notice Settings
-    new Setting(containerEl).setName('Notice Settings').setHeading();
+    new Setting(containerEl).setName('Notices').setHeading();
     this.renderNoticeSettings(containerEl);
 
     // Embedding Status
-    new Setting(containerEl).setName('Embedding Status').setHeading();
+    new Setting(containerEl).setName('Embedding status').setHeading();
     this.renderEmbeddingStatus(containerEl);
 
     // Register live-update listeners for the status section

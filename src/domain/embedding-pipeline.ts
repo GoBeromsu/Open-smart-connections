@@ -446,9 +446,9 @@ export class EmbeddingPipeline {
       error &&
       typeof error === 'object' &&
       'retryAfterMs' in error &&
-      typeof (error as any).retryAfterMs === 'number'
+      typeof (error as { retryAfterMs: unknown }).retryAfterMs === 'number'
     ) {
-      return (error as any).retryAfterMs;
+      return (error as { retryAfterMs: number }).retryAfterMs;
     }
     return Math.pow(2, retry_number) * 1000;
   }

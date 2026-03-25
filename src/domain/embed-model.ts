@@ -4,7 +4,7 @@
  * Adapter implementations (which require obsidian) are in ui/embed-adapters/.
  */
 
-import type { EmbedModelApiAdapter, ModelInfo } from '../../types/models';
+import type { EmbedModelAdapter, AdapterConfig, ModelInfo } from '../../types/models';
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -21,7 +21,7 @@ export interface AdapterRegistration {
   displayName: string;
 
   /** Adapter class constructor */
-  AdapterClass: new (config: any) => any;
+  AdapterClass: new (config: AdapterConfig) => EmbedModelAdapter;
 
   /** Static model catalog (empty for dynamic-model adapters like Ollama) */
   models: Record<string, ModelInfo>;
@@ -93,8 +93,8 @@ class EmbedAdapterRegistry {
   createAdapter(
     adapterType: string,
     modelKey: string,
-    adapterSettings: Record<string, any>,
-  ): { adapter: EmbedModelApiAdapter; requiresLoad: boolean } {
+    adapterSettings: Record<string, unknown>,
+  ): { adapter: EmbedModelAdapter; requiresLoad: boolean } {
     const reg = this.adapters.get(adapterType);
     if (!reg) {
       throw new Error(`Unknown embed adapter: ${adapterType}. Available: ${this.getAdapterNames().join(', ')}`);

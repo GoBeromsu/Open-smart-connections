@@ -16,8 +16,8 @@ import { getBlockConnections } from './block-connections';
 export function registerCommands(plugin: Plugin): void {
   // Open connections view
   plugin.addCommand({
-    id: 'open-connections-view',
-    name: 'Open: Connections view',
+    id: 'connections-view',
+    name: 'Open connections view',
     callback: () => {
       ConnectionsView.open(plugin.app.workspace);
     },
@@ -43,7 +43,7 @@ export function registerCommands(plugin: Plugin): void {
   // Open lookup view
   plugin.addCommand({
     id: 'open-lookup-view',
-    name: 'Open: Smart Lookup',
+    name: 'Open smart lookup',
     callback: () => {
       LookupView.open(plugin.app.workspace);
     },
@@ -72,7 +72,7 @@ export function registerCommands(plugin: Plugin): void {
   // Copy connections as Smart Context
   plugin.addCommand({
     id: 'copy-smart-context',
-    name: 'Copy connections as Smart Context',
+    name: 'Copy connections as smart context',
     callback: async () => {
       const p = plugin as any;
       const activeFile = plugin.app.workspace.getActiveFile();

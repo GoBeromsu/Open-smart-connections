@@ -83,9 +83,21 @@ export interface EmbedResult {
   /** Adapter-specific error payload */
   error?: {
     message?: string;
-    details?: any;
-    [key: string]: any;
+    details?: unknown;
+    [key: string]: unknown;
   };
+}
+
+/**
+ * Configuration object passed to adapter constructors
+ */
+export interface AdapterConfig {
+  adapter: string;
+  model_key: string;
+  dims: number;
+  models: Record<string, ModelInfo>;
+  settings: Record<string, unknown>;
+  host?: string;
 }
 
 /**

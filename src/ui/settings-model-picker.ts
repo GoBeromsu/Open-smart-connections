@@ -97,6 +97,7 @@ function renderOllamaModelPicker(deps: ModelPickerDeps, currentModelKey: string)
   new Setting(containerEl)
     .setName('Quick picks')
     .setDesc('Recommended Ollama embedding models')
+
     .addDropdown((dropdown) => {
       ollamaModels.forEach((m) => {
         dropdown.addOption(m.value, m.name);
@@ -341,7 +342,7 @@ export function renderApiKeyField(
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const setting = new Setting(containerEl)
-    .setName('API Key')
+    .setName('API key')
     .setDesc('API key for authentication')
     .addText((text) => {
       text.inputEl.type = 'password';
@@ -412,6 +413,7 @@ export function renderHostField(
   new Setting(containerEl)
     .setName('Host URL')
     .setDesc('API endpoint URL')
+
     .addText((text) => {
       text.setPlaceholder(defaultHost);
       text.setValue(currentHost);
