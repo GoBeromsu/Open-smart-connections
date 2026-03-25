@@ -98,6 +98,30 @@ describe('runEmbeddingJobNow', () => {
     expect(plugin.notices.show).toHaveBeenCalledWith('embedding_failed');
   });
 
+  it('shows a provider-limit notice when the embedding API hits a request limit', async () => {
+    const { plugin } = createPlugin();
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+      process: vi.fn(async () => makeStats({
+        success: 0,
+        failed: 1,
+        outcome: 'failed',
+        error: 'Failed to embed batch after 3 retries: {"error":{"message":"You\'ve reached your API request limit. Please wait and try again later.","type":"too_many_requests","code":"too_many_requests"}}',
+      })),
+    } as any;
+
+    const stats = await runEmbeddingJobNow(plugin, 'unit-rate-limit-run');
+
+    expect(stats?.outcome).toBe('failed');
+    expect(plugin.status_state).toBe('error');
+    expect(plugin.current_embed_context?.phase).toBe('failed');
+    expect(plugin.notices.show).toHaveBeenCalledWith('embedding_provider_limited', {
+      adapter: 'openai',
+      modelKey: 'text-embedding-3-small',
+    });
+  });
+
   it('keeps a halted pipeline run distinct from completed', async () => {
     const { plugin } = createPlugin();
     vi.spyOn(plugin, 'queueUnembeddedEntities').mockReturnValue(3);
@@ -145,5 +169,35 @@ describe('runEmbeddingJobNow', () => {
       type: 'RUN_EMBED_FOLLOWUP',
       priority: 31,
     });
+  });
+
+  it('caps Upstage concurrency at 1 to avoid provider rate limits during indexing', async () => {
+    const { plugin } = createPlugin();
+    plugin.settings.smart_sources.embed_model.adapter = 'upstage';
+    plugin.settings.smart_sources.embed_model.upstage = { model_key: 'embedding-passage' };
+    plugin.embed_adapter = {
+      model_key: 'embedding-passage',
+      dims: 4096,
+      adapter: 'upstage',
+      unload: vi.fn(async () => {}),
+    } as any;
+
+    const process = vi.fn(async (_entities, opts) => {
+      expect(opts.concurrency).toBe(1);
+      return makeStats({
+        total: 1,
+        success: 1,
+        outcome: 'completed',
+      });
+    });
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+      process,
+    } as any;
+
+    await runEmbeddingJobNow(plugin, 'unit-upstage-rate-limit-guard');
+
+    expect(process).toHaveBeenCalledTimes(1);
   });
 });

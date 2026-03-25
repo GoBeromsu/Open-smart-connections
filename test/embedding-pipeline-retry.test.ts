@@ -171,7 +171,7 @@ describe('Pipeline retry behavior', () => {
     expect(callCount).toBe(3); // 2 failures + 1 success
   });
 
-  it('stops retrying after max_retries and marks batch as failed', async () => {
+  it('stops retrying after max_retries, fails the run, and keeps the batch queued', async () => {
     const model = makeModel({
       embed_batch: vi.fn(async () => {
         throw new TransientError('Service unavailable', 503);
@@ -193,6 +193,9 @@ describe('Pipeline retry behavior', () => {
 
     expect(stats.failed).toBe(1);
     expect(stats.success).toBe(0);
+    expect(stats.outcome).toBe('failed');
+    expect(stats.error).toContain('Service unavailable');
+    expect(entity._queue_embed).toBe(true);
   });
 
   it('does NOT retry fatal errors — marks failed immediately', async () => {
@@ -211,6 +214,8 @@ describe('Pipeline retry behavior', () => {
 
     expect(stats.failed).toBe(1);
     expect(stats.success).toBe(0);
+    expect(stats.outcome).toBe('failed');
+    expect(entity._queue_embed).toBe(true);
     // Fatal error should NOT trigger retries — only 1 call
     expect(embedBatch).toHaveBeenCalledTimes(1);
   });
@@ -280,7 +285,7 @@ describe('Pipeline retry behavior', () => {
     expect(stats.success).toBe(1);
   });
 
-  it('clears _queue_embed flag on fatal error (no infinite retry loop)', async () => {
+  it('preserves _queue_embed on fatal error so the batch can be retried after fixing config', async () => {
     const model = makeModel({
       embed_batch: vi.fn(async () => {
         throw new FatalError('Bad request', 400);
@@ -295,11 +300,10 @@ describe('Pipeline retry behavior', () => {
       batch_size: 1,
     });
 
-    // Entity should have _queue_embed cleared so it doesn't re-enter the queue
-    expect(entity._queue_embed).toBe(false);
+    expect(entity._queue_embed).toBe(true);
   });
 
-  it('clears _queue_embed flag after max transient retries exhausted', async () => {
+  it('preserves _queue_embed after max transient retries exhausted', async () => {
     const model = makeModel({
       embed_batch: vi.fn(async () => {
         throw new TransientError('Timeout', 503);
@@ -317,7 +321,7 @@ describe('Pipeline retry behavior', () => {
     await vi.advanceTimersByTimeAsync(2000); // 2^1 * 1000
     await processPromise;
 
-    expect(entity._queue_embed).toBe(false);
+    expect(entity._queue_embed).toBe(true);
   });
 });
 
@@ -326,7 +330,7 @@ describe('Pipeline retry behavior', () => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 describe('Null vector handling (regression)', () => {
-  it('rejects null/empty vec from adapter and counts entity as failed', async () => {
+  it('rejects null/empty vec from adapter, fails the run, and keeps the entity queued', async () => {
     const model = makeModel({
       embed_batch: vi.fn(async () => [
         { vec: null, tokens: 0 },  // null vec — must NOT be saved as "complete"
@@ -341,10 +345,10 @@ describe('Null vector handling (regression)', () => {
       max_retries: 0,
     });
 
-    // The entity's vec should NOT have been set to null as if embedding succeeded
-    // Either: vec stays unchanged (null from init is OK), but _queue_embed not cleared as "success"
     expect(stats.success).toBe(0);
     expect(stats.failed).toBeGreaterThanOrEqual(1);
+    expect(stats.outcome).toBe('failed');
+    expect(entity._queue_embed).toBe(true);
   });
 
   it('rejects empty array vec from adapter', async () => {

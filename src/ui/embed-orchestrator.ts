@@ -134,6 +134,33 @@ export function updateEmbedNotice(plugin: SmartConnectionsPlugin, ctx: Embedding
   plugin.embed_notice_last_percent = percent;
 }
 
+function classifyEmbeddingFailureNotice(error: string): 'embedding_provider_limited' | null {
+  const normalized = error.toLowerCase();
+  if (
+    normalized.includes('too_many_requests') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('request limit') ||
+    normalized.includes('status: 429') ||
+    normalized.includes('status=429') ||
+    normalized.includes('"status":429')
+  ) {
+    return 'embedding_provider_limited';
+  }
+  return null;
+}
+
+function showEmbeddingFailureNotice(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext, error: string | null | undefined): void {
+  const noticeId = error ? classifyEmbeddingFailureNotice(error) : null;
+  if (noticeId) {
+    plugin.notices.show(noticeId, {
+      adapter: ctx.adapter,
+      modelKey: ctx.modelKey,
+    });
+    return;
+  }
+  plugin.notices.show('embedding_failed');
+}
+
 // ── Progress event emission ─────────────────────────────────────────
 
 export function emitEmbedProgress(
@@ -560,9 +587,12 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
     // More frequent saves → faster evictVec() → less heap pressure when autosave fires.
     // Concurrency is capped at 3 to avoid simultaneous large allocations in memory.
     const effectiveSaveInterval = dims > 1024 ? 2 : dims > 512 ? 3 : (plugin.settings.embed_save_interval || 5);
-    const effectiveConcurrency = dims > 1024
-      ? Math.max(1, Math.min(plugin.settings.embed_concurrency || 5, 3))
-      : (plugin.settings.embed_concurrency || 5);
+    const configuredConcurrency = plugin.settings.embed_concurrency || 5;
+    const effectiveConcurrency = ctx.adapter === 'upstage'
+      ? 1
+      : dims > 1024
+        ? Math.max(1, Math.min(configuredConcurrency, 3))
+        : configuredConcurrency;
 
     const stats = await plugin.embedding_pipeline.process(entitiesToEmbed, {
       batch_size: 10,
@@ -623,7 +653,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
         currentSourcePath: ctx.currentSourcePath,
         error: stats.error ?? 'Embedding pipeline failed',
       });
-      plugin.notices.show('embedding_failed');
+      showEmbeddingFailureNotice(plugin, ctx, stats.error);
       return stats;
     }
 
@@ -702,7 +732,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
       currentSourcePath: ctx.currentSourcePath,
       error: errorMessage(error),
     });
-    plugin.notices.show('embedding_failed');
+    showEmbeddingFailureNotice(plugin, ctx, ctx.error);
     throw error;
   } finally {
     if (plugin.current_embed_context?.runId === runId || plugin.current_embed_context === null) {

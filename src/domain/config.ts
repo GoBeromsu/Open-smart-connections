@@ -114,6 +114,10 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   embedding_failed: {
     template: 'Embedding failed. See console for details.',
   },
+  embedding_provider_limited: {
+    template: 'Embedding stopped: {{adapter}}/{{modelKey}} hit the provider request limit. Wait and retry later, raise API quota, or switch to a local model.',
+    timeout: 10000,
+  },
   failed_init_embed_model: {
     template: 'Failed to initialize embedding model',
   },
