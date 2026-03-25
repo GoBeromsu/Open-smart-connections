@@ -273,12 +273,12 @@ export default class SmartConnectionsPlugin extends Plugin {
     this.addSettingTab(new SmartConnectionsSettingsTab(this.app, this));
     registerCommands(this);
 
-    this.addRibbonIcon('network', 'Open Connections', () => {
+    this.addRibbonIcon('network', 'Open connections', () => {
       ConnectionsView.open(this.app.workspace);
     });
     this.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
       if (!this.block_collection) {
-        el.createEl('p', { text: 'Open Connections is loading...', cls: 'osc-state-text' });
+        el.createEl('p', { text: 'Open connections is loading...', cls: 'osc-state-text' });
         return;
       }
 

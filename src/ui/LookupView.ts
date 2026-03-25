@@ -36,7 +36,7 @@ export class LookupView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Smart Lookup';
+    return 'Smart lookup';
   }
 
   getIcon(): string {

@@ -121,7 +121,7 @@ export function renderEmbedProgress(
       }
 
       case 3:
-        labelEl.setText('\u2713 Vault indexed');
+        labelEl.setText('\u2713 vault indexed');
         countEl.setText(`${notesTotal.toLocaleString()} notes`);
         bar.setValue(100);
         pctEl.setText('100%');

@@ -311,7 +311,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setName('File exclusions')
       .setDesc('Comma-separated file name patterns to exclude')
       .addText((text) => {
-        text.setPlaceholder('Untitled, Templates');
+        text.setPlaceholder('Untitled, templates');
         text.setValue(this.getConfig('smart_sources.file_exclusions', ''));
         text.onChange(async (value) => {
           this.setConfig('smart_sources.file_exclusions', value);
@@ -322,7 +322,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       .setName('Folder exclusions')
       .setDesc('Comma-separated folder paths to exclude')
       .addText((text) => {
-        text.setPlaceholder('archive/, templates/');
+        text.setPlaceholder('Archive/, templates/');
         text.setValue(this.getConfig('smart_sources.folder_exclusions', ''));
         text.onChange(async (value) => {
           this.setConfig('smart_sources.folder_exclusions', value);
@@ -365,7 +365,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Block heading depth')
-      .setDesc('Split blocks at heading levels up to this depth (1=H1 only, 6=all headings). H4+ headings merge into their parent block at the default of 3.')
+      .setDesc('Split blocks at heading levels up to this depth (1=h1 only, 6=all headings). H4+ headings merge into their parent block at the default of 3.')
       .addSlider((slider) => {
         slider
           .setLimits(1, 6, 1)
@@ -378,7 +378,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Save frequency')
-      .setDesc('Save progress every N batches. Lower = safer on crash, higher = less disk I/O')
+      .setDesc('Save progress every n batches. Lower = safer on crash, higher = less disk i/o')
       .addSlider((slider) => {
         slider
           .setLimits(1, 50, 1)
@@ -428,8 +428,8 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Render markdown in preview')
-      .setDesc('Render markdown formatting in hover previews')
+      .setName('Render Markdown in preview')
+      .setDesc('Render Markdown formatting in hover previews')
       .addToggle((toggle) => {
         toggle.setValue(this.getConfig('smart_view_filter.render_markdown', true));
         toggle.onChange(async (value) => {

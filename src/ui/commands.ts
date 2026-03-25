@@ -28,7 +28,7 @@ export function registerCommands(plugin: Plugin): void {
   // Open connections view
   plugin.addCommand({
     id: 'connections-view',
-    name: 'Open connections view',
+    name: 'Connections view',
     callback: () => {
       ConnectionsView.open(plugin.app.workspace);
     },

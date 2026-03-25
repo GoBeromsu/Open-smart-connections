@@ -96,7 +96,7 @@ function renderOllamaModelPicker(deps: ModelPickerDeps, currentModelKey: string)
 
   new Setting(containerEl)
     .setName('Quick picks')
-    .setDesc('Recommended Ollama embedding models')
+    .setDesc('Recommended ollama embedding models')
 
     .addDropdown((dropdown) => {
       ollamaModels.forEach((m) => {
@@ -126,9 +126,9 @@ function renderOllamaModelPicker(deps: ModelPickerDeps, currentModelKey: string)
 
   new Setting(containerEl)
     .setName('Model key')
-    .setDesc('Use quick picks or enter any local Ollama embedding model key')
+    .setDesc('Use quick picks or enter any local ollama embedding model key')
     .addText((text) => {
-      text.setPlaceholder('e.g., bge-m3');
+      text.setPlaceholder('E.g., bge-m3');
       text.setValue(currentModelKey);
       text.onChange((value) => {
         pendingModelKey = value.trim();
@@ -482,12 +482,12 @@ export function renderSearchModelPicker(deps: SearchModelPickerDeps): void {
   const details = containerEl.createEl('details', { cls: 'osc-advanced-section' });
   // Keep open if a search model is already configured so the user can see it
   if (isSearchModelSet) details.open = true;
-  details.createEl('summary', { text: 'Advanced: Search Model' });
+  details.createEl('summary', { text: 'Advanced: search model' });
 
   // Provider dropdown
   new Setting(details)
     .setName('Search provider')
-    .setDesc('Provider used for search queries. "Same as indexing" uses the indexing model.')
+    .setDesc('Provider used for search queries. "same as indexing" uses the indexing model.')
     .addDropdown((dropdown) => {
       dropdown.addOption('', 'Same as indexing');
 
