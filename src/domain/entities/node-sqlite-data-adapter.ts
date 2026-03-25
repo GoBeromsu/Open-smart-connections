@@ -143,7 +143,7 @@ export function closeNodeSqliteDatabases(): void {
         entry.closed = true;
       }
     } catch (err) {
-      // eslint-disable-next-line no-console -- closeNodeSqliteDatabases is a module-level cleanup function without a logger instance
+      // Module-level cleanup without logger — warn is acceptable at this boundary
       console.warn('[NodeSQLite] Failed to close database:', err);
     }
   }

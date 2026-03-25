@@ -38,8 +38,9 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   protected onItemAdded(_item: T): void { /* override in subclass */ }
   protected onItemRemoved(_key: string): void { /* override in subclass */ }
 
-  async init(): Promise<void> {
+  init(): Promise<void> {
     // Override in subclasses if needed
+    return Promise.resolve();
   }
 
   get(key: string): T | undefined {

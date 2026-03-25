@@ -83,7 +83,7 @@ export class EmbedModelApiAdapter {
    * @param input - Text to tokenize
    * @returns Token count
    */
-  async count_tokens(input: string): Promise<number> {
+  count_tokens(input: string): Promise<number> {
     throw new Error('count_tokens not implemented');
   }
 
@@ -165,7 +165,7 @@ export class EmbedModelApiAdapter {
    * @param embed_input - Raw input text
    * @returns Processed input text
    */
-  async prepare_embed_input(embed_input: string): Promise<string | null> {
+  prepare_embed_input(embed_input: string): Promise<string | null> {
     throw new Error('prepare_embed_input not implemented');
   }
 
@@ -221,7 +221,7 @@ export class EmbedModelApiAdapter {
    * (e.g., Upstage uses embedding-query vs embedding-passage).
    * Defaults to embed_batch.
    */
-  async embed_query(query: string): Promise<EmbedResult[]> {
+  embed_query(query: string): Promise<EmbedResult[]> {
     return this.embed_batch([{ embed_input: query }]);
   }
 

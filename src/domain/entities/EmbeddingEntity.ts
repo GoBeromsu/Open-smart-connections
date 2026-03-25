@@ -121,8 +121,9 @@ export class EmbeddingEntity {
   /**
    * Get embed input text (to be overridden in subclasses)
    */
-  async get_embed_input(content: string | null = null): Promise<void> {
+  get_embed_input(content: string | null = null): Promise<void> {
     // Override in subclass
+    return Promise.resolve();
   }
 
   /**

@@ -75,8 +75,8 @@ export class LmStudioEmbedAdapter extends EmbedModelApiAdapter {
    * @param input - Text to tokenize
    * @returns Token count
    */
-  async count_tokens(input: string): Promise<number> {
-    return this.estimate_tokens(input);
+  count_tokens(input: string): Promise<number> {
+    return Promise.resolve(this.estimate_tokens(input));
   }
 
   /**

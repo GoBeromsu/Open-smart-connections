@@ -557,10 +557,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     await this.saveData(data);
   }
 
-  async loadUserState(): Promise<void> { return _loadUserState(this); }
-  async getDataJsonCreatedAt(): Promise<number | null> { return _getDataJsonCreatedAt(this); }
+  loadUserState(): Promise<void> { return _loadUserState(this); }
+  getDataJsonCreatedAt(): Promise<number | null> { return _getDataJsonCreatedAt(this); }
   migrateInstalledAtFromLocalStorage(): boolean { return _migrateInstalledAtFromLocalStorage(this); }
-  async saveInstalledAt(value: number): Promise<void> { return _saveInstalledAt(this, value); }
+  saveInstalledAt(value: number): Promise<void> { return _saveInstalledAt(this, value); }
   isNewUser(): boolean { return _isNewUser(this); }
 
   async waitForSync(): Promise<void> {
@@ -590,26 +590,26 @@ export default class SmartConnectionsPlugin extends Plugin {
     return syncInstance?.syncing ?? false;
   }
 
-  async initEmbedModel(): Promise<void> { return _initEmbedModel(this); }
+  initEmbedModel(): Promise<void> { return _initEmbedModel(this); }
   syncCollectionEmbeddingContext(): void { _syncCollectionEmbeddingContext(this); }
   getEmbedAdapterSettings(embedSettings?: Record<string, unknown>): Record<string, unknown> { return _getEmbedAdapterSettings(embedSettings); }
   queueUnembeddedEntities(): number { return _queueUnembeddedEntities(this); }
-  async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
-  async switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> { return _switchEmbeddingModel(this, reason); }
+  reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
+  switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> { return _switchEmbeddingModel(this, reason); }
 
-  async initCollections(): Promise<void> { return _initCollections(this); }
-  async loadCollections(): Promise<void> { return _loadCollections(this); }
-  async detectStaleSourcesOnStartup(): Promise<number> { return _detectStaleSourcesOnStartup(this); }
+  initCollections(): Promise<void> { return _initCollections(this); }
+  loadCollections(): Promise<void> { return _loadCollections(this); }
+  detectStaleSourcesOnStartup(): Promise<number> { return _detectStaleSourcesOnStartup(this); }
 
-  async initPipeline(): Promise<void> { return _initPipeline(this); }
-  async runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
+  initPipeline(): Promise<void> { _initPipeline(this); return Promise.resolve(); }
+  runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }
 
   registerFileWatchers(): void { _registerFileWatchers(this); }
   isSourceFile(file: TFile): boolean { return _isSourceFile(file); }
   queueSourceReImport(path: string): void { _queueSourceReImport(this, path); }
   removeSource(path: string): void { _removeSource(this, path); }
   debounceReImport(): void { _debounceReImport(this); }
-  async runReImport(): Promise<void> { return _runReImport(this); }
+  runReImport(): Promise<void> { return _runReImport(this); }
 
   setupStatusBar(): void { _setupStatusBar(this); }
   refreshStatus(): void { _refreshStatus(this); }
@@ -625,10 +625,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     return this.embedding_job_queue!.enqueue(job);
   }
 
-  async handleNewUser(): Promise<void> { return _handleNewUser(this); }
-  async getLastKnownVersion(): Promise<string> { return _getLastKnownVersion(this); }
-  async setLastKnownVersion(version: string): Promise<void> { return _setLastKnownVersion(this, version); }
-  async addToGitignore(ignore: string, message: string | null = null): Promise<void> { return _addToGitignore(this, ignore, message); }
+  handleNewUser(): Promise<void> { return _handleNewUser(this); }
+  getLastKnownVersion(): Promise<string> { return _getLastKnownVersion(this); }
+  setLastKnownVersion(version: string): Promise<void> { return _setLastKnownVersion(this, version); }
+  addToGitignore(ignore: string, message: string | null = null): Promise<void> { return _addToGitignore(this, ignore, message); }
 
   async open_note(targetPath: string, event: MouseEvent | null = null): Promise<void> {
     // Open note using Obsidian's navigation
