@@ -10,7 +10,7 @@ export type DownloadErrorType = 'timeout' | 'quota' | 'network' | 'model_not_fou
  * Pure function — no side effects.
  */
 export function classifyDownloadError(error: unknown): DownloadErrorType {
-  const msg = (error instanceof Error ? error.message : String(error ?? '')).toLowerCase();
+  const msg = (error instanceof Error ? error.message : String(error != null ? error : '')).toLowerCase();
 
   if (msg.includes('timed out') || msg.includes('timeout')) return 'timeout';
   if (msg.includes('quota') || msg.includes('quotaexceeded') || msg.includes('storage')) return 'quota';

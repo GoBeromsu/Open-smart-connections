@@ -135,7 +135,7 @@ export class PluginNotices {
 		return template.replace(/{{\s*([\w.-]+)\s*}}/g, (_match, key: string) => {
 			const value = params[key];
 			if (value === null || value === undefined) return '';
-			return String(value);
+			return typeof value === 'object' ? JSON.stringify(value) : String(value);
 		});
 	}
 
