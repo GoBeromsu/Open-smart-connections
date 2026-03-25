@@ -134,6 +134,33 @@ export function updateEmbedNotice(plugin: SmartConnectionsPlugin, ctx: Embedding
   plugin.embed_notice_last_percent = percent;
 }
 
+function classifyEmbeddingFailureNotice(error: string): 'embedding_provider_limited' | null {
+  const normalized = error.toLowerCase();
+  if (
+    normalized.includes('too_many_requests') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('request limit') ||
+    normalized.includes('status: 429') ||
+    normalized.includes('status=429') ||
+    normalized.includes('"status":429')
+  ) {
+    return 'embedding_provider_limited';
+  }
+  return null;
+}
+
+function showEmbeddingFailureNotice(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext, error: string | null | undefined): void {
+  const noticeId = error ? classifyEmbeddingFailureNotice(error) : null;
+  if (noticeId) {
+    plugin.notices.show(noticeId, {
+      adapter: ctx.adapter,
+      modelKey: ctx.modelKey,
+    });
+    return;
+  }
+  plugin.notices.show('embedding_failed');
+}
+
 // ── Progress event emission ─────────────────────────────────────────
 
 export function emitEmbedProgress(
@@ -626,7 +653,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
         currentSourcePath: ctx.currentSourcePath,
         error: stats.error ?? 'Embedding pipeline failed',
       });
-      plugin.notices.show('embedding_failed');
+      showEmbeddingFailureNotice(plugin, ctx, stats.error);
       return stats;
     }
 
@@ -705,7 +732,7 @@ export async function runEmbeddingJobNow(plugin: SmartConnectionsPlugin, reason:
       currentSourcePath: ctx.currentSourcePath,
       error: errorMessage(error),
     });
-    plugin.notices.show('embedding_failed');
+    showEmbeddingFailureNotice(plugin, ctx, ctx.error);
     throw error;
   } finally {
     if (plugin.current_embed_context?.runId === runId || plugin.current_embed_context === null) {

@@ -98,6 +98,30 @@ describe('runEmbeddingJobNow', () => {
     expect(plugin.notices.show).toHaveBeenCalledWith('embedding_failed');
   });
 
+  it('shows a provider-limit notice when the embedding API hits a request limit', async () => {
+    const { plugin } = createPlugin();
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+      process: vi.fn(async () => makeStats({
+        success: 0,
+        failed: 1,
+        outcome: 'failed',
+        error: 'Failed to embed batch after 3 retries: {"error":{"message":"You\'ve reached your API request limit. Please wait and try again later.","type":"too_many_requests","code":"too_many_requests"}}',
+      })),
+    } as any;
+
+    const stats = await runEmbeddingJobNow(plugin, 'unit-rate-limit-run');
+
+    expect(stats?.outcome).toBe('failed');
+    expect(plugin.status_state).toBe('error');
+    expect(plugin.current_embed_context?.phase).toBe('failed');
+    expect(plugin.notices.show).toHaveBeenCalledWith('embedding_provider_limited', {
+      adapter: 'openai',
+      modelKey: 'text-embedding-3-small',
+    });
+  });
+
   it('keeps a halted pipeline run distinct from completed', async () => {
     const { plugin } = createPlugin();
     vi.spyOn(plugin, 'queueUnembeddedEntities').mockReturnValue(3);
