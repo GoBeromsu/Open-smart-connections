@@ -8,11 +8,12 @@
 import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { invalidateConnectionsCache } from './block-connections';
+import { isExcludedPath } from '../utils';
 import { runEmbeddingJobNow } from './embed-orchestrator';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   function handleSourceChange(file: TFile): void {
-    if (isSourceFile(file)) {
+    if (isSourceFile(file, plugin)) {
       invalidateConnectionsCache(file.path);
       queueSourceReImport(plugin, file.path);
     }
@@ -42,7 +43,7 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
 
   plugin.registerEvent(
     plugin.app.vault.on('delete', (file) => {
-      if (file instanceof TFile && isSourceFile(file)) {
+      if (file instanceof TFile && isSourceFile(file, plugin)) {
         removeSource(plugin, file.path);
       }
     }),
@@ -63,8 +64,11 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
 
 const SUPPORTED_EXTENSIONS = new Set(['md', 'txt']);
 
-export function isSourceFile(file: TFile): boolean {
-  return SUPPORTED_EXTENSIONS.has(file.extension);
+export function isSourceFile(file: TFile, plugin?: SmartConnectionsPlugin): boolean {
+  if (!SUPPORTED_EXTENSIONS.has(file.extension)) return false;
+  const folderExclusions = (plugin?.settings?.smart_sources?.folder_exclusions as string) || "";
+  const fileExclusions = (plugin?.settings?.smart_sources?.file_exclusions as string) || "";
+  return !isExcludedPath(file.path, folderExclusions, fileExclusions);
 }
 
 export function queueSourceReImport(plugin: SmartConnectionsPlugin, path: string): void {

@@ -6,6 +6,7 @@
 import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { SourceCollection, BlockCollection } from '../domain/entities';
+import { isExcludedPath } from '../utils';
 
 export async function initCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
@@ -127,7 +128,11 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
   if (!plugin.source_collection?.vault || !plugin.block_collection) return;
 
   const knownPaths = new Set(plugin.source_collection.all.map(s => s.key));
-  const newFiles = plugin.app.vault.getMarkdownFiles().filter(f => !knownPaths.has(f.path));
+  const folderExclusions = (plugin.settings?.smart_sources?.folder_exclusions as string) || "";
+  const fileExclusions = (plugin.settings?.smart_sources?.file_exclusions as string) || "";
+  const newFiles = plugin.app.vault.getMarkdownFiles().filter(
+    f => !knownPaths.has(f.path) && !isExcludedPath(f.path, folderExclusions, fileExclusions),
+  );
 
   if (newFiles.length === 0) return;
 

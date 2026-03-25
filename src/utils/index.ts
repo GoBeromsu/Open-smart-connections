@@ -203,3 +203,42 @@ export function sort_by_score_descending<T>(a: ScoredResult<T>, b: ScoredResult<
 export function sort_by_score_ascending<T>(a: ScoredResult<T>, b: ScoredResult<T>): number {
   return sort_by_score_descending(b, a);
 }
+
+// ── Path exclusion ───────────────────────────────────────────────────────────
+
+/** Default folder patterns always excluded from source discovery */
+export const DEFAULT_EXCLUDED_FOLDERS = ['node_modules', '.trash', '.git'];
+
+/**
+ * Check if a file path should be excluded from indexing.
+ * Matches against default patterns + user-configured folder/file exclusions.
+ */
+export function isExcludedPath(
+  path: string,
+  folderExclusions: string = '',
+  fileExclusions: string = '',
+): boolean {
+  const segments = path.split('/');
+
+  // Check default excluded folders
+  for (const segment of segments) {
+    if (DEFAULT_EXCLUDED_FOLDERS.includes(segment)) return true;
+  }
+
+  // Check user-configured folder exclusions
+  if (folderExclusions) {
+    const userFolders = folderExclusions.split(',').map(s => s.trim()).filter(Boolean);
+    for (const segment of segments) {
+      if (userFolders.includes(segment)) return true;
+    }
+  }
+
+  // Check user-configured file exclusions
+  if (fileExclusions) {
+    const fileName = segments[segments.length - 1];
+    const patterns = fileExclusions.split(',').map(s => s.trim()).filter(Boolean);
+    if (patterns.some(p => fileName.includes(p))) return true;
+  }
+
+  return false;
+}
