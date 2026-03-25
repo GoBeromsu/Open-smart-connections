@@ -12,6 +12,7 @@
 
 import type { EmbeddingEntity } from '../../types/entities';
 import type { EmbedModelAdapter, EmbedResult } from '../../types/models';
+import { create_hash } from '../utils';
 // FatalError is checked by name (error.name === 'FatalError') to support both direct import
 // and test stubs. No import needed since instanceof is not used.
 
@@ -382,6 +383,17 @@ export class EmbeddingPipeline {
               hash: entity.data.last_read.hash,
               size: entity.data.last_read.size,
               mtime: entity.data.last_read.mtime,
+              dims: this.model.dims,
+              adapter: this.model.adapter,
+              updated_at: updatedAt,
+            });
+          } else if (entity._embed_input) {
+            // No last_read: synthesize hash from embed input to prevent infinite re-embed loop
+            const syntheticHash = await create_hash(entity._embed_input);
+            entity.data.last_read = { hash: syntheticHash };
+            entity.data.last_embed = { hash: syntheticHash };
+            entity.set_active_embedding_meta({
+              hash: syntheticHash,
               dims: this.model.dims,
               adapter: this.model.adapter,
               updated_at: updatedAt,

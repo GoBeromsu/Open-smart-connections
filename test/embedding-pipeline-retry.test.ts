@@ -876,3 +876,107 @@ describe('Batch result integrity', () => {
     expect(stats.failed).toBe(1);
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// No-last_read infinite re-embed prevention
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('Pipeline: no-last_read hash synthesis', () => {
+  it('sets last_read.hash and embedding_meta hash when entity has no last_read', async () => {
+    const modelKey = 'openai';
+
+    // Entity with no last_read — simulates blocks imported without read metadata
+    const entity: any = {
+      key: 'no-last-read.md#block',
+      _queue_embed: true,
+      _embed_input: null,
+      vec: null,
+      tokens: 0,
+      data: {
+        last_read: undefined,
+        last_embed: undefined,
+        embedding_meta: {} as Record<string, { hash: string }>,
+        embeddings: {} as Record<string, { vec: number[] }>,
+      },
+      get_embed_input: vi.fn(async function (this: any) {
+        this._embed_input = 'block content for hashing';
+      }),
+      set_active_embedding_meta: vi.fn(function (this: any, meta: { hash: string }) {
+        this.data.embedding_meta[modelKey] = meta;
+      }),
+    };
+
+    const model = {
+      embed_batch: vi.fn(async (inputs: any[]) =>
+        inputs.map((input: any, i: number) => ({
+          key: input.key,
+          index: input.index ?? i,
+          vec: [0.1, 0.2, 0.3],
+          tokens: 8,
+        })),
+      ),
+      dims: 3,
+      adapter: modelKey,
+    } as any;
+
+    const pipeline = new EmbeddingPipeline(model);
+    const stats = await pipeline.process([entity], { batch_size: 1, max_retries: 0 });
+
+    expect(stats.success).toBe(1);
+
+    // last_read must be synthesized
+    expect(entity.data.last_read).toBeDefined();
+    expect(typeof entity.data.last_read.hash).toBe('string');
+    expect(entity.data.last_read.hash.length).toBeGreaterThan(0);
+
+    // embedding_meta must be set with the same hash
+    expect(entity.data.embedding_meta[modelKey]).toBeDefined();
+    expect(entity.data.embedding_meta[modelKey].hash).toBe(entity.data.last_read.hash);
+
+    // After eviction (vec cleared), is_unembedded logic: active_hash === read_hash → not stale
+    const read_hash = entity.data.last_read?.hash;
+    const active_hash = entity.data.embedding_meta[modelKey]?.hash;
+    expect(read_hash).toBeTruthy();
+    expect(active_hash).toBe(read_hash);
+  });
+
+  it('does not synthesize hash when _embed_input is null', async () => {
+    const entity: any = {
+      key: 'no-input.md#block',
+      _queue_embed: true,
+      _embed_input: null,
+      vec: null,
+      tokens: 0,
+      data: {
+        last_read: undefined,
+        last_embed: undefined,
+        embedding_meta: {},
+        embeddings: {},
+      },
+      get_embed_input: vi.fn(async function (this: any) {
+        // leaves _embed_input null
+      }),
+      set_active_embedding_meta: vi.fn(),
+    };
+
+    const model = {
+      embed_batch: vi.fn(async (inputs: any[]) =>
+        inputs.map((input: any, i: number) => ({
+          key: input.key,
+          index: input.index ?? i,
+          vec: [0.1, 0.2],
+          tokens: 5,
+        })),
+      ),
+      dims: 2,
+      adapter: 'openai',
+    } as any;
+
+    const pipeline = new EmbeddingPipeline(model);
+    await pipeline.process([entity], { batch_size: 1, max_retries: 0 });
+
+    // No _embed_input → set_active_embedding_meta should NOT be called
+    expect(entity.set_active_embedding_meta).not.toHaveBeenCalled();
+    expect(entity.data.last_read).toBeUndefined();
+  });
+});
