@@ -59,8 +59,7 @@ export class LookupView extends ItemView {
   private getEntityCount(): number {
     let count = 0;
     for (const collection of this.getActiveCollections()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- collection is untyped domain object
-      count += (collection as any).all.length;
+      count += (collection as { all: unknown[] }).all.length;
     }
     return count;
   }
@@ -115,8 +114,7 @@ export class LookupView extends ItemView {
     const perCollection = await Promise.all(
       collections.map(async (collection) => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- collection is untyped domain object
-          return await (collection as any).nearest(queryVec, filter);
+          return await (collection as { nearest: (vec: number[], filter: SearchFilter) => Promise<ConnectionResult[]> }).nearest(queryVec, filter);
         } catch (_error) {
           return [];
         }
@@ -213,8 +211,7 @@ export class LookupView extends ItemView {
     });
 
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      (this.app.workspace as any).on('open-connections:model-switched', () => {
+      this.app.workspace.on('open-connections:model-switched', () => {
         this.handleModelSwitched();
       }),
     );
@@ -286,8 +283,7 @@ export class LookupView extends ItemView {
 
   /* ─── Rendering ─── */
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- result items may carry legacy .sim and .key fields not in ConnectionResult
-  renderResults(query: string, results: any[], elapsedMs?: number): void {
+  renderResults(query: string, results: ConnectionResult[], elapsedMs?: number): void {
     this.resultsContainer.empty();
 
     if (!results || results.length === 0) {

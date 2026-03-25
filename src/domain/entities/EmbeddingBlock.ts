@@ -17,8 +17,7 @@ import type { EmbeddingSource } from './EmbeddingSource';
 export class EmbeddingBlock extends EmbeddingEntity {
   data: BlockData;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic constructor
-  constructor(collection: EntityCollection<any>, data: Partial<BlockData> = {}) {
+  constructor(collection: EntityCollection<EmbeddingEntity>, data: Partial<BlockData> = {}) {
     super(collection, data, { path: '', text: '', length: 0, embeddings: {} } as EntityData);
   }
 

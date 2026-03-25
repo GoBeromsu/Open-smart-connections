@@ -63,8 +63,7 @@ export class ConnectionsView extends ItemView {
   }
 
   private loadSession(): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session state stored as untyped settings extension
-    const saved = (this.plugin.settings as any)._connections_session;
+    const saved = (this.plugin.settings as unknown as { _connections_session?: ConnectionsSessionState })._connections_session;
     if (saved && typeof saved === 'object') {
       this.session = {
         pinnedKeys: saved.pinnedKeys ?? [],
@@ -76,8 +75,7 @@ export class ConnectionsView extends ItemView {
   }
 
   private async saveSession(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session state stored as untyped settings extension
-    (this.plugin.settings as any)._connections_session = this.session;
+    (this.plugin.settings as unknown as { _connections_session?: ConnectionsSessionState })._connections_session = this.session;
     await this.plugin.saveSettings();
   }
 
@@ -105,34 +103,29 @@ export class ConnectionsView extends ItemView {
     );
 
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:core-ready' as any, () => {
+      this.app.workspace.on('open-connections:core-ready', () => {
         const file = this.app.workspace.getActiveFile();
         if (file) void this.renderView(file.path);
       }),
     );
 
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:embed-ready' as any, () => {
+      this.app.workspace.on('open-connections:embed-ready', () => {
         void this.renderView();
       }),
     );
 
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      (this.app.workspace as any).on('open-connections:model-switched', () => {
+      this.app.workspace.on('open-connections:model-switched', () => {
         this.handleModelSwitched();
       }),
     );
 
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:embed-state-changed' as any, (payload: unknown) => {
+      this.app.workspace.on('open-connections:embed-state-changed', (payload) => {
         this.updateProgressBanner();
         // Auto-refresh when embedding finishes (running → idle) and we have a stale view
-        const p = payload as Record<string, unknown> | undefined;
-        if (p?.['prev'] === 'running' && p?.['phase'] === 'idle' && this.lastRenderedPath) {
+        if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
           invalidateConnectionsCache(); // Clear all — embeddings changed
           this.autoEmbedRequestedForPath = null;
           this.clearAutoEmbedTimeout();
@@ -143,8 +136,7 @@ export class ConnectionsView extends ItemView {
 
     // Live progress updates from the embedding pipeline (fires ~1/sec)
     this.registerEvent(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:embed-progress' as any, () => {
+      this.app.workspace.on('open-connections:embed-progress', () => {
         this.updateProgressBanner();
       }),
     );

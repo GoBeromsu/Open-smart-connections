@@ -9,15 +9,14 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedResult, ModelInfo } from '../../types/models';
+import type { AdapterConfig, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const OLLAMA_SIGNUP_URL = 'https://ollama.com/download';
 
 interface OllamaModel {
   name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model fields are not formally typed
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -28,8 +27,7 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
   host: string;
   model_data: Record<string, ModelInfo> | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
-  constructor(config: any) {
+  constructor(config: AdapterConfig) {
     super(config);
     this.host = config.host || 'http://localhost:11434';
   }
@@ -109,8 +107,7 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
       }
 
       const list_data = list_resp.json;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model data shape is not formally typed
-      const models_raw: any[] = [];
+      const models_raw: Record<string, unknown>[] = [];
 
       for (const m of filter_embedding_models(list_data.models || [])) {
         const detail_resp = await requestUrl({
@@ -134,8 +131,7 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
    * @param model_data - Raw model data from Ollama
    * @returns Map of model objects with capabilities and limits
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama model data shape is not formally typed
-  parse_model_data(model_data: any[]): Record<string, ModelInfo> {
+  parse_model_data(model_data: Record<string, unknown>[]): Record<string, ModelInfo> {
     if (!Array.isArray(model_data)) {
       return {};
     }
@@ -177,8 +173,7 @@ class OllamaEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Convert request to Ollama's embed API format
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- platform request shape is provider-specific
-  to_platform(): Record<string, any> {
+  to_platform(): Record<string, unknown> {
     return {
       url: (this.adapter as OllamaEmbedAdapter).endpoint,
       method: 'POST',

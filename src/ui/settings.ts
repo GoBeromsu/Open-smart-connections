@@ -158,14 +158,12 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
     // Register live-update listeners for the status section
     this.eventRefs.push(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:embed-progress' as any, () => {
+      this.app.workspace.on('open-connections:embed-progress', () => {
         this.updateEmbeddingStatusOnly();
       }),
     );
     this.eventRefs.push(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.on('open-connections:embed-state-changed' as any, () => {
+      this.app.workspace.on('open-connections:embed-state-changed', () => {
         this.updateEmbeddingStatusOnly();
       }),
     );
@@ -713,8 +711,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     this.plugin.saveSettings?.();
 
     // Emit settings changed event with the changed key
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-    this.app.workspace.trigger('open-connections:settings-changed' as any, {
+    this.app.workspace.trigger('open-connections:settings-changed', {
       key: path,
       oldValue,
       newValue: value,

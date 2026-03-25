@@ -13,8 +13,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const storageNamespace = resolveStorageNamespace(plugin, dataDir);
 
     const adapterSettings = getEmbedAdapterSettings(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model shape is dynamic and untyped
-      plugin.settings.smart_sources.embed_model as unknown as Record<string, any>,
+      plugin.settings.smart_sources.embed_model as unknown as Record<string, unknown>,
     );
     const modelKey =
       plugin.embed_adapter?.model_key || adapterSettings.model_key || 'None';
@@ -225,18 +224,16 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape is dynamic and varies per provider
-export function getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> {
+export function getEmbedAdapterSettings(embedSettings?: Record<string, unknown>): Record<string, unknown> {
   if (!embedSettings) return {};
   const adapterType = embedSettings.adapter;
   if (typeof adapterType !== 'string' || adapterType.length === 0) return {};
   const settings = embedSettings[adapterType];
-  return settings && typeof settings === 'object' ? settings : {};
+  return settings && typeof settings === 'object' ? settings as Record<string, unknown> : {};
 }
 
 function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing DataAdapter.getBasePath() which is desktop-only and not in types
-  const adapter = plugin.app.vault.adapter as any;
+  const adapter = plugin.app.vault.adapter as unknown as { getBasePath?: () => string };
   const basePath = typeof adapter?.getBasePath === 'function'
     ? String(adapter.getBasePath())
     : '';

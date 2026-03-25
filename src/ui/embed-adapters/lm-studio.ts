@@ -9,7 +9,7 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
+import type { AdapterConfig, EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const LM_STUDIO_SIGNUP_URL = 'https://lmstudio.ai/';
@@ -19,20 +19,17 @@ export const LM_STUDIO_SIGNUP_URL = 'https://lmstudio.ai/';
  * @param list - Response from LM Studio /v1/models endpoint
  * @returns Parsed models map
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio API response is not formally typed
-export function parse_lm_studio_models(list: any): Record<string, ModelInfo> {
+export function parse_lm_studio_models(list: Record<string, unknown>): Record<string, ModelInfo> {
   if (list.object !== 'list' || !Array.isArray(list.data)) {
     return { _: { model_key: 'No models found.' } };
   }
 
-  return list.data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio model item shape is not formally typed
-    .filter((m: any) => m.id && m.type === 'embeddings')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio model item shape is not formally typed
-    .reduce((acc: Record<string, ModelInfo>, m: any) => {
-      acc[m.id] = {
-        model_key: m.id,
-        model_name: m.id,
+  return (list.data as { id?: string; type?: string; loaded_context_length?: number }[])
+    .filter((m) => m.id && m.type === 'embeddings')
+    .reduce((acc: Record<string, ModelInfo>, m) => {
+      acc[m.id!] = {
+        model_key: m.id!,
+        model_name: m.id!,
         max_tokens: m.loaded_context_length || 512,
         description: `LM Studio model: ${m.id}`,
       };
@@ -46,8 +43,7 @@ export function parse_lm_studio_models(list: any): Record<string, ModelInfo> {
 export class LmStudioEmbedAdapter extends EmbedModelApiAdapter {
   host: string;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
-  constructor(config: any) {
+  constructor(config: AdapterConfig) {
     super(config);
     this.host = config.host || 'http://localhost:1234';
   }
@@ -145,8 +141,7 @@ class LmStudioEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for LM Studio API
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
-  prepare_request_body(): Record<string, any> {
+  prepare_request_body(): Record<string, unknown> {
     return {
       model: this.model_id,
       input: this.embed_inputs,
@@ -162,13 +157,13 @@ class LmStudioEmbedResponseAdapter extends EmbedModelResponseAdapter {
    * Parse LM Studio API response
    */
   parse_response(): EmbedResult[] {
-    const resp = this.response;
-    if (!resp || !resp.data) {
+    const resp = this.response as Record<string, unknown> | null;
+    const data = resp?.data as { embedding: number[] }[] | undefined;
+    if (!resp || !data) {
       return [];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- LM Studio response item shape is not formally typed
-    return resp.data.map((item: any) => ({
+    return data.map((item) => ({
       vec: item.embedding,
       tokens: 0, // LM Studio doesn't provide token usage
     }));

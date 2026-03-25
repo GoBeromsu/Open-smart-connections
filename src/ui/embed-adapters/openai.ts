@@ -129,10 +129,8 @@ class OpenAIEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for OpenAI API
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
-  prepare_request_body(): Record<string, any> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
-    const body: Record<string, any> = {
+  prepare_request_body(): Record<string, unknown> {
+    const body: Record<string, unknown> = {
       model: this.model_id,
       input: this.embed_inputs,
     };
@@ -154,14 +152,15 @@ class OpenAIEmbedResponseAdapter extends EmbedModelResponseAdapter {
    * Parse OpenAI API response
    */
   parse_response(): EmbedResult[] {
-    const resp = this.response;
-    if (!resp || !resp.data || !resp.usage) {
+    const resp = this.response as Record<string, unknown> | null;
+    const data = resp?.data as { embedding: number[] }[] | undefined;
+    const usage = resp?.usage as { total_tokens: number } | undefined;
+    if (!resp || !data || !usage) {
       return [];
     }
 
-    const avg_tokens = resp.usage.total_tokens / resp.data.length;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenAI response item shape is not formally typed
-    return resp.data.map((item: any) => ({
+    const avg_tokens = usage.total_tokens / data.length;
+    return data.map((item) => ({
       vec: item.embedding,
       tokens: avg_tokens,
     }));

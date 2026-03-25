@@ -124,8 +124,7 @@ class GeminiEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for Gemini API
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gemini request body shape is complex and not formally typed
-  prepare_request_body(): Record<string, any> {
+  prepare_request_body(): Record<string, unknown> {
     const requests = this.embed_inputs.map((input) => {
       const [title, ...content] = input.split('\n');
       const doc_content = content.join('\n').trim() || '';
@@ -166,12 +165,13 @@ class GeminiEmbedResponseAdapter extends EmbedModelResponseAdapter {
   parse_response(): EmbedResult[] {
     const resp = this.response;
 
-    if (!resp || !resp.embeddings || !resp.embeddings[0]?.values) {
+    const respObj = resp as Record<string, unknown> | null;
+    const embeddings = respObj?.embeddings as { values?: number[] }[] | undefined;
+    if (!respObj || !embeddings || !embeddings[0]?.values) {
       return [];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gemini response embedding shape is not formally typed
-    return resp.embeddings.map((embedding: any, _i: number) => {
+    return embeddings.map((embedding) => {
       if (!embedding.values || embedding.values.length === 0) {
         return { vec: [], tokens: 0 };
       }

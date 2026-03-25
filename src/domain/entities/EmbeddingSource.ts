@@ -26,8 +26,7 @@ export class EmbeddingSource extends EmbeddingEntity {
   /** Cached metadata from MetadataCache */
   cached_metadata?: CachedMetadata;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic constructor
-  constructor(collection: EntityCollection<any>, data: Partial<SourceData> = {}) {
+  constructor(collection: EntityCollection<EmbeddingEntity>, data: Partial<SourceData> = {}) {
     super(collection, data, { path: '', embeddings: {} } as EntityData);
   }
 

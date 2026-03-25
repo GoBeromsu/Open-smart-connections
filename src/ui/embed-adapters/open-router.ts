@@ -9,7 +9,7 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedResult, ModelInfo } from '../../types/models';
+import type { AdapterConfig, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const OPEN_ROUTER_SIGNUP_URL = 'https://openrouter.ai/keys';
@@ -21,8 +21,7 @@ export const OPEN_ROUTER_SIGNUP_URL = 'https://openrouter.ai/keys';
 export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
   static readonly MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/models';
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config shape is dynamic and validated at runtime
-  constructor(config: any) {
+  constructor(config: AdapterConfig) {
     super(config);
   }
 
@@ -128,27 +127,25 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
    * @param model_data - Raw models payload from OpenRouter
    * @returns Map of model objects keyed by id
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenRouter model data payload is not formally typed
-  parse_model_data(model_data: any): Record<string, ModelInfo> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- model list items are untyped API response
-    let list: any[] = [];
-    if (Array.isArray(model_data?.data)) list = model_data.data;
-    else if (Array.isArray(model_data)) list = model_data;
+  parse_model_data(model_data: Record<string, unknown> | unknown[]): Record<string, ModelInfo> {
+    let list: Record<string, unknown>[] = [];
+    if (Array.isArray((model_data as Record<string, unknown>)?.data)) list = (model_data as Record<string, unknown>).data as Record<string, unknown>[];
+    else if (Array.isArray(model_data)) list = model_data as Record<string, unknown>[];
     else {
       return { _: { model_key: 'No models found.' } };
     }
 
     const out: Record<string, ModelInfo> = {};
     for (const model of list) {
-      const model_id = model.id || model.name;
+      const model_id = (model.id || model.name) as string | undefined;
       if (!model_id) continue;
       if (!is_embedding_model(model_id)) continue;
 
       out[model_id] = {
         model_key: model_id,
         model_name: model_id,
-        max_tokens: model.context_length || this.max_tokens,
-        description: model.name || model.description || `Model: ${model_id}`,
+        max_tokens: (model.context_length as number) || this.max_tokens,
+        description: (model.name as string) || (model.description as string) || `Model: ${model_id}`,
       };
     }
 
@@ -167,8 +164,7 @@ class OpenRouterEmbedRequestAdapter extends EmbedModelRequestAdapter {
   /**
    * Prepare request body for OpenRouter API
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape is provider-specific
-  prepare_request_body(): Record<string, any> {
+  prepare_request_body(): Record<string, unknown> {
     return {
       model: this.model_id,
       input: this.embed_inputs,
@@ -184,18 +180,19 @@ class OpenRouterEmbedResponseAdapter extends EmbedModelResponseAdapter {
    * Parse OpenRouter embedding response
    */
   parse_response(): EmbedResult[] {
-    const resp = this.response;
-    if (!resp || !Array.isArray(resp.data)) {
+    const resp = this.response as Record<string, unknown> | null;
+    const data = resp?.data as { embedding?: number[]; data?: number[] }[] | undefined;
+    if (!resp || !Array.isArray(data)) {
       return [];
     }
 
     let avg_tokens: number = 0;
-    if (resp.usage?.total_tokens && resp.data.length > 0) {
-      avg_tokens = resp.usage.total_tokens / resp.data.length;
+    const usage = resp.usage as { total_tokens?: number } | undefined;
+    if (usage?.total_tokens && data.length > 0) {
+      avg_tokens = usage.total_tokens / data.length;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- OpenRouter response item shape is not formally typed
-    return resp.data.map((item: any) => {
+    return data.map((item) => {
       const vec = item.embedding || item.data || [];
       return {
         vec,

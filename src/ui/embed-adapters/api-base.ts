@@ -16,18 +16,15 @@ export class EmbedModelApiAdapter {
   model_key: string;
   dims: number;
   models: Record<string, ModelInfo>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
-  settings: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tiktoken is a dynamically loaded external module
-  tiktoken: any;
+  settings: Record<string, unknown>;
+  tiktoken: { encode(text: string): number[] } | null = null;
 
   constructor(config: {
     adapter: string;
     model_key: string;
     dims: number;
     models: Record<string, ModelInfo>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter settings shape varies per provider
-    settings: any;
+    settings: Record<string, unknown>;
   }) {
     this.adapter = config.adapter;
     this.model_key = config.model_key;
@@ -62,7 +59,7 @@ export class EmbedModelApiAdapter {
    * Get API key from settings
    */
   get api_key(): string | undefined {
-    return this.settings[`${this.adapter}.api_key`] || this.settings.api_key;
+    return (this.settings[`${this.adapter}.api_key`] as string | undefined) || (this.settings.api_key as string | undefined);
   }
 
   /**
@@ -189,14 +186,13 @@ export class EmbedModelApiAdapter {
    * @param req - Request configuration
    * @returns API response JSON
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request/response shapes vary per API provider
-  async request(req: Record<string, any>): Promise<any> {
+  async request(req: Record<string, unknown>): Promise<unknown> {
     try {
       const resp = await requestUrl({
         url: this.endpoint!,
-        method: req.method || 'POST',
-        headers: req.headers,
-        body: req.body,
+        method: (req.method as string) || 'POST',
+        headers: req.headers as Record<string, string>,
+        body: req.body as string,
         throw: false,
       });
 
@@ -310,8 +306,7 @@ export class EmbedModelRequestAdapter {
    * Convert request to platform-specific format
    * @returns Platform-specific request parameters
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- platform request shape varies per provider
-  to_platform(): Record<string, any> {
+  to_platform(): Record<string, unknown> {
     return {
       method: 'POST',
       headers: this.get_headers(),
@@ -323,8 +318,7 @@ export class EmbedModelRequestAdapter {
    * Prepare request body for API call
    * @returns Request body object
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request body shape varies per provider
-  prepare_request_body(): Record<string, any> {
+  prepare_request_body(): Record<string, unknown> {
     throw new Error('prepare_request_body not implemented');
   }
 }
@@ -334,11 +328,9 @@ export class EmbedModelRequestAdapter {
  */
 export class EmbedModelResponseAdapter {
   adapter: EmbedModelApiAdapter;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape varies per provider
-  response: any;
+  response: unknown;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape varies per provider
-  constructor(adapter: EmbedModelApiAdapter, response: any) {
+  constructor(adapter: EmbedModelApiAdapter, response: unknown) {
     this.adapter = adapter;
     this.response = response;
   }

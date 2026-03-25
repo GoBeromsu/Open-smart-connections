@@ -6,6 +6,7 @@
 import type SmartConnectionsPlugin from '../main';
 import type { EmbeddingRunContext, EmbedProgressEventPayload } from '../main';
 import type { EmbeddingEntity } from '../types/entities';
+import { ItemView } from 'obsidian';
 import { CONNECTIONS_VIEW_TYPE } from './ConnectionsView';
 
 import { embedAdapterRegistry } from '../domain/embed-model';
@@ -33,8 +34,7 @@ export function getCurrentModelInfo(plugin: SmartConnectionsPlugin): { adapter: 
     ?? plugin.settings?.smart_sources?.embed_model?.adapter
     ?? 'unknown';
   const modelKey = plugin.embed_adapter?.model_key
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model shape is dynamic during model switch
-    ?? plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as any)?.model_key
+    ?? plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as Record<string, unknown>)?.model_key
     ?? 'unknown';
   const dims = plugin.embed_adapter?.dims ?? null;
   return { adapter, modelKey, dims };
@@ -101,8 +101,7 @@ export function clearEmbedNotice(plugin: SmartConnectionsPlugin): void {
 export function updateEmbedNotice(plugin: SmartConnectionsPlugin, ctx: EmbeddingRunContext, force: boolean = false): void {
   const connectionsLeaves = plugin.app.workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
   const isViewVisible = connectionsLeaves.some((leaf) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WorkspaceLeaf.view.containerEl is not typed in Obsidian API
-    const containerEl = (leaf.view as any)?.containerEl;
+    const containerEl = (leaf.view as ItemView)?.containerEl;
     return typeof containerEl?.checkVisibility === 'function' ? containerEl.checkVisibility() : false;
   });
   if (isViewVisible) {
@@ -168,8 +167,7 @@ export function emitEmbedProgress(
     error: opts.error ?? ctx.error ?? undefined,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-  plugin.app.workspace.trigger('open-connections:embed-progress' as any, payload);
+  plugin.app.workspace.trigger('open-connections:embed-progress', payload);
 }
 
 // ── Model initialization ────────────────────────────────────────────
@@ -237,8 +235,7 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
   try {
     const searchAdapterSettings = searchModelSettings.adapter === embedSettings.adapter
       ? { ...indexingAdapterSettings }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- embed_model sub-key lookup is dynamic per adapter
-      : { ...(embedSettings[searchModelSettings.adapter as keyof typeof embedSettings] as Record<string, any> || {}) };
+      : { ...(embedSettings[searchModelSettings.adapter as keyof typeof embedSettings] as Record<string, unknown> || {}) };
 
     const { adapter, requiresLoad } = embedAdapterRegistry.createAdapter(
       searchModelSettings.adapter,
@@ -431,8 +428,7 @@ async function switchEmbeddingModelNow(plugin: SmartConnectionsPlugin, reason: s
     );
     plugin.setEmbedPhase('idle', { fingerprint: kernelModel.fingerprint });
     plugin.app.workspace.trigger('open-connections:embed-ready');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-    plugin.app.workspace.trigger('open-connections:model-switched' as any, {
+    plugin.app.workspace.trigger('open-connections:model-switched', {
       ...active,
       switchedAt: Date.now(),
     });

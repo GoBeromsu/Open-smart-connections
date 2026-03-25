@@ -226,8 +226,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     };
     if (prev !== phase) {
       this.logger.debug(`[Open Connections] ${prev} → ${phase}${opts.error ? `: ${opts.error}` : ''}`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-      this.app.workspace.trigger('open-connections:embed-state-changed' as any, { phase, prev });
+      this.app.workspace.trigger('open-connections:embed-state-changed', { phase, prev });
       this.refreshStatus();
     }
   }
@@ -294,8 +293,7 @@ export default class SmartConnectionsPlugin extends Plugin {
       if (!activeFile) return;
 
       // Find embedded blocks for this file and load their vectors on demand
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- block_collection.all items are untyped domain objects
-      const fileBlocks = (this.block_collection.all as any[]).filter(
+      const fileBlocks = this.block_collection.all.filter(
         (b) => b.source_key === activeFile.path && b.has_embed(),
       );
       if (fileBlocks.length === 0) {
@@ -303,8 +301,7 @@ export default class SmartConnectionsPlugin extends Plugin {
         return;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- block_collection.ensure_entity_vector accepts untyped entity
-      await Promise.all(fileBlocks.map((b) => (this.block_collection as any).ensure_entity_vector(b)));
+      await Promise.all(fileBlocks.map((b) => this.block_collection!.ensure_entity_vector(b)));
       const loadedBlocks = fileBlocks.filter((b) => b.vec && b.vec.length > 0);
       if (loadedBlocks.length === 0) {
         el.createEl('p', { text: 'No embedding available for this note.', cls: 'osc-state-text' });
@@ -416,8 +413,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     this.ready = true;
     this.refreshStatus();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event not in Obsidian types
-    this.app.workspace.trigger('open-connections:core-ready' as any);
+    this.app.workspace.trigger('open-connections:core-ready');
 
     const sourceCount = this.source_collection?.size ?? 0;
     const blockCount = this.block_collection?.size ?? 0;
@@ -488,8 +484,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Without this, a saved smart_sources without the adapter sub-key
     // causes embed_model_key to resolve to 'None' → full re-embed on update.
     if (loadedSettings.smart_sources && typeof loadedSettings.smart_sources === 'object') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deep-merging untyped persisted settings
-      const loaded = loadedSettings.smart_sources as Record<string, any>;
+      const loaded = loadedSettings.smart_sources as Record<string, unknown>;
       settings.smart_sources = { ...DEFAULT_SETTINGS.smart_sources, ...loaded };
       if (loaded.embed_model && typeof loaded.embed_model === 'object') {
         settings.smart_sources.embed_model = {
@@ -497,13 +492,10 @@ export default class SmartConnectionsPlugin extends Plugin {
           ...loaded.embed_model,
         };
         const adapter = settings.smart_sources.embed_model.adapter;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key lookup
-        const defaults = (DEFAULT_SETTINGS.smart_sources.embed_model as Record<string, any>)[adapter];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key lookup
-        const saved = (loaded.embed_model as Record<string, any>)[adapter];
+        const defaults = (DEFAULT_SETTINGS.smart_sources.embed_model as Record<string, unknown>)[adapter];
+        const saved = (loaded.embed_model as Record<string, unknown>)[adapter];
         if (defaults && typeof defaults === 'object') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic adapter key assignment
-          (settings.smart_sources.embed_model as Record<string, any>)[adapter] = {
+          (settings.smart_sources.embed_model as Record<string, unknown>)[adapter] = {
             ...defaults,
             ...(saved && typeof saved === 'object' ? saved : {}),
           };
@@ -511,12 +503,10 @@ export default class SmartConnectionsPlugin extends Plugin {
       }
     }
     if (loadedSettings.smart_blocks && typeof loadedSettings.smart_blocks === 'object') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merging untyped persisted settings
-      settings.smart_blocks = { ...DEFAULT_SETTINGS.smart_blocks, ...(loadedSettings.smart_blocks as Record<string, any>) };
+      settings.smart_blocks = { ...DEFAULT_SETTINGS.smart_blocks, ...(loadedSettings.smart_blocks as Record<string, unknown>) };
     }
     if (loadedSettings.smart_view_filter && typeof loadedSettings.smart_view_filter === 'object') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merging untyped persisted settings
-      settings.smart_view_filter = { ...DEFAULT_SETTINGS.smart_view_filter, ...(loadedSettings.smart_view_filter as Record<string, any>) };
+      settings.smart_view_filter = { ...DEFAULT_SETTINGS.smart_view_filter, ...(loadedSettings.smart_view_filter as Record<string, unknown>) };
     }
     // Migrate legacy smart_notices.muted → plugin_notices.muted
     const legacyMuted = (settings.smart_notices as Record<string, unknown> | undefined)?.muted;
@@ -537,15 +527,12 @@ export default class SmartConnectionsPlugin extends Plugin {
       removedLegacyKeys = true;
     }
     // Migrate legacy Upstage model keys to canonical `embedding-passage` (#42)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic embed_model shape during migration
-    const upstageAdapter = settings.smart_sources?.embed_model as Record<string, any> | undefined;
+    const upstageAdapter = settings.smart_sources?.embed_model as Record<string, unknown> | undefined;
     if (upstageAdapter?.adapter === 'upstage') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing dynamic adapter sub-key
-      let upstageSettings = (upstageAdapter as Record<string, any>)['upstage'];
+      let upstageSettings = (upstageAdapter as Record<string, unknown>)['upstage'] as Record<string, unknown> | undefined;
       if (!upstageSettings) {
         upstageSettings = { model_key: 'embedding-passage' };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- writing dynamic adapter sub-key
-        (upstageAdapter as Record<string, any>)['upstage'] = upstageSettings;
+        (upstageAdapter as Record<string, unknown>)['upstage'] = upstageSettings;
         removedLegacyKeys = true;
       } else {
         const mk = upstageSettings.model_key;
@@ -596,8 +583,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   obsidianIsSyncing(): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing Obsidian internal sync plugin
-    const syncInstance = (this.app as any)?.internalPlugins?.plugins?.sync?.instance;
+    const syncInstance = this.app.internalPlugins?.plugins?.sync?.instance;
     if (!syncInstance) return false;
     if (syncInstance?.syncStatus?.startsWith('Uploading')) return false;
     if (syncInstance?.syncStatus?.startsWith('Fully synced')) return false;
@@ -606,8 +592,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   async initEmbedModel(): Promise<void> { return _initEmbedModel(this); }
   syncCollectionEmbeddingContext(): void { _syncCollectionEmbeddingContext(this); }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass-through to untyped adapter settings helper
-  getEmbedAdapterSettings(embedSettings?: Record<string, any>): Record<string, any> { return _getEmbedAdapterSettings(embedSettings); }
+  getEmbedAdapterSettings(embedSettings?: Record<string, unknown>): Record<string, unknown> { return _getEmbedAdapterSettings(embedSettings); }
   queueUnembeddedEntities(): number { return _queueUnembeddedEntities(this); }
   async reembedStaleEntities(reason: string = 'Manual re-embed'): Promise<number> { return _reembedStaleEntities(this, reason); }
   async switchEmbeddingModel(reason: string = 'Embedding model switch'): Promise<void> { return _switchEmbeddingModel(this, reason); }

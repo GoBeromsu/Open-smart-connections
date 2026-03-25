@@ -24,8 +24,7 @@ export class EmbeddingEntity {
   data: EntityData;
 
   /** Parent collection */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic; EmbeddingEntity is the base for all entity types
-  collection: EntityCollection<any>;
+  collection: EntityCollection<EmbeddingEntity>;
 
   /** Whether entity needs embedding */
   _queue_embed: boolean = false;
@@ -39,8 +38,7 @@ export class EmbeddingEntity {
   /** Flag for deleting all persisted embeddings for this entity */
   _remove_all_embeddings: boolean = false;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential generic constructor
-  constructor(collection: EntityCollection<any>, data: Partial<EntityData> = {}, defaults?: EntityData) {
+  constructor(collection: EntityCollection<EmbeddingEntity>, data: Partial<EntityData> = {}, defaults?: EntityData) {
     this.collection = collection;
     this.data = defaults ?? this.get_defaults();
 
