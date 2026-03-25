@@ -36,13 +36,14 @@ export async function getDataJsonCreatedAt(plugin: SmartConnectionsPlugin): Prom
 
 export function migrateInstalledAtFromLocalStorage(plugin: SmartConnectionsPlugin): boolean {
   const key = 'smart_connections_new_user';
-  if (typeof localStorage !== 'undefined' && localStorage.getItem(key) !== null) {
-    const oldValue = localStorage.getItem(key) !== 'false';
+  const stored = plugin.app.loadLocalStorage(key);
+  if (stored !== null && stored !== undefined) {
+    const oldValue = stored !== 'false';
     if (!oldValue) {
       plugin._installed_at = Date.now();
       saveInstalledAt(plugin, plugin._installed_at);
     }
-    localStorage.removeItem(key);
+    plugin.app.saveLocalStorage(key, null);
     return true;
   }
   return false;

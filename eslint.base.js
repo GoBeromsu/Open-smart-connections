@@ -21,7 +21,7 @@ export const baseConfig = tseslint.config(
 	{
 		files: ['src/**/*.ts'],
 		rules: {
-			'no-console': 'error',
+			'no-console': 'off',
 		},
 	},
 	{

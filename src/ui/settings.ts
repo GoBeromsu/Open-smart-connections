@@ -80,7 +80,7 @@ class ConfirmModal extends Modal {
     this.resolvePromise(this.result);
   }
 
-  open(): Promise<boolean> {
+  openModal(): Promise<boolean> {
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
       super.open();
@@ -671,7 +671,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   }
 
   private async confirmReembed(message: string): Promise<boolean> {
-    return await new ConfirmModal(this.app, message).open();
+    return await new ConfirmModal(this.app, message).openModal();
   }
 
   private getConfig(path: string, fallback: any): any {

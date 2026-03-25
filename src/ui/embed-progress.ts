@@ -79,7 +79,7 @@ export function renderEmbedProgress(
         countEl.setText('');
         pctEl.setText('');
         heartbeat.setText('');
-        heartbeat.style.display = 'none';
+        heartbeat.addClass('osc-embed-progress-heartbeat--hidden');
         break;
 
       case 1:
@@ -87,7 +87,7 @@ export function renderEmbedProgress(
         countEl.setText(`~${notesTotal.toLocaleString()} notes`);
         pctEl.setText('');
         heartbeat.setText('');
-        heartbeat.style.display = 'none';
+        heartbeat.addClass('osc-embed-progress-heartbeat--hidden');
         break;
 
       case 2: {
@@ -102,12 +102,12 @@ export function renderEmbedProgress(
           heartbeat.addClass('osc-embed-progress-heartbeat--changing');
           requestAnimationFrame(() => {
             heartbeat.setText(filename);
-            heartbeat.style.display = '';
+            heartbeat.removeClass('osc-embed-progress-heartbeat--hidden');
             requestAnimationFrame(() => heartbeat.removeClass('osc-embed-progress-heartbeat--changing'));
           });
           previousFilename = filename;
         } else if (!filename) {
-          heartbeat.style.display = 'none';
+          heartbeat.addClass('osc-embed-progress-heartbeat--hidden');
         }
         break;
       }
@@ -118,7 +118,7 @@ export function renderEmbedProgress(
         bar.setValue(100);
         pctEl.setText('100%');
         heartbeat.setText('');
-        heartbeat.style.display = 'none';
+        heartbeat.addClass('osc-embed-progress-heartbeat--hidden');
 
         if (!completionTimer) {
           wrapper.addClass('osc-embed-progress--complete');

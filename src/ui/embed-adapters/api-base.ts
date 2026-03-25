@@ -261,10 +261,8 @@ export class EmbedModelApiAdapter {
   async load_tiktoken(): Promise<void> {
     // Lazy load tiktoken if needed by subclass
     const { Tiktoken } = await import('js-tiktoken/lite');
-    const cl100k_base = await fetch(
-      'https://raw.githubusercontent.com/brianpetro/jsbrains/refs/heads/main/smart-embed-model/cl100k_base.json',
-    ).then((r) => r.json());
-    this.tiktoken = new Tiktoken(cl100k_base);
+    const resp = await requestUrl('https://raw.githubusercontent.com/brianpetro/jsbrains/refs/heads/main/smart-embed-model/cl100k_base.json');
+    this.tiktoken = new Tiktoken(resp.json);
   }
 
   /**
