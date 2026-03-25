@@ -145,21 +145,22 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
       };
     }
 
-    return model_data.reduce((acc: Record<string, ModelInfo>, model) => {
-      const info = model.model_info || {};
+    return model_data.reduce<Record<string, ModelInfo>>((acc, model) => {
+      const info = (model.model_info || {}) as Record<string, unknown>;
       const ctx = Object.entries(info).find(([k]) => k.includes('context_length'))?.[1] as
         | number
         | undefined;
       const dims = Object.entries(info).find(([k]) => k.includes('embedding_length'))?.[1] as
         | number
         | undefined;
+      const name = model.name as string;
 
-      acc[model.name] = {
-        model_key: model.name,
-        model_name: model.name,
+      acc[name] = {
+        model_key: name,
+        model_name: name,
         max_tokens: ctx || this.max_tokens,
         dims,
-        description: model.description || `Model: ${model.name}`,
+        description: (model.description as string) || `Model: ${name}`,
       };
       return acc;
     }, {});
@@ -194,14 +195,15 @@ class OllamaEmbedResponseAdapter extends EmbedModelResponseAdapter {
    * Convert Ollama's response to standardized format
    */
   parse_response(): EmbedResult[] {
-    const resp = this.response;
+    const resp = this.response as Record<string, unknown> | null;
+    const embeddings = resp?.embeddings as number[][] | undefined;
 
-    if (!resp || !resp.embeddings) {
+    if (!resp || !embeddings) {
       return [];
     }
 
-    const tokens = Math.ceil(resp.prompt_eval_count / this.adapter.batch_size);
-    return resp.embeddings.map((vec: number[]) => ({
+    const tokens = Math.ceil((resp.prompt_eval_count as number) / this.adapter.batch_size);
+    return embeddings.map((vec) => ({
       vec,
       tokens,
     }));

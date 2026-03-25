@@ -92,6 +92,6 @@ export class SourceCollection extends EntityCollection<EmbeddingSource> {
    * Get excluded headings from settings
    */
   get excluded_headings(): string[] {
-    return this.settings?.excluded_headings || [];
+    return (this.settings?.excluded_headings as string[] | undefined) || [];
   }
 }

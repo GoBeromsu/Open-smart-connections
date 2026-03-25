@@ -34,7 +34,7 @@ export function getCurrentModelInfo(plugin: SmartConnectionsPlugin): { adapter: 
     ?? plugin.settings?.smart_sources?.embed_model?.adapter
     ?? 'unknown';
   const modelKey = plugin.embed_adapter?.model_key
-    ?? plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as Record<string, unknown>)?.model_key
+    ?? (plugin.getEmbedAdapterSettings(plugin.settings?.smart_sources?.embed_model as Record<string, unknown>)?.model_key as string | undefined)
     ?? 'unknown';
   const dims = plugin.embed_adapter?.dims ?? null;
   return { adapter, modelKey, dims };
@@ -177,7 +177,7 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
     const embedSettings = plugin.settings.smart_sources.embed_model;
     const adapterType = embedSettings.adapter;
     const adapterSettings = plugin.getEmbedAdapterSettings(embedSettings);
-    const modelKey = adapterSettings.model_key || '';
+    const modelKey = (adapterSettings.model_key as string) || '';
 
     const { adapter, requiresLoad } = embedAdapterRegistry.createAdapter(
       adapterType,
@@ -185,8 +185,8 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
       adapterSettings,
     );
 
-    if (requiresLoad && typeof (adapter as { load?: () => Promise<void> }).load === 'function') {
-      await (adapter as { load: () => Promise<void> }).load();
+    if (requiresLoad && typeof (adapter as unknown as { load?: () => Promise<void> }).load === 'function') {
+      await (adapter as unknown as { load: () => Promise<void> }).load();
     }
 
     plugin.embed_adapter = adapter;
@@ -243,8 +243,8 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
       searchAdapterSettings,
     );
 
-    if (requiresLoad && typeof (adapter as { load?: () => Promise<void> }).load === 'function') {
-      await (adapter as { load: () => Promise<void> }).load();
+    if (requiresLoad && typeof (adapter as unknown as { load?: () => Promise<void> }).load === 'function') {
+      await (adapter as unknown as { load: () => Promise<void> }).load();
     }
 
     plugin._search_embed_model = adapter;

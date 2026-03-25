@@ -16,7 +16,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
       plugin.settings.smart_sources.embed_model as unknown as Record<string, unknown>,
     );
     const modelKey =
-      plugin.embed_adapter?.model_key || adapterSettings.model_key || 'None';
+      plugin.embed_adapter?.model_key || (adapterSettings.model_key as string | undefined) || 'None';
 
     plugin.logger.debug(`[SC][Init]   [collections] Initializing with model_key=${modelKey}, data_dir=${dataDir}`);
 
@@ -24,7 +24,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
       `${dataDir}/sources`,
       plugin.settings.smart_sources,
       modelKey,
-      plugin.app.vault,
+      plugin.app.vault as unknown as import('../types/obsidian-shims').VaultShim,
       plugin.app.metadataCache,
       storageNamespace,
     );

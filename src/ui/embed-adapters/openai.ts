@@ -81,7 +81,7 @@ export class OpenAIEmbedAdapter extends EmbedModelApiAdapter {
    */
   async count_tokens(input: string): Promise<number> {
     if (!this.tiktoken) await this.load_tiktoken();
-    return this.tiktoken.encode(input).length;
+    return this.tiktoken!.encode(input).length;
   }
 
   /**

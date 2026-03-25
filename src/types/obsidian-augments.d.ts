@@ -21,6 +21,9 @@ declare module 'obsidian' {
     trigger(name: 'open-connections:embed-progress', payload: unknown): void;
     trigger(name: 'open-connections:model-switched', payload?: unknown): void;
     trigger(name: 'open-connections:settings-changed', payload: { key: string; oldValue: unknown; newValue: unknown }): void;
+
+    // Obsidian built-in events used by our views
+    trigger(name: 'hover-link', payload: { event: MouseEvent; source: string; hoverParent: unknown; targetEl: HTMLElement; linktext: string }): void;
   }
 
   interface App {

@@ -308,7 +308,7 @@ export class LookupView extends ItemView {
     for (let index = 0; index < results.length; index++) {
       const result = results[index];
       const score = result.score ?? result.sim ?? 0;
-      const key = result.item?.key ?? result.key ?? '';
+      const key = result.item?.key ?? '';
       const name = this.formatTitle(key);
       const fullPath = key.split('#')[0];
       const path = this.formatPath(key);

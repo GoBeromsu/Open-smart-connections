@@ -146,6 +146,9 @@ export interface ConnectionResult {
 
   /** Similarity score (cosine similarity) */
   score: number;
+
+  /** Legacy alias for score */
+  sim?: number;
 }
 
 /**

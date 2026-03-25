@@ -272,7 +272,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
         AND em.model_key = ?
       WHERE e.entity_type = ?
       ORDER BY e.entity_key ASC
-    `).all(modelKey, this.entity_type) as EntityRow[];
+    `).all(modelKey, this.entity_type) as unknown as EntityRow[];
 
     for (const row of rows) {
       const extra = parseExtra(row.extra);
@@ -506,10 +506,10 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     filter: SearchFilter = {},
     fetchMultiplier: number = 3,
   ): Promise<QueryMatch[]> {
-    if (!vec || vec.length === 0) return [];
+    if (!vec || vec.length === 0) return Promise.resolve([]);
 
     const modelKey = this.collection.embed_model_key;
-    if (!modelKey || modelKey === 'None') return [];
+    if (!modelKey || modelKey === 'None') return Promise.resolve([]);
 
     const db = this.requireDb();
     const limit = Math.max(1, filter.limit ?? 50);
@@ -558,7 +558,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       WHERE ${conditions.join(' AND ')}
     `;
 
-    const rows = db.prepare(sql).all(...params) as NearestRow[];
+    const rows = db.prepare(sql).all(...params) as unknown as NearestRow[];
     const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
     const scored: QueryMatch[] = [];
 

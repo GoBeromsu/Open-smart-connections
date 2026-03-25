@@ -553,7 +553,7 @@ ${'</'}script></body></html>`;
    * Count tokens in input text
    */
   async count_tokens(input: string): Promise<number> {
-    const result = await this.send_message('count_tokens', input);
+    const result = await this.send_message('count_tokens', input) as { tokens: number };
     return result.tokens;
   }
 
@@ -572,7 +572,7 @@ ${'</'}script></body></html>`;
       return [];
     }
 
-    return await this.send_message('embed_batch', { inputs: normalized_inputs });
+    return await this.send_message('embed_batch', { inputs: normalized_inputs }) as EmbedResult[];
   }
 
   /**

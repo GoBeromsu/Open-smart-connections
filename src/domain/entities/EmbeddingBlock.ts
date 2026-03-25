@@ -153,7 +153,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
    */
   get excluded(): boolean {
     // Check if any heading is in excluded list
-    const excluded_headings = this.collection.settings?.excluded_headings || [];
+    const excluded_headings = (this.collection.settings?.excluded_headings as string[] | undefined) || [];
     const headings = this.data.headings || [];
 
     if (headings.some(h => excluded_headings.includes(h))) {
@@ -169,7 +169,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
    * Must meet min size and not be fully covered by sub-blocks
    */
   get should_embed(): boolean {
-    const min_chars = this.collection.settings?.min_chars || 300;
+    const min_chars = (this.collection.settings?.min_chars as number | undefined) || 300;
     if (this.size < min_chars) return false;
 
     // TODO: Check if fully covered by sub-blocks

@@ -10,8 +10,8 @@
  * Phase 4: Concurrent batch processing with configurable concurrency limit.
  */
 
-import type { EmbeddingEntity } from '../../types/entities';
-import type { EmbedModelAdapter, EmbedResult } from '../../types/models';
+import type { EmbeddingEntity } from '../types/entities';
+import type { EmbedModelAdapter, EmbedResult } from '../types/models';
 import { create_hash } from '../utils';
 // FatalError is checked by name (error.name === 'FatalError') to support both direct import
 // and test stubs. No import needed since instanceof is not used.
@@ -290,7 +290,7 @@ export class EmbeddingPipeline {
 
       if (fatal_error) {
         this.stats.outcome = 'failed';
-        this.stats.error = fatal_error.message;
+        this.stats.error = (fatal_error as Error).message;
       } else if (this.should_halt) {
         this.stats.outcome = 'halted';
       } else {

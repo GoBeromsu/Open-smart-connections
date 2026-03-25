@@ -8,6 +8,9 @@
  * Embed model configuration
  */
 export interface EmbedModelSettings {
+  /** Allow dynamic adapter sub-key access (e.g., embedSettings[adapterType]) */
+  [key: string]: unknown;
+
   /** Adapter name (transformers, openai, ollama, gemini, etc.) */
   adapter: string;
 
@@ -72,6 +75,7 @@ export interface SearchModelSettings {
  * Source (file) settings
  */
 export interface SourceSettings {
+  [key: string]: unknown;
   /** Minimum characters for a source to be embedded */
   min_chars: number;
 
@@ -95,6 +99,7 @@ export interface SourceSettings {
  * Block settings
  */
 export interface BlockSettings {
+  [key: string]: unknown;
   /** Whether to embed blocks */
   embed_blocks: boolean;
 
@@ -134,6 +139,7 @@ export type NoticeCatalog = Record<string, NoticeDefinition>;
  * Notice settings
  */
 export interface SmartNoticesSettings {
+  [key: string]: unknown;
   /** Muted notice keys */
   muted: Record<string, boolean>;
 }

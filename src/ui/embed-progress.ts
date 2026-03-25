@@ -10,7 +10,7 @@ interface EmbedProgressPlugin {
   status_state?: string;
   block_collection?: { effectiveTotal?: number; embeddedCount?: number; embeddedSourceCount?: number };
   app?: { vault?: { getMarkdownFiles?(): { length: number } } };
-  current_embed_context?: { currentSourcePath?: string | null };
+  current_embed_context?: { currentSourcePath?: string | null } | null;
 }
 
 export function renderEmbedProgress(
@@ -61,7 +61,7 @@ export function renderEmbedProgress(
     const totalBlocks = plugin.block_collection?.effectiveTotal ?? 0;
     const embeddedBlocks = plugin.block_collection?.embeddedCount ?? 0;
 
-    const notesTotal = plugin.app?.vault?.getMarkdownFiles()?.length ?? 0;
+    const notesTotal = plugin.app?.vault?.getMarkdownFiles?.()?.length ?? 0;
     const notesEmbedded = plugin.block_collection?.embeddedSourceCount ?? 0;
 
     const phase = detectPhase(embeddedBlocks, totalBlocks);

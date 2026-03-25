@@ -308,7 +308,7 @@ export default class SmartConnectionsPlugin extends Plugin {
         return;
       }
 
-      const avgVec = average_vectors(loadedBlocks.map((b) => b.vec));
+      const avgVec = average_vectors(loadedBlocks.map((b) => b.vec).filter((v): v is number[] | Float32Array => v != null));
       loadedBlocks.forEach((b) => b.evictVec?.());
 
       try {
@@ -659,13 +659,13 @@ export default class SmartConnectionsPlugin extends Plugin {
     // Obsidian does not await onunload, so we cannot use await here
     if (this._search_embed_model?.unload) {
       this._search_embed_model.unload().catch((err: unknown) => {
-        this.logger.warn('Failed to unload search embed model:', err);
+        this.logger.warn('Failed to unload search embed model', { error: err });
       });
     }
 
     if (this.embed_adapter?.unload) {
       this.embed_adapter.unload().catch((err: unknown) => {
-        this.logger.warn('Failed to unload embed model:', err);
+        this.logger.warn('Failed to unload embed model', { error: err });
       });
     }
 
@@ -681,8 +681,8 @@ export default class SmartConnectionsPlugin extends Plugin {
 
     // Fire-and-forget: saves enqueue into the same DB operation queue as close,
     // so ordering (save → save → close) is preserved by the queue.
-    if (srcAdapter) srcAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush source save failed:', e));
-    if (blkAdapter) blkAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush block save failed:', e));
+    if (srcAdapter) srcAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush source save failed', { error: e }));
+    if (blkAdapter) blkAdapter.save().catch((e: unknown) => this.logger.warn('[SC] Flush block save failed', { error: e }));
     closeNodeSqliteDatabases();
   }
 }

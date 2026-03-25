@@ -170,7 +170,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   }
 
   private renderEmbeddingModelSection(containerEl: HTMLElement): void {
-    const currentAdapter = this.getConfig('smart_sources.embed_model.adapter', 'transformers');
+    const currentAdapter = this.getConfig<string>('smart_sources.embed_model.adapter', 'transformers');
     const configAccessor = {
       getConfig: <T>(path: string, fallback: T): T => this.getConfig(path, fallback),
       setConfig: (path: string, value: unknown) => this.setConfig(path, value),
@@ -284,7 +284,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   /** Clear Upstage-specific search model when switching away from Upstage. */
   private clearUpstageSearchModelIfStale(newAdapter: string): void {
     if (newAdapter === 'upstage') return;
-    const searchModel = this.getConfig('smart_sources.search_model', null);
+    const searchModel = this.getConfig<{ adapter?: string; model_key?: string } | null>('smart_sources.search_model', null);
     if (
       searchModel?.adapter === 'upstage' &&
       searchModel?.model_key === 'embedding-query'

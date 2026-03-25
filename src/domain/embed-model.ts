@@ -4,7 +4,7 @@
  * Adapter implementations (which require obsidian) are in ui/embed-adapters/.
  */
 
-import type { EmbedModelAdapter, AdapterConfig, ModelInfo } from '../../types/models';
+import type { EmbedModelAdapter, AdapterConfig, ModelInfo } from '../types/models';
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -105,7 +105,7 @@ class EmbedAdapterRegistry {
       throw new Error(`Unknown ${reg.displayName} model: ${modelKey}. Available: ${Object.keys(reg.models).join(', ')}`);
     }
 
-    const dims = modelInfo?.dims ?? adapterSettings.dims ?? reg.defaultDims;
+    const dims = modelInfo?.dims ?? (adapterSettings.dims as number | undefined) ?? reg.defaultDims;
 
     const adapter = new reg.AdapterClass({
       adapter: adapterType,
@@ -113,7 +113,7 @@ class EmbedAdapterRegistry {
       dims,
       models: reg.models,
       settings: adapterSettings,
-      host: adapterSettings.host ?? reg.defaultHost,
+      host: (adapterSettings.host as string | undefined) ?? reg.defaultHost,
     });
 
     return { adapter, requiresLoad: reg.requiresLoad ?? false };

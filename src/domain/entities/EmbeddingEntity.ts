@@ -270,7 +270,7 @@ export class EmbeddingEntity {
    * Default: embed if size > min_chars setting
    */
   get should_embed(): boolean {
-    const min_chars = this.collection.settings?.min_chars || 300;
+    const min_chars = (this.collection.settings?.min_chars as number | undefined) || 300;
     return this.size > min_chars;
   }
 

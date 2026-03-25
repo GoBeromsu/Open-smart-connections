@@ -183,7 +183,7 @@ function renderKnownModelDropdown(deps: ModelPickerDeps, currentModelKey: string
     });
 
   // Show text input for custom model
-  if (isCustom || config.getConfig(`smart_sources.embed_model.${adapterName}.model_key`, '') === '__custom__') {
+  if (isCustom || config.getConfig<string>(`smart_sources.embed_model.${adapterName}.model_key`, '') === '__custom__') {
     let pendingCustomModel = isCustom ? currentModelKey : '';
     new Setting(containerEl)
       .setName('Custom model key')

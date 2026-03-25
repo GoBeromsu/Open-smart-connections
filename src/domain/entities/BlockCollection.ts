@@ -90,7 +90,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
       return;
     }
 
-    const max_depth = this.settings.block_heading_depth ?? 3;
+    const max_depth = (this.settings.block_heading_depth as number | undefined) ?? 3;
 
     // Parse blocks using MetadataCache sections and paragraph splitting
     const blocks = await parse_markdown_blocks(
