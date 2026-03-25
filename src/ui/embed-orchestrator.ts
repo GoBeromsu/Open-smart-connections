@@ -341,7 +341,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
   try {
     await plugin.embed_adapter.unload?.();
   } catch (error) {
-    plugin.logger.warn('Failed to unload previous embed model during switch', { error: error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error as Record<string, unknown>) : String(error as string | number | boolean | bigint | symbol) });
+    plugin.logger.warn('Failed to unload previous embed model during switch', { error: error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error) });
   }
 }
 

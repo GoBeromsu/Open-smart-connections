@@ -103,7 +103,7 @@ export class EmbedModelApiAdapter {
    */
   estimate_tokens(input: string | object): number {
     if (typeof input === 'object') input = JSON.stringify(input);
-    return Math.ceil((input as string).length / 3.7);
+    return Math.ceil(input.length / 3.7);
   }
 
   /**
@@ -137,7 +137,7 @@ export class EmbedModelApiAdapter {
       }),
     );
 
-    const valid = prepared.filter((e) => e.prepared !== null);
+    const valid = prepared.filter((e): e is typeof e & { prepared: string } => e.prepared !== null);
 
     // Build result array preserving original positions
     const results: EmbedResult[] = normalized.map((entry) => ({
@@ -170,7 +170,7 @@ export class EmbedModelApiAdapter {
     }
 
     for (const batch of request_batches) {
-      const _req = new this.req_adapter(this, batch.map((entry) => entry.prepared as string));
+      const _req = new this.req_adapter(this, batch.map((entry) => entry.prepared));
       const request_params = _req.to_platform();
       const resp = await this.request(request_params);
       const _res = new this.res_adapter(this, resp);

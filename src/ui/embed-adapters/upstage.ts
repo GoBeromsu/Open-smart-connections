@@ -64,7 +64,7 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
    */
   estimate_tokens(input: string | object): number {
     if (typeof input === 'object') input = JSON.stringify(input);
-    return Math.ceil((input as string).length / UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN);
+    return Math.ceil(input.length / UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN);
   }
 
   get safe_max_tokens(): number {
