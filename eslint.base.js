@@ -2,6 +2,7 @@
 import eslint from '@eslint/js'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import obsidianmd from 'eslint-plugin-obsidianmd'
 
 export const baseConfig = tseslint.config(
 	eslint.configs.recommended,
@@ -48,6 +49,22 @@ export const baseConfig = tseslint.config(
 		files: ['test/**/*.ts'],
 		rules: {
 			'@typescript-eslint/no-explicit-any': 'off',
+		},
+	},
+	{
+		files: ['src/**/*.ts'],
+		plugins: { obsidianmd },
+		rules: {
+			'obsidianmd/commands/no-plugin-name-in-command-name': 'error',
+			'obsidianmd/commands/no-plugin-id-in-command-id': 'error',
+			'obsidianmd/commands/no-command-in-command-name': 'error',
+			'obsidianmd/ui/sentence-case': ['error', { enforceCamelCaseLower: true }],
+			'obsidianmd/settings-tab/no-manual-html-headings': 'error',
+			'obsidianmd/hardcoded-config-path': 'error',
+			'obsidianmd/no-static-styles-assignment': 'error',
+			'obsidianmd/platform': 'error',
+			'obsidianmd/no-tfile-tfolder-cast': 'error',
+			'obsidianmd/object-assign': 'error',
 		},
 	},
 	{ ignores: ['main.js', 'dist/', 'node_modules/'] },
