@@ -146,4 +146,34 @@ describe('runEmbeddingJobNow', () => {
       priority: 31,
     });
   });
+
+  it('caps Upstage concurrency at 1 to avoid provider rate limits during indexing', async () => {
+    const { plugin } = createPlugin();
+    plugin.settings.smart_sources.embed_model.adapter = 'upstage';
+    plugin.settings.smart_sources.embed_model.upstage = { model_key: 'embedding-passage' };
+    plugin.embed_adapter = {
+      model_key: 'embedding-passage',
+      dims: 4096,
+      adapter: 'upstage',
+      unload: vi.fn(async () => {}),
+    } as any;
+
+    const process = vi.fn(async (_entities, opts) => {
+      expect(opts.concurrency).toBe(1);
+      return makeStats({
+        total: 1,
+        success: 1,
+        outcome: 'completed',
+      });
+    });
+
+    plugin.embedding_pipeline = {
+      is_active: vi.fn(() => false),
+      process,
+    } as any;
+
+    await runEmbeddingJobNow(plugin, 'unit-upstage-rate-limit-guard');
+
+    expect(process).toHaveBeenCalledTimes(1);
+  });
 });

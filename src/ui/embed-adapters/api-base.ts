@@ -71,6 +71,14 @@ export class EmbedModelApiAdapter {
   }
 
   /**
+   * Per-request token budget. Adapters can override this to leave safety
+   * headroom below the provider hard limit.
+   */
+  get request_token_budget(): number {
+    return this.max_tokens;
+  }
+
+  /**
    * Get batch size for current model
    */
   get batch_size(): number {
@@ -121,7 +129,11 @@ export class EmbedModelApiAdapter {
       normalized.map(async (entry) => {
         if (!entry.item.embed_input || entry.item.embed_input.length === 0) return { ...entry, prepared: null };
         const prepared = await this.prepare_embed_input(entry.item.embed_input);
-        return { ...entry, prepared: (typeof prepared === 'string' && prepared.length > 0) ? prepared : null };
+        if (typeof prepared !== 'string' || prepared.length === 0) {
+          return { ...entry, prepared: null, token_count: 0 };
+        }
+        const token_count = await this.count_tokens(prepared);
+        return { ...entry, prepared, token_count };
       }),
     );
 
@@ -138,23 +150,41 @@ export class EmbedModelApiAdapter {
       return results;
     }
 
-    // Create request and response adapters
-    const _req = new this.req_adapter(this, valid.map((entry) => entry.prepared as string));
-    const request_params = _req.to_platform();
+    const budget = Math.max(1, this.request_token_budget || this.max_tokens || 1);
+    const request_batches: typeof valid[] = [];
+    let current_batch: typeof valid = [];
+    let current_tokens = 0;
 
-    const resp = await this.request(request_params);
-
-    const _res = new this.res_adapter(this, resp);
-    const embeddings = _res.to_openai();
-    if (!embeddings) {
-      return results;
+    for (const entry of valid) {
+      const token_count = Math.max(1, entry.token_count || 0);
+      if (current_batch.length > 0 && current_tokens + token_count > budget) {
+        request_batches.push(current_batch);
+        current_batch = [];
+        current_tokens = 0;
+      }
+      current_batch.push(entry);
+      current_tokens += token_count;
+    }
+    if (current_batch.length > 0) {
+      request_batches.push(current_batch);
     }
 
-    // Map API results back to original positions
-    for (let i = 0; i < valid.length && i < embeddings.length; i++) {
-      const idx = valid[i].originalIndex;
-      results[idx].vec = embeddings[i].vec;
-      results[idx].tokens = embeddings[i].tokens;
+    for (const batch of request_batches) {
+      const _req = new this.req_adapter(this, batch.map((entry) => entry.prepared as string));
+      const request_params = _req.to_platform();
+      const resp = await this.request(request_params);
+      const _res = new this.res_adapter(this, resp);
+      const embeddings = _res.to_openai();
+      if (!embeddings) {
+        continue;
+      }
+
+      // Map API results back to original positions while preserving the caller's order.
+      for (let i = 0; i < batch.length && i < embeddings.length; i++) {
+        const idx = batch[i].originalIndex;
+        results[idx].vec = embeddings[i].vec;
+        results[idx].tokens = embeddings[i].tokens;
+      }
     }
 
     return results;
@@ -242,8 +272,12 @@ export class EmbedModelApiAdapter {
    * @param tokens_ct - Existing token count
    * @returns Trimmed text
    */
-  async trim_input_to_max_tokens(embed_input: string, tokens_ct: number): Promise<string | null> {
-    const max_tokens = this.max_tokens || 0;
+  async trim_input_to_max_tokens(
+    embed_input: string,
+    tokens_ct: number,
+    max_tokens_override?: number,
+  ): Promise<string | null> {
+    const max_tokens = max_tokens_override || this.max_tokens || 0;
     const reduce_ratio = (tokens_ct - max_tokens) / tokens_ct;
     const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
     let trimmed_input = embed_input.slice(0, new_length);

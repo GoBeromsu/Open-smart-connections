@@ -229,12 +229,10 @@ export class EmbeddingPipeline {
 
           } catch (error) {
             local.failed += batch.length;
-            this.clear_queue_flags(batch);
-
-            if (error instanceof Error && error.name === 'BatchIntegrityError') {
-              mark_fatal(error);
-              continue;
-            }
+            const batch_error = this.wrap_batch_error(error, batch, max_retries);
+            console.error(`[SC][Embed] ${batch_error.message}`);
+            mark_fatal(batch_error);
+            continue;
           }
 
           entities_processed += batch.length;
@@ -275,7 +273,9 @@ export class EmbeddingPipeline {
       }
 
       // Final save
-      if (!fatal_error && on_save && batches_since_save > 0) {
+      // Persist any successful batches even if a later batch failed, so API
+      // runs do not lose partial progress when we surface the error.
+      if (on_save && batches_since_save > 0) {
         batches_since_save = 0;
         try {
           await flush_save();
@@ -403,6 +403,10 @@ export class EmbeddingPipeline {
           succeeded++;
         }
 
+        if (succeeded === 0 && failed_count > 0) {
+          throw new Error('Embedding adapter returned no usable vectors for this batch');
+        }
+
         // Clear queue flags for successful entities
         batch.forEach((entity) => {
           const emb = embeddings_by_entity.get(entity.key);
@@ -416,7 +420,6 @@ export class EmbeddingPipeline {
       } catch (error) {
         // FatalError: immediate failure, no retry
         if (error instanceof Error && (error.name === 'FatalError' || error.name === 'BatchIntegrityError')) {
-          this.clear_queue_flags(batch);
           throw error;
         }
 
@@ -431,9 +434,9 @@ export class EmbeddingPipeline {
       }
     }
 
-    // All retries exhausted
-    this.clear_queue_flags(batch);
-    throw new Error(`Failed to embed batch after ${max_retries} retries: ${last_error?.message}`);
+    // All retries exhausted. Preserve queue flags so the user can retry after
+    // fixing the API issue instead of silently dropping the batch.
+    throw this.create_retry_exhausted_error(last_error, max_retries);
   }
 
   /**
@@ -547,6 +550,51 @@ export class EmbeddingPipeline {
       entity._queue_embed = false;
       entity._embed_input = null;
     }
+  }
+
+  private create_retry_exhausted_error(last_error: Error | null, max_retries: number): Error {
+    const error = new Error(
+      `Failed to embed batch after ${max_retries} retries: ${last_error?.message ?? 'unknown error'}`,
+    );
+
+    if (last_error instanceof Error) {
+      error.name = last_error.name;
+      const last_any = last_error as any;
+      if (typeof last_any.status === 'number') {
+        (error as any).status = last_any.status;
+      }
+      if (typeof last_any.retryAfterMs === 'number') {
+        (error as any).retryAfterMs = last_any.retryAfterMs;
+      }
+    }
+
+    return error;
+  }
+
+  private wrap_batch_error(
+    error: unknown,
+    batch: EmbeddingEntity[],
+    max_retries: number,
+  ): Error {
+    const exhausted = error instanceof Error
+      ? error
+      : this.create_retry_exhausted_error(new Error(String(error)), max_retries);
+    const first_key = batch[0]?.key ?? 'unknown';
+    const batch_error = new Error(
+      `Embedding batch failed (${this.model.adapter}/${this.model.model_key}) after ${max_retries} retries ` +
+      `[first=${first_key}, size=${batch.length}]: ${exhausted.message}`,
+    );
+
+    batch_error.name = exhausted.name || 'Error';
+    const exhausted_any = exhausted as any;
+    if (typeof exhausted_any.status === 'number') {
+      (batch_error as any).status = exhausted_any.status;
+    }
+    if (typeof exhausted_any.retryAfterMs === 'number') {
+      (batch_error as any).retryAfterMs = exhausted_any.retryAfterMs;
+    }
+
+    return batch_error;
   }
 
   private to_progress_snapshot(entity?: EmbeddingEntity): EmbedProgressSnapshot {

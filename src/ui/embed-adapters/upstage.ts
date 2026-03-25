@@ -12,6 +12,8 @@ import type { EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
+const UPSTAGE_SAFE_MAX_TOKENS_RATIO = 0.9;
+const UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN = 2.5;
 
 /**
  * Upstage embedding models configuration
@@ -62,16 +64,31 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
    */
   estimate_tokens(input: string | object): number {
     if (typeof input === 'object') input = JSON.stringify(input);
-    return Math.ceil((input as string).length / 3.5);
+    return Math.ceil((input as string).length / UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN);
+  }
+
+  get safe_max_tokens(): number {
+    return Math.max(1, Math.floor(this.max_tokens * UPSTAGE_SAFE_MAX_TOKENS_RATIO));
+  }
+
+  get request_token_budget(): number {
+    return this.safe_max_tokens;
   }
 
   /**
-   * Count tokens in input text using estimation
+   * Count tokens in input text. Prefer tiktoken for conservative trimming and
+   * fall back to the local estimate if the tokenizer assets are unavailable.
    * @param input - Text to tokenize
    * @returns Token count
    */
-  count_tokens(input: string): Promise<number> {
-    return Promise.resolve(this.estimate_tokens(input));
+  async count_tokens(input: string): Promise<number> {
+    const conservative_tokens = this.estimate_tokens(input);
+    try {
+      if (!this.tiktoken) await this.load_tiktoken();
+      return Math.max(this.tiktoken!.encode(input).length, conservative_tokens);
+    } catch {
+      return conservative_tokens;
+    }
   }
 
   /**
@@ -90,11 +107,30 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     const tokens = await this.count_tokens(embed_input);
-    if (tokens <= this.max_tokens) {
+    if (tokens <= this.safe_max_tokens) {
       return embed_input;
     }
 
-    return await this.trim_input_to_max_tokens(embed_input, tokens);
+    return await this.trim_input_to_max_tokens(embed_input, tokens, this.safe_max_tokens);
+  }
+
+  /**
+   * Upstage enforces a strict request-level token cap. Send one prepared input
+   * per HTTP request to avoid mixed-document batches exceeding the provider
+   * limit even when each individual input is already trimmed.
+   */
+  async embed_batch(inputs: ({ embed_input: string } | { _embed_input: string })[]): Promise<EmbedResult[]> {
+    const results: EmbedResult[] = [];
+
+    for (const input of inputs) {
+      const [result] = await super.embed_batch([input]);
+      results.push(result ?? {
+        vec: [],
+        tokens: 0,
+      });
+    }
+
+    return results;
   }
 
   /**
