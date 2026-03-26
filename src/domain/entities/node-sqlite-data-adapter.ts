@@ -7,6 +7,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import type { StatementSync } from 'node:sqlite';
+import type { Buffer } from 'node:buffer';
 import { join, dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { EmbeddingEntity } from './EmbeddingEntity';

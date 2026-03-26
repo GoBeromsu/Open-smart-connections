@@ -14,6 +14,7 @@
     "moduleResolution": "node",
     "isolatedModules": true,
     "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["DOM", "ES2018"],
     "resolveJsonModule": true,

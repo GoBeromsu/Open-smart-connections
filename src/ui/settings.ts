@@ -704,7 +704,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     }
 
     const lastKey = keys[keys.length - 1];
-    const oldValue = obj[lastKey];
+    const oldValue: unknown = obj[lastKey];
     obj[lastKey] = value;
 
     // Save settings
