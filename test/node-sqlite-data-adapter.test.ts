@@ -12,7 +12,16 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { rmSync } from 'fs';
 import { randomUUID } from 'crypto';
-import { DatabaseSync as RealDatabaseSync } from 'node:sqlite';
+
+// node:sqlite requires Node 23+. Skip this entire suite on older runtimes (e.g. CI with Node 20).
+let hasNodeSqlite = false;
+let RealDatabaseSync: typeof import('node:sqlite').DatabaseSync;
+try {
+	({ DatabaseSync: RealDatabaseSync } = await import('node:sqlite'));
+	hasNodeSqlite = true;
+} catch {
+	// node:sqlite not available
+}
 import {
   NodeSqliteDataAdapter,
   closeNodeSqliteDatabases,
@@ -76,7 +85,7 @@ function makeEntity(path: string, vec: number[] | null = null, hash = `h-${path}
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe('NodeSqliteDataAdapter', () => {
+describe.skipIf(!hasNodeSqlite)('NodeSqliteDataAdapter', () => {
   let tmpDir: string;
   let dbPath: string;
   let collection: ReturnType<typeof makeCollection>;

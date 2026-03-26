@@ -14,10 +14,18 @@ import { rmSync } from 'fs';
 import { randomUUID } from 'crypto';
 import type { EntityData } from '../src/types/entities';
 import { EmbeddingEntity } from '../src/domain/entities/EmbeddingEntity';
-import {
-  NodeSqliteDataAdapter,
-  closeNodeSqliteDatabases,
-} from '../src/domain/entities/node-sqlite-data-adapter';
+
+// node:sqlite requires Node 23+. Skip this entire suite on older runtimes (e.g. CI with Node 20).
+let hasNodeSqlite = false;
+let NodeSqliteDataAdapter: typeof import('../src/domain/entities/node-sqlite-data-adapter').NodeSqliteDataAdapter;
+let closeNodeSqliteDatabases: typeof import('../src/domain/entities/node-sqlite-data-adapter').closeNodeSqliteDatabases;
+try {
+	await import('node:sqlite');
+	({ NodeSqliteDataAdapter, closeNodeSqliteDatabases } = await import('../src/domain/entities/node-sqlite-data-adapter'));
+	hasNodeSqlite = true;
+} catch {
+	// node:sqlite not available
+}
 
 function makeFullEntity(path: string, vec: number[]) {
   return {
@@ -92,7 +100,7 @@ afterEach(() => {
   if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('upsertEmbedding write-asymmetry fix', () => {
+describe.skipIf(!hasNodeSqlite)('upsertEmbedding write-asymmetry fix', () => {
   it('is_unembedded stays false after save-with-lazy-vec cycle', async () => {
     tmpDir = join(tmpdir(), `remap-test-${randomUUID()}`);
     const vaultAdapter = { getBasePath: () => tmpDir };
