@@ -12,7 +12,10 @@ import type { EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
-const UPSTAGE_SAFE_MAX_TOKENS_RATIO = 0.9;
+// Solar server uses solar-1-mini-tokenizer (~64K vocab, Korean-optimized).
+// cl100k_base (GPT-4) undercounts Korean tokens by ~15-30%.
+// A 0.75x safety factor covers the worst-case undercount and prevents 400 errors.
+const UPSTAGE_SAFE_MAX_TOKENS_RATIO = 0.75;
 const UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN = 2.5;
 
 /**

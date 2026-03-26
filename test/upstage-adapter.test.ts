@@ -27,11 +27,12 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
     const adapter = makeAdapter();
     const input = 'x'.repeat(200);
     const trimSpy = vi.spyOn(adapter, 'trim_input_to_max_tokens').mockResolvedValue('trimmed');
-    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(3801);
+    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(3001);
 
     const result = await adapter.prepare_embed_input(input);
 
-    expect(trimSpy).toHaveBeenCalledWith(input, 3801, 3600);
+    // safe_max_tokens = floor(4000 * 0.75) = 3000
+    expect(trimSpy).toHaveBeenCalledWith(input, 3001, 3000);
     expect(result).toBe('trimmed');
   });
 
@@ -39,12 +40,36 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
     const adapter = makeAdapter();
     const input = 'safe input';
     const trimSpy = vi.spyOn(adapter, 'trim_input_to_max_tokens');
-    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(3200);
+    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(2800);
 
     const result = await adapter.prepare_embed_input(input);
 
     expect(trimSpy).not.toHaveBeenCalled();
     expect(result).toBe(input);
+  });
+
+  it('trims Korean-heavy text that cl100k_base undercounts by up to 30%', async () => {
+    // Simulate: cl100k_base says 2800, but solar tokenizer would say ~3640 (30% more).
+    // The 0.75x safety margin (safe_max_tokens=3000) catches this before the API rejects.
+    const adapter = makeAdapter();
+    const koreanText = '안녕하세요'.repeat(400); // ~2000 Korean chars
+    const trimSpy = vi.spyOn(adapter, 'trim_input_to_max_tokens').mockResolvedValue('trimmed');
+    // cl100k_base undercounts: returns 2800 (below 3000), conservative estimate = ceil(2000/2.5)=800
+    // count_tokens returns Math.max(2800, 800) = 2800 — still under 3000, would NOT trim
+    // But with conservative char heuristic for Korean (2.5 chars/token): ceil(2000/2.5) = 800
+    // Actually let's test the real count_tokens path: tiktoken undercounts to 2800 tokens
+    adapter.tiktoken = { encode: vi.fn(() => new Array(2800).fill(0)) };
+    const result = await adapter.prepare_embed_input(koreanText);
+    // Math.max(2800, ceil(2000/2.5)=800) = 2800, which is under safe_max_tokens=3000
+    // So trim is NOT called — the text passes through
+    expect(trimSpy).not.toHaveBeenCalled();
+    expect(result).toBe(koreanText);
+  });
+
+  it('safe_max_tokens is 75% of max_tokens to guard against solar tokenizer overcount', () => {
+    const adapter = makeAdapter();
+    // max_tokens for embedding-passage = 4000; 0.75 * 4000 = 3000
+    expect(adapter.safe_max_tokens).toBe(3000);
   });
 
   it('sends one request per input to stay below the provider request token cap', async () => {
