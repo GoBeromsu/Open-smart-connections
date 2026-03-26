@@ -139,7 +139,7 @@ export class LookupView extends ItemView {
 
   /* ─── Lifecycle ─── */
 
-  async onOpen(): Promise<void> {
+  onOpen(): Promise<void> {
     this.containerEl.children[1].empty();
     this.container = this.containerEl.children[1] as HTMLElement;
     this.container.addClass('osc-lookup-view');
@@ -218,10 +218,12 @@ export class LookupView extends ItemView {
 
     this.showEmpty('Type a query to search your notes semantically');
     this.searchInput.focus();
+    return Promise.resolve();
   }
 
-  async onClose(): Promise<void> {
+  onClose(): Promise<void> {
     this.container?.empty();
+    return Promise.resolve();
   }
 
   /* ─── Search ─── */

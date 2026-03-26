@@ -157,11 +157,12 @@ export class ConnectionsView extends ItemView {
     }
   }
 
-  async onClose(): Promise<void> {
+  onClose(): Promise<void> {
     this.clearAutoEmbedTimeout();
     this.cancelPendingRetry();
     this.clearEmbedProgress();
     this.container?.empty();
+    return Promise.resolve();
   }
 
   private cancelPendingRetry(): void {
