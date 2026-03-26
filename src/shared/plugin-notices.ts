@@ -135,9 +135,9 @@ export class PluginNotices {
 		return template.replace(/{{\s*([\w.-]+)\s*}}/g, (_match, key: string) => {
 			const value = params[key];
 			if (value === null || value === undefined) return '';
-			return typeof value === 'object'
-				? JSON.stringify(value as Record<string, unknown>)
-				: String(value as string | number | boolean | bigint | symbol);
+			if (typeof value === 'string') return value;
+			if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+			return JSON.stringify(value);
 		});
 	}
 

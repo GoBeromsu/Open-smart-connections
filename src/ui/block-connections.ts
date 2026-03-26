@@ -95,7 +95,7 @@ export async function getBlockConnections(
     .slice(0, limit);
 
   if (_cache.size >= CACHE_MAX_SIZE) {
-    const firstKey = _cache.keys().next().value;
+    const firstKey: string | undefined = _cache.keys().next().value as string | undefined;
     if (firstKey !== undefined) _cache.delete(firstKey);
   }
   _cache.set(filePath, { results: finalResults, ts: Date.now() });

@@ -7,9 +7,11 @@ import type SmartConnectionsPlugin from '../main';
 import { ConnectionsView } from './ConnectionsView';
 import { determine_installed_at } from '../utils';
 
+type PluginData = { installed_at?: number; last_version?: string; new_user?: boolean };
+
 export async function loadUserState(plugin: SmartConnectionsPlugin): Promise<void> {
   plugin._installed_at = null;
-  const data = await plugin.loadData();
+  const data = await plugin.loadData() as PluginData | null;
 
   if (migrateInstalledAtFromLocalStorage(plugin)) return;
 
@@ -36,7 +38,7 @@ export async function getDataJsonCreatedAt(plugin: SmartConnectionsPlugin): Prom
 
 export function migrateInstalledAtFromLocalStorage(plugin: SmartConnectionsPlugin): boolean {
   const key = 'smart_connections_new_user';
-  const stored = plugin.app.loadLocalStorage(key);
+  const stored = plugin.app.loadLocalStorage(key) as string | null;
   if (stored !== null && stored !== undefined) {
     const oldValue = stored !== 'false';
     if (!oldValue) {
@@ -51,7 +53,7 @@ export function migrateInstalledAtFromLocalStorage(plugin: SmartConnectionsPlugi
 
 export async function saveInstalledAt(plugin: SmartConnectionsPlugin, value: number): Promise<void> {
   plugin._installed_at = value;
-  const data = (await plugin.loadData()) || {};
+  const data = (await plugin.loadData() as PluginData | null) ?? {};
   data.installed_at = value;
   if ('new_user' in data) delete data.new_user;
   await plugin.saveData(data);
@@ -80,12 +82,12 @@ export async function handleNewUser(plugin: SmartConnectionsPlugin): Promise<voi
 }
 
 export async function getLastKnownVersion(plugin: SmartConnectionsPlugin): Promise<string> {
-  const data = (await plugin.loadData()) || {};
+  const data = (await plugin.loadData() as PluginData | null) ?? {};
   return data.last_version || '';
 }
 
 export async function setLastKnownVersion(plugin: SmartConnectionsPlugin, version: string): Promise<void> {
-  const data = (await plugin.loadData()) || {};
+  const data = (await plugin.loadData() as PluginData | null) ?? {};
   data.last_version = version;
   await plugin.saveData(data);
 }

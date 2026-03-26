@@ -63,10 +63,8 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
       throw new Error('Collections must be initialized before loading');
     }
 
-    await Promise.all([
-      plugin.source_collection.data_adapter.load(),
-      plugin.block_collection.data_adapter.load(),
-    ]);
+    plugin.source_collection.data_adapter.load();
+    plugin.block_collection.data_adapter.load();
     plugin.source_collection.loaded = true;
     plugin.block_collection.loaded = true;
 
@@ -148,7 +146,7 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
       try {
         await plugin.source_collection.import_source(file);
       } catch (err) {
-        plugin.logger.warn(`[SC] Failed to import ${file.path}:`, err);
+        plugin.logger.warn(`[SC] Failed to import ${file.path}:`, err as Record<string, unknown>);
       }
     }
 

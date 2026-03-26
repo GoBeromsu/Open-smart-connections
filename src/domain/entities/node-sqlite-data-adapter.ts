@@ -331,7 +331,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       this.executeSaveBatch(db, queue, deletedKeys, true);
       return Promise.resolve();
     } catch (e) {
-      return Promise.reject(e);
+      return Promise.reject(e instanceof Error ? e : new Error(String(e)));
     }
   }
 
@@ -344,7 +344,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
       this.executeSaveBatch(db, queue, pendingDeletedKeys, false);
       return Promise.resolve();
     } catch (e) {
-      return Promise.reject(e);
+      return Promise.reject(e instanceof Error ? e : new Error(String(e)));
     }
   }
 
@@ -507,7 +507,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
         meta,
       });
     } catch (e) {
-      return Promise.reject(e);
+      return Promise.reject(e instanceof Error ? e : new Error(String(e)));
     }
   }
 
@@ -582,7 +582,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
 
       const score = cos_sim_f32(queryF32, candidateVec);
       if (filter.min_score !== undefined && score < filter.min_score) continue;
-      scored.push({ entity_key: row.entity_key as string, score });
+      scored.push({ entity_key: row.entity_key, score });
     }
 
     scored.sort((a, b) => b.score - a.score);

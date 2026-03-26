@@ -4,6 +4,7 @@
  */
 
 import { requestUrl } from 'obsidian';
+import type { TiktokenBPE } from 'js-tiktoken/lite';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { TransientError, FatalError } from '../../domain/config';
 
@@ -295,7 +296,7 @@ export class EmbedModelApiAdapter {
     // Lazy load tiktoken if needed by subclass
     const { Tiktoken } = await import('js-tiktoken/lite');
     const resp = await requestUrl('https://raw.githubusercontent.com/brianpetro/jsbrains/refs/heads/main/smart-embed-model/cl100k_base.json');
-    this.tiktoken = new Tiktoken(resp.json);
+    this.tiktoken = new Tiktoken(resp.json as TiktokenBPE);
   }
 
   /**

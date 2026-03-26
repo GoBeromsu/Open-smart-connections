@@ -463,9 +463,9 @@ export default class SmartConnectionsPlugin extends Plugin {
   clearEmbedNotice(): void { _clearEmbedNotice(this); }
 
   async loadSettings(): Promise<void> {
-    const data = await this.loadData();
+    const data = await this.loadData() as Record<string, unknown> | null;
     const loadedSettings = (data?.settings && typeof data.settings === 'object')
-      ? { ...data.settings as Record<string, unknown> }
+      ? { ...(data.settings as Record<string, unknown>) }
       : {};
     let removedLegacyKeys = false;
 
@@ -552,7 +552,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    const data = await this.loadData() || {};
+    const data = (await this.loadData() as Record<string, unknown> | null) ?? {};
     data.settings = this.settings;
     await this.saveData(data);
   }

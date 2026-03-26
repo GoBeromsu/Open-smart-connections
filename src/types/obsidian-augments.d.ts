@@ -4,7 +4,7 @@
  * Eliminates the need for `as any` casts on custom event names.
  */
 
-import 'obsidian';
+import { EventRef } from 'obsidian';
 
 declare module 'obsidian' {
   interface Workspace {

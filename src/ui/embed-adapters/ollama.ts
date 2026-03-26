@@ -106,17 +106,17 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
         throw new Error(`Failed to fetch models list: ${list_resp.status}`);
       }
 
-      const list_data = list_resp.json;
+      const list_data = list_resp.json as { models?: OllamaModel[] };
       const models_raw: Record<string, unknown>[] = [];
 
-      for (const m of filter_embedding_models(list_data.models || [])) {
+      for (const m of filter_embedding_models(list_data.models ?? [])) {
         const detail_resp = await requestUrl({
           url: this.model_show_endpoint,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: m.name }),
         });
-        models_raw.push({ ...detail_resp.json, name: m.name });
+        models_raw.push({ ...(detail_resp.json as Record<string, unknown>), name: m.name });
       }
 
       this.model_data = this.parse_model_data(models_raw);

@@ -364,7 +364,7 @@ export function renderApiKeyField(
         if (debounceTimer) {
           clearTimeout(debounceTimer);
           debounceTimer = null;
-          const inputEl = setting.controlEl.querySelector('input[type="password"]') as HTMLInputElement | null;
+          const inputEl = setting.controlEl.querySelector<HTMLInputElement>('input[type="password"]');
           if (inputEl) {
             const trimmed = inputEl.value.trim();
             if (trimmed !== currentApiKey) {

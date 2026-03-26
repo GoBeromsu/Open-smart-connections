@@ -109,7 +109,7 @@ export class LmStudioEmbedAdapter extends EmbedModelApiAdapter {
       method: 'GET',
     });
 
-    const parsed = parse_lm_studio_models(resp.json);
+    const parsed = parse_lm_studio_models(resp.json as Record<string, unknown>);
     this.models = parsed;
     return parsed;
   }

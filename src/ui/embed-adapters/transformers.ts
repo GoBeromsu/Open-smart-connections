@@ -484,11 +484,12 @@ ${'</'}script></body></html>`;
    * Handle message from iframe
    */
   private _handle_message = (event: MessageEvent): void => {
-    if (event.data?.iframe_id !== this.iframe_id) return;
-    if (event.data?.type === 'fatal') {
-      const id = typeof event.data?.id === 'number' ? event.data.id : null;
-      const message = event.data?.error
-        ? String(event.data.error)
+    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown };
+    if (msg.iframe_id !== this.iframe_id) return;
+    if (msg.type === 'fatal') {
+      const id = typeof msg.id === 'number' ? msg.id : null;
+      const message = msg.error
+        ? String(msg.error)
         : 'Unknown transformers iframe fatal error';
       if (id !== null) {
         this.reject_pending(id, new Error(`Transformers iframe fatal error: ${message}`));
@@ -497,7 +498,7 @@ ${'</'}script></body></html>`;
       this.dispose_iframe();
       return;
     }
-    const { id, result, error } = event.data;
+    const { id, result, error } = msg;
     const pending = this.pending_requests.get(id);
     if (pending) {
       this.pending_requests.delete(id);
