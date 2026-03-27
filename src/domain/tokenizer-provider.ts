@@ -62,9 +62,9 @@ class CharEstimateProvider implements TokenizerProvider {
     this.safety_ratio = safety_ratio;
   }
 
-  async count_tokens(input: string): Promise<number> {
+  count_tokens(input: string): Promise<number> {
     if (typeof input === 'object') input = JSON.stringify(input);
-    return Math.ceil(input.length / this.chars_per_token);
+    return Promise.resolve(Math.ceil(input.length / this.chars_per_token));
   }
 }
 
@@ -78,7 +78,7 @@ export function createTokenizerProvider(config: TokenizerConfig, fetchJson?: Fet
       return new TiktokenProvider(
         config.model_id ?? 'cl100k_base',
         config.safety_ratio ?? 0.95,
-        fetchJson ?? (async () => ({})),
+        fetchJson ?? (() => Promise.resolve({})),
       );
     case 'char-estimate':
       return new CharEstimateProvider(
