@@ -406,7 +406,7 @@ export default class SmartConnectionsPlugin extends Plugin {
     if (!this.isCurrentLifecycle(lifecycle)) return;
     if (!await runStep('Load collections', () => this.loadCollections(), true)) return;
     if (!this.isCurrentLifecycle(lifecycle)) return;
-    this.detectStaleSourcesOnStartup();
+    await this.detectStaleSourcesOnStartup();
     if (!this.isCurrentLifecycle(lifecycle)) return;
     await runStep('Register file watchers', () => this.registerFileWatchers());
     if (!this.isCurrentLifecycle(lifecycle)) return;
@@ -599,7 +599,7 @@ export default class SmartConnectionsPlugin extends Plugin {
 
   initCollections(): Promise<void> { return _initCollections(this); }
   loadCollections(): Promise<void> { return _loadCollections(this); }
-  detectStaleSourcesOnStartup(): number { return _detectStaleSourcesOnStartup(this); }
+  detectStaleSourcesOnStartup(): Promise<number> { return _detectStaleSourcesOnStartup(this); }
 
   initPipeline(): Promise<void> { _initPipeline(this); return Promise.resolve(); }
   runEmbeddingJob(reason: string = 'Embedding run'): Promise<EmbedQueueStats | null> { return _runEmbeddingJob(this, reason); }

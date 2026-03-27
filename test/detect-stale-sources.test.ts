@@ -24,12 +24,13 @@ import { TFile } from 'obsidian';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeSource(key: string, storedMtime: number | undefined): any {
+function makeSource(key: string, storedMtime: number | undefined, file?: any): any {
   return {
     key,
     data: {
       last_read: storedMtime != null ? { mtime: storedMtime } : undefined,
     },
+    file: file ?? undefined,
   };
 }
 
@@ -110,8 +111,8 @@ describe('detectStaleSourcesOnStartup', () => {
   });
 
   it('returns 0 and does not add to pendingReImportPaths when mtime matches', async () => {
-    const source = makeSource('note.md', 5000);
     const file = makeTFile('note.md', 5000);
+    const source = makeSource('note.md', 5000, file);
     const plugin = makePlugin([source], { 'note.md': file });
 
     const count = await detectStaleSourcesOnStartup(plugin as any);
@@ -121,8 +122,8 @@ describe('detectStaleSourcesOnStartup', () => {
   });
 
   it('returns 1 and adds path to pendingReImportPaths when mtime has changed', async () => {
-    const source = makeSource('note.md', 1000);
     const file = makeTFile('note.md', 9999); // newer on disk
+    const source = makeSource('note.md', 1000, file);
     const plugin = makePlugin([source], { 'note.md': file });
 
     const count = await detectStaleSourcesOnStartup(plugin as any);
@@ -132,16 +133,16 @@ describe('detectStaleSourcesOnStartup', () => {
   });
 
   it('counts multiple stale sources and adds each to pendingReImportPaths', async () => {
-    const sources = [
-      makeSource('a.md', 100),
-      makeSource('b.md', 200),
-      makeSource('c.md', 300),
-    ];
     const vaultFiles = {
       'a.md': makeTFile('a.md', 999), // stale
       'b.md': makeTFile('b.md', 200), // fresh
       'c.md': makeTFile('c.md', 888), // stale
     };
+    const sources = [
+      makeSource('a.md', 100, vaultFiles['a.md']),
+      makeSource('b.md', 200, vaultFiles['b.md']),
+      makeSource('c.md', 300, vaultFiles['c.md']),
+    ];
     const plugin = makePlugin(sources, vaultFiles);
 
     const count = await detectStaleSourcesOnStartup(plugin as any);
@@ -153,14 +154,14 @@ describe('detectStaleSourcesOnStartup', () => {
   });
 
   it('does not add non-stale sources to pendingReImportPaths', async () => {
-    const sources = [
-      makeSource('fresh.md', 500),
-      makeSource('stale.md', 100),
-    ];
     const vaultFiles = {
       'fresh.md': makeTFile('fresh.md', 500),
       'stale.md': makeTFile('stale.md', 999),
     };
+    const sources = [
+      makeSource('fresh.md', 500, vaultFiles['fresh.md']),
+      makeSource('stale.md', 100, vaultFiles['stale.md']),
+    ];
     const plugin = makePlugin(sources, vaultFiles);
 
     await detectStaleSourcesOnStartup(plugin as any);

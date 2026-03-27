@@ -215,6 +215,8 @@ export class ConnectionsView extends ItemView {
       this.autoQueueBlockEmbedding(allFileBlocks);
       return { type: 'embedding_in_progress', path: targetPath };
     }
+
+    return { type: 'embedding_in_progress', path: targetPath };
   }
 
   private applyViewState(state: ViewState): void {

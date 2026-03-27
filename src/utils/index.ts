@@ -204,6 +204,36 @@ export function sort_by_score_ascending<T>(a: ScoredResult<T>, b: ScoredResult<T
   return sort_by_score_descending(b, a);
 }
 
+// ── Chunked processing ───────────────────────────────────────────────────────
+
+/**
+ * Process items in chunks, yielding to the event loop between chunks.
+ * Prevents main thread blocking for large collections.
+ *
+ * @param items    Input array to process
+ * @param chunkSize Number of items per chunk
+ * @param processFn Function that receives a chunk and returns results for that chunk
+ * @param yieldFn  Called between chunks (not after the last); defaults to queueMicrotask
+ * @returns Flattened array of all results
+ */
+export async function processInChunks<T, R>(
+  items: T[],
+  chunkSize: number,
+  processFn: (chunk: T[]) => Promise<R[]>,
+  yieldFn: () => Promise<void> = () => new Promise(r => queueMicrotask(r)),
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await processFn(chunk);
+    for (let j = 0; j < chunkResults.length; j++) results.push(chunkResults[j]);
+    if (i + chunkSize < items.length) {
+      await yieldFn();
+    }
+  }
+  return results;
+}
+
 // ── Path exclusion ───────────────────────────────────────────────────────────
 
 /** Default folder patterns always excluded from source discovery */
