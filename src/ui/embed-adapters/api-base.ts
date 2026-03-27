@@ -7,6 +7,7 @@ import { requestUrl } from 'obsidian';
 import type { TiktokenBPE } from 'js-tiktoken/lite';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { TransientError, FatalError } from '../../domain/config';
+import { createTokenizerProvider, type TokenizerProvider } from '../../domain/tokenizer-provider';
 
 /**
  * Base adapter class for API-based embedding models (e.g., OpenAI, Gemini)
@@ -19,6 +20,22 @@ export class EmbedModelApiAdapter {
   models: Record<string, ModelInfo>;
   settings: Record<string, unknown>;
   tiktoken: { encode(text: string): number[] } | null = null;
+  private _tokenizer_provider: TokenizerProvider | null = null;
+
+  /**
+   * Resolve tokenizer from ModelInfo.tokenizer config. Lazy-loaded.
+   */
+  get tokenizer_provider(): TokenizerProvider {
+    if (!this._tokenizer_provider) {
+      const model = this.models[this.model_key];
+      const config = model?.tokenizer ?? { type: 'char-estimate' as const };
+      this._tokenizer_provider = createTokenizerProvider(config, async (url: string): Promise<unknown> => {
+        const resp = await requestUrl(url);
+        return resp.json as unknown;
+      });
+    }
+    return this._tokenizer_provider;
+  }
 
   constructor(config: {
     adapter: string;
@@ -72,11 +89,10 @@ export class EmbedModelApiAdapter {
   }
 
   /**
-   * Per-request token budget. Adapters can override this to leave safety
-   * headroom below the provider hard limit.
+   * Per-request token budget. Derived from max_tokens * tokenizer safety_ratio.
    */
   get request_token_budget(): number {
-    return this.max_tokens;
+    return Math.max(1, Math.floor(this.max_tokens * this.tokenizer_provider.safety_ratio));
   }
 
   /**
@@ -92,8 +108,8 @@ export class EmbedModelApiAdapter {
    * @param input - Text to tokenize
    * @returns Token count
    */
-  count_tokens(input: string): Promise<number> {
-    throw new Error('count_tokens not implemented');
+  async count_tokens(input: string): Promise<number> {
+    return this.tokenizer_provider.count_tokens(input);
   }
 
   /**
@@ -271,22 +287,33 @@ export class EmbedModelApiAdapter {
    * Trim input text to satisfy max_tokens
    * @param embed_input - Input text
    * @param tokens_ct - Existing token count
-   * @returns Trimmed text
+   * @param max_tokens_override - Optional token limit override
+   * @returns Trimmed text or null if cannot trim
    */
   async trim_input_to_max_tokens(
     embed_input: string,
     tokens_ct: number,
     max_tokens_override?: number,
   ): Promise<string | null> {
-    const max_tokens = max_tokens_override || this.max_tokens || 0;
-    const reduce_ratio = (tokens_ct - max_tokens) / tokens_ct;
-    const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
-    let trimmed_input = embed_input.slice(0, new_length);
-    const last_space_index = trimmed_input.lastIndexOf(' ');
-    if (last_space_index > 0) trimmed_input = trimmed_input.slice(0, last_space_index);
-    const prepared = await this.prepare_embed_input(trimmed_input);
-    if (prepared === null) return null;
-    return prepared;
+    const max_tokens = max_tokens_override || this.request_token_budget;
+    let trimmed = embed_input;
+    let current_tokens = tokens_ct;
+    const MAX_ITERATIONS = 5;
+
+    for (let i = 0; i < MAX_ITERATIONS && current_tokens > max_tokens; i++) {
+      const reduce_ratio = (current_tokens - max_tokens) / current_tokens;
+      const aggressive_ratio = Math.min(reduce_ratio + 0.10, 0.5);
+      const new_length = Math.floor(trimmed.length * (1 - aggressive_ratio));
+      trimmed = trimmed.slice(0, new_length);
+
+      const last_space = trimmed.lastIndexOf(' ');
+      if (last_space > 0) trimmed = trimmed.slice(0, last_space);
+
+      if (trimmed.length === 0) return null;
+      current_tokens = await this.count_tokens(trimmed);
+    }
+
+    return current_tokens <= max_tokens ? trimmed : null;
   }
 
   /**

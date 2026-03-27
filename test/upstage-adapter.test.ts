@@ -12,15 +12,13 @@ function makeAdapter(): UpstageEmbedAdapter {
 }
 
 describe('UpstageEmbedAdapter.prepare_embed_input', () => {
-  it('uses the more conservative count between tiktoken and the Korean-safe char heuristic', async () => {
+  it('counts tokens using chars_per_token=2.0 from tokenizer config', async () => {
     const adapter = makeAdapter();
-    adapter.tiktoken = {
-      encode: vi.fn(() => new Array(100).fill(0)),
-    };
 
     const count = await adapter.count_tokens('x'.repeat(1000));
 
-    expect(count).toBe(400);
+    // tokenizer config: chars_per_token=2.0 → ceil(1000/2.0) = 500
+    expect(count).toBe(500);
   });
 
   it('trims before the provider hard limit to leave safety headroom', async () => {
@@ -31,8 +29,8 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
 
     const result = await adapter.prepare_embed_input(input);
 
-    // safe_max_tokens = floor(4000 * 0.75) = 3000
-    expect(trimSpy).toHaveBeenCalledWith(input, 3001, 3000);
+    // request_token_budget = floor(4000 * 0.75) = 3000; new API passes only (input, tokens)
+    expect(trimSpy).toHaveBeenCalledWith(input, 3001);
     expect(result).toBe('trimmed');
   });
 
@@ -66,10 +64,10 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
     expect(result).toBe(koreanText);
   });
 
-  it('safe_max_tokens is 75% of max_tokens to guard against solar tokenizer overcount', () => {
+  it('request_token_budget is 75% of max_tokens to guard against solar tokenizer overcount', () => {
     const adapter = makeAdapter();
-    // max_tokens for embedding-passage = 4000; 0.75 * 4000 = 3000
-    expect(adapter.safe_max_tokens).toBe(3000);
+    // max_tokens for embedding-passage = 4000; safety_ratio=0.75 → floor(4000 * 0.75) = 3000
+    expect(adapter.request_token_budget).toBe(3000);
   });
 
   it('sends one request per input to stay below the provider request token cap', async () => {

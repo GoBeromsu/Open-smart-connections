@@ -26,6 +26,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 8,191 tokens, 1,536 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
     signup_url: OPENAI_SIGNUP_URL,
+    tokenizer: { type: 'tiktoken', model_id: 'cl100k_base', safety_ratio: 0.95 },
   },
   'text-embedding-3-large': {
     model_key: 'text-embedding-3-large',
@@ -36,6 +37,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 8,191 tokens, 3,072 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
     signup_url: OPENAI_SIGNUP_URL,
+    tokenizer: { type: 'tiktoken', model_id: 'cl100k_base', safety_ratio: 0.95 },
   },
   'text-embedding-3-small-512': {
     model_key: 'text-embedding-3-small',
@@ -46,6 +48,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 8,191 tokens, 512 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
     signup_url: OPENAI_SIGNUP_URL,
+    tokenizer: { type: 'tiktoken', model_id: 'cl100k_base', safety_ratio: 0.95 },
   },
   'text-embedding-3-large-256': {
     model_key: 'text-embedding-3-large',
@@ -56,6 +59,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 8,191 tokens, 256 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
     signup_url: OPENAI_SIGNUP_URL,
+    tokenizer: { type: 'tiktoken', model_id: 'cl100k_base', safety_ratio: 0.95 },
   },
   'text-embedding-ada-002': {
     model_key: 'text-embedding-ada-002',
@@ -66,6 +70,7 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
     description: 'API, 8,191 tokens, 1,536 dim',
     endpoint: 'https://api.openai.com/v1/embeddings',
     signup_url: OPENAI_SIGNUP_URL,
+    tokenizer: { type: 'tiktoken', model_id: 'cl100k_base', safety_ratio: 0.95 },
   },
 };
 
@@ -74,16 +79,6 @@ export const OPENAI_EMBED_MODELS: Record<string, ModelInfo> = {
  * Handles token counting and API communication for OpenAI models
  */
 export class OpenAIEmbedAdapter extends EmbedModelApiAdapter {
-  /**
-   * Count tokens in input text using OpenAI's tokenizer
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
-  async count_tokens(input: string): Promise<number> {
-    if (!this.tiktoken) await this.load_tiktoken();
-    return this.tiktoken!.encode(input).length;
-  }
-
   /**
    * Prepare input text for embedding
    * Handles token limit truncation

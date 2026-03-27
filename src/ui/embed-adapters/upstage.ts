@@ -12,11 +12,6 @@ import type { EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
-// Solar server uses solar-1-mini-tokenizer (~64K vocab, Korean-optimized).
-// cl100k_base (GPT-4) undercounts Korean tokens by ~15-30%.
-// A 0.75x safety factor covers the worst-case undercount and prevents 400 errors.
-const UPSTAGE_SAFE_MAX_TOKENS_RATIO = 0.75;
-const UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN = 2.5;
 
 /**
  * Upstage embedding models configuration
@@ -42,6 +37,11 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 4000,
     description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for indexing documents',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
+    tokenizer: {
+      type: 'char-estimate',
+      chars_per_token: 2.0,
+      safety_ratio: 0.75,
+    },
   },
   'embedding-query': {
     model_key: 'embedding-query',
@@ -51,6 +51,11 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     max_tokens: 4000,
     description: 'API, 4,000 tokens, 4,096 dim — Korean-optimized, for search queries',
     endpoint: 'https://api.upstage.ai/v1/embeddings',
+    tokenizer: {
+      type: 'char-estimate',
+      chars_per_token: 2.0,
+      safety_ratio: 0.75,
+    },
   },
 };
 
@@ -60,61 +65,17 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
  */
 export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
   /**
-   * Estimate token count for input text
-   * Uses character-based estimation (3.5 chars per token for Korean/English mixed)
-   * @param input - Input to estimate tokens for
-   * @returns Estimated token count
-   */
-  estimate_tokens(input: string | object): number {
-    if (typeof input === 'object') input = JSON.stringify(input);
-    return Math.ceil(input.length / UPSTAGE_CONSERVATIVE_CHARS_PER_TOKEN);
-  }
-
-  get safe_max_tokens(): number {
-    return Math.max(1, Math.floor(this.max_tokens * UPSTAGE_SAFE_MAX_TOKENS_RATIO));
-  }
-
-  get request_token_budget(): number {
-    return this.safe_max_tokens;
-  }
-
-  /**
-   * Count tokens in input text. Prefer tiktoken for conservative trimming and
-   * fall back to the local estimate if the tokenizer assets are unavailable.
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
-  async count_tokens(input: string): Promise<number> {
-    const conservative_tokens = this.estimate_tokens(input);
-    try {
-      if (!this.tiktoken) await this.load_tiktoken();
-      return Math.max(this.tiktoken!.encode(input).length, conservative_tokens);
-    } catch {
-      return conservative_tokens;
-    }
-  }
-
-  /**
    * Prepare input text for embedding
    * Handles token limit truncation
    * @param embed_input - Raw input text
    * @returns Processed input text
    */
   async prepare_embed_input(embed_input: string): Promise<string | null> {
-    if (typeof embed_input !== 'string') {
-      throw new TypeError('embed_input must be a string');
-    }
-
-    if (embed_input.length === 0) {
-      return null;
-    }
-
+    if (typeof embed_input !== 'string') throw new TypeError('embed_input must be a string');
+    if (embed_input.length === 0) return null;
     const tokens = await this.count_tokens(embed_input);
-    if (tokens <= this.safe_max_tokens) {
-      return embed_input;
-    }
-
-    return await this.trim_input_to_max_tokens(embed_input, tokens, this.safe_max_tokens);
+    if (tokens <= this.request_token_budget) return embed_input;
+    return await this.trim_input_to_max_tokens(embed_input, tokens);
   }
 
   /**

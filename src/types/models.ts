@@ -48,6 +48,31 @@ export interface ModelInfo {
     input?: number;
     output?: number;
   };
+
+  /** Tokenizer configuration for token counting */
+  tokenizer?: TokenizerConfig;
+}
+
+/**
+ * Tokenizer strategy type.
+ * - 'tiktoken': js-tiktoken based (for OpenAI models with known encoding)
+ * - 'char-estimate': character count based estimation (when exact tokenizer unavailable)
+ */
+export type TokenizerType = 'tiktoken' | 'char-estimate';
+
+/**
+ * Tokenizer configuration embedded in ModelInfo.
+ * Declares how token counting should work for this specific model.
+ */
+export interface TokenizerConfig {
+  /** Tokenizer implementation type */
+  type: TokenizerType;
+  /** For tiktoken: encoding name (e.g., 'cl100k_base') */
+  model_id?: string;
+  /** For char-estimate: characters per token ratio. Lower = more conservative. Default: 3.7 */
+  chars_per_token?: number;
+  /** Safety ratio applied to max_tokens for effective budget. Range 0-1. Default: 0.85 */
+  safety_ratio?: number;
 }
 
 /**

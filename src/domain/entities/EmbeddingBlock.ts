@@ -172,8 +172,38 @@ export class EmbeddingBlock extends EmbeddingEntity {
     const min_chars = (this.collection.settings?.min_chars as number | undefined) || 300;
     if (this.size < min_chars) return false;
 
-    // TODO: Check if fully covered by sub-blocks
-    // For now, assume we should embed
+    // Check if this heading block is fully covered by sub-blocks.
+    // Paragraph sub-blocks (keys containing '#paragraph-') are leaf nodes —
+    // they never have sub-blocks of their own, so skip the coverage check.
+    const myKey = this.key;
+    const myTextLength = this.size;
+
+    if (myTextLength === 0 || myKey.includes('#paragraph-')) {
+      return myTextLength > 0;
+    }
+
+    // Find sub-blocks by key prefix matching
+    const prefix = myKey + '#';
+    let subBlockTextLength = 0;
+    const items = this.collection?.items as Record<string, EmbeddingBlock> | undefined;
+    if (items) {
+      for (const key of Object.keys(items)) {
+        if (key.startsWith(prefix)) {
+          const subBlock = items[key];
+          subBlockTextLength += (subBlock?.data)?.length ?? subBlock?.size ?? 0;
+        }
+      }
+    }
+
+    // If sub-blocks cover >= 90% of this block's content, skip embedding.
+    // The sub-blocks will be embedded individually with better granularity.
+    if (subBlockTextLength > 0 && myTextLength > 0) {
+      const coverage = subBlockTextLength / myTextLength;
+      if (coverage >= 0.9) {
+        return false;
+      }
+    }
+
     return true;
   }
 
