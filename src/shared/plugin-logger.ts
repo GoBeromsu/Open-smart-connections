@@ -6,7 +6,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export class PluginLogger {
 	constructor(
 		private readonly prefix: string,
-		private readonly isDebug: () => boolean = () => false,
+		private readonly isDebug: () => boolean = () => false
 	) {}
 
 	debug(message: string, data?: Record<string, unknown>): void {
@@ -23,16 +23,19 @@ export class PluginLogger {
 	}
 
 	error(message: string, error?: unknown): void {
-		let suffix = '';
-		if (error instanceof Error) {
-			suffix = ` | ${error.message}`;
-		} else if (error !== undefined && error !== null) {
-			const repr = typeof error === 'object'
-				? JSON.stringify(error as Record<string, unknown>)
-				: String(error as string | number | boolean | bigint | symbol);
-			suffix = ` | ${repr}`;
+		const detail = this.formatError(error);
+		console.error(`[${this.prefix}] error | ${message}${detail}`);
+	}
+
+	private formatError(error: unknown): string {
+		if (error === undefined || error === null) return '';
+		if (error instanceof Error) return ` | ${error.message}`;
+		if (typeof error === 'string') return ` | ${error}`;
+		try {
+			return ` | ${JSON.stringify(error)}`;
+		} catch {
+			return ` | [unserializable]`;
 		}
-		console.error(`[${this.prefix}] error | ${message}${suffix}`);
 	}
 
 	noticeError(message: string, error?: unknown): void {
@@ -42,7 +45,9 @@ export class PluginLogger {
 
 	private format(level: LogLevel, message: string, data?: Record<string, unknown>): string {
 		const pairs = data
-			? ` | ${Object.entries(data).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ')}`
+			? ` | ${Object.entries(data)
+					.map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+					.join(' ')}`
 			: '';
 		return `[${this.prefix}] ${level.padEnd(5)} | ${message}${pairs}`;
 	}

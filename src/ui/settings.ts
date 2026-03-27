@@ -727,7 +727,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
 
       plugin.notices?.show?.('embedding_model_switched');
       this.display();
-    } catch (_e) {
+    } catch {
       plugin.notices?.show?.('failed_reinitialize_model');
     }
   }

@@ -276,7 +276,7 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
 
     plugin._search_embed_model = adapter;
     plugin.logger.info(`[Init] Search model initialized (${searchModelSettings.adapter}/${searchModelSettings.model_key})`);
-  } catch (_error) {
+  } catch {
     plugin.logger.warn('[Init] Failed to initialize search model, will use indexing model');
     plugin._search_embed_model = undefined;
   }
@@ -341,7 +341,7 @@ async function unloadPreviousModel(plugin: SmartConnectionsPlugin): Promise<void
   try {
     await plugin.embed_adapter.unload?.();
   } catch (error) {
-    plugin.logger.warn('Failed to unload previous embed model during switch', { error: error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error) });
+    plugin.logger.warn('Failed to unload previous embed model during switch', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 

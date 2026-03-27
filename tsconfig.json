@@ -15,6 +15,8 @@
     "isolatedModules": true,
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
+    "useUnknownInCatchVariables": true,
+    "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["DOM", "ES2018"],
     "resolveJsonModule": true,

@@ -323,7 +323,7 @@ export class ConnectionsView extends ItemView {
     try {
       this.enqueueBlocksForEmbedding(blocks);
       void this.plugin.runEmbeddingJob('Auto embed blocks for connections view');
-    } catch (_error) {
+    } catch {
       // Auto-embed is non-critical; view will retry via embed-state-changed event
     }
     // Safety timeout: if no embed-state-changed arrives within 10s, re-derive state
@@ -471,7 +471,7 @@ export class ConnectionsView extends ItemView {
           this.enqueueBlocksForEmbedding(fileBlocks);
           await this.plugin.runEmbeddingJob('Connections view refresh');
         }
-      } catch (_e) {
+      } catch {
         // Refresh is user-initiated; failure is visible via embed state
       }
       void this.renderView(targetPath);

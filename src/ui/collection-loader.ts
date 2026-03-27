@@ -57,7 +57,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
   }
 }
 
-export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
+export function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     if (!plugin.source_collection || !plugin.block_collection) {
       throw new Error('Collections must be initialized before loading');
@@ -87,6 +87,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
       `[SC][Init]   [collections] Loaded: ${plugin.source_collection.size} sources (${plugin.source_collection.embeddedCount} embedded), ` +
       `${plugin.block_collection.size} blocks (${plugin.block_collection.embeddedCount} embedded) [model_key=${mk}]`,
     );
+    return Promise.resolve();
   } catch (error) {
     plugin.logger.error('[SC][Init]   [collections] Failed to load collections:', error);
     plugin.notices.show('failed_load_collection_data');

@@ -108,7 +108,7 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
       const parsed = this.parse_model_data(resp.json as unknown[] | Record<string, unknown>);
       this.models = parsed;
       return parsed;
-    } catch (_error) {
+    } catch {
       const fallback_id = 'text-embedding-3-small';
       return {
         [fallback_id]: {

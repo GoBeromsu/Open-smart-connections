@@ -115,7 +115,7 @@ export class LookupView extends ItemView {
       collections.map(async (collection) => {
         try {
           return await (collection as { nearest: (vec: number[], filter: SearchFilter) => Promise<ConnectionResult[]> }).nearest(queryVec, filter);
-        } catch (_error) {
+        } catch {
           return [];
         }
       }),

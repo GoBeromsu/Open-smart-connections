@@ -103,7 +103,7 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     }
   }
 
-  async load(): Promise<void> {
+  load(): void {
     this.data_adapter.load();
     this.loaded = true;
   }
