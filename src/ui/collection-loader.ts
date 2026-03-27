@@ -57,7 +57,7 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
   }
 }
 
-export function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
+export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     if (!plugin.source_collection || !plugin.block_collection) {
       throw new Error('Collections must be initialized before loading');
@@ -69,12 +69,14 @@ export function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
     plugin.block_collection.loaded = true;
 
     // Resolve runtime vault/file references for DB-loaded source entities (#49)
-    for (const source of plugin.source_collection.all) {
+    // Chunked to yield the event loop and avoid freezing Obsidian on large vaults
+    const sources = plugin.source_collection.all;
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i];
       source.vault = plugin.source_collection.vault;
       const file = plugin.app.vault.getAbstractFileByPath(source.key);
-      if (file instanceof TFile) {
-        source.file = file;
-      }
+      if (file instanceof TFile) source.file = file;
+      if ((i + 1) % 100 === 0) await new Promise(r => queueMicrotask(r));
     }
 
     plugin.source_collection.recomputeEmbeddedCount();
@@ -87,7 +89,6 @@ export function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
       `[SC][Init]   [collections] Loaded: ${plugin.source_collection.size} sources (${plugin.source_collection.embeddedCount} embedded), ` +
       `${plugin.block_collection.size} blocks (${plugin.block_collection.embeddedCount} embedded) [model_key=${mk}]`,
     );
-    return Promise.resolve();
   } catch (error) {
     plugin.logger.error('[SC][Init]   [collections] Failed to load collections:', error);
     plugin.notices.show('failed_load_collection_data');
@@ -95,16 +96,17 @@ export function loadCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   }
 }
 
-export function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin): number {
+export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin): Promise<number> {
   if (!plugin.source_collection) return 0;
   let staleCount = 0;
-  for (const source of plugin.source_collection.all) {
+  const sources = plugin.source_collection.all;
+  for (let i = 0; i < sources.length; i++) {
+    if ((i + 1) % 100 === 0) await new Promise(r => queueMicrotask(r));
+    const source = sources[i];
     const lastRead = source.data.last_read;
     if (!lastRead) continue;
-    const file = plugin.app.vault.getAbstractFileByPath(source.key);
-    if (!file || !(file instanceof TFile)) continue;
-    // Store resolved TFile on entity (#49) — vault already set in loadCollections()
-    source.file = file;
+    const file = source.file;
+    if (!file) continue;
     const mtimeMismatch = lastRead.mtime != null && file.stat.mtime !== lastRead.mtime;
     const sizeMismatch = lastRead.size != null && file.stat.size !== lastRead.size;
     if (mtimeMismatch || sizeMismatch) {
@@ -135,7 +137,7 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
   if (newFiles.length === 0) return;
 
-  const chunkSize = plugin.settings.discovery_chunk_size || 1000;
+  const chunkSize = plugin.settings.discovery_chunk_size || 100;
   const total = newFiles.length;
 
   for (let i = 0; i < total; i += chunkSize) {

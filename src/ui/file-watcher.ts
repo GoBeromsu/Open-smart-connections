@@ -51,12 +51,16 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
 
   plugin.registerEvent(
     plugin.app.workspace.on('editor-change', () => {
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !isSourceFile(activeFile, plugin)) return;
       debounceReImport(plugin);
     }),
   );
 
   plugin.registerEvent(
     plugin.app.workspace.on('active-leaf-change', () => {
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !isSourceFile(activeFile, plugin)) return;
       debounceReImport(plugin);
     }),
   );
