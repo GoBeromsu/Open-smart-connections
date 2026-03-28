@@ -72,6 +72,10 @@ export class ConnectionsView extends ItemView {
     this.registerEvent(this.app.workspace.on('open-connections:embed-ready', () => {
       void this.renderView();
     }));
+    this.registerEvent(this.app.workspace.on('open-connections:discovery-complete', () => {
+      this._needsRefresh = false;
+      void this.renderView();
+    }));
     this.registerEvent(this.app.workspace.on('open-connections:model-switched', () => {
       this.handleModelSwitched();
     }));

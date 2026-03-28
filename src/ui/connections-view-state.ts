@@ -24,12 +24,19 @@ export async function deriveConnectionsViewState(
     return { type: 'plugin_loading' };
   }
 
-  const allFileBlocks = view.plugin.block_collection.for_source(targetPath);
+  let allFileBlocks = view.plugin.block_collection.for_source(targetPath);
   if (allFileBlocks.length === 0) {
     if (view.plugin.pendingReImportPaths.has(targetPath)) {
       return { type: 'pending_import', path: targetPath };
     }
-    return { type: 'note_too_short' };
+    // Lazy block import: parse blocks on-demand for the opened file
+    const source = view.plugin.source_collection?.get(targetPath);
+    if (source) {
+      await view.plugin.block_collection.import_source_blocks(source);
+      await view.plugin.block_collection.data_adapter.save();
+      allFileBlocks = view.plugin.block_collection.for_source(targetPath);
+    }
+    if (allFileBlocks.length === 0) return { type: 'note_too_short' };
   }
 
   const embedded = allFileBlocks.filter((block) => block.has_embed());

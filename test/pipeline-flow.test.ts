@@ -72,10 +72,13 @@ function makePlugin(overrides: Partial<{
       all: blocks,
       data_adapter: { save: vi.fn(async () => {}) },
       recomputeEmbeddedCount: vi.fn(),
+      for_source: vi.fn(() => []),
+      import_source_blocks: vi.fn(async () => {}),
     },
     source_collection: {
       all: sources,
       vault: {},
+      _initializing: false,
       data_adapter: { save: vi.fn(async () => {}) },
       import_source: vi.fn(async () => {}),
       recomputeEmbeddedCount: vi.fn(),

@@ -43,11 +43,12 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
-  // Re-enable file watchers, view renders, and block parsing
-  (plugin as unknown as { _discovering?: boolean })._discovering = false;
+  // Re-enable everything — source discovery is done
+  // Blocks are imported lazily when user opens a file (connections-view-state.ts)
   plugin.source_collection._initializing = false;
+  (plugin as unknown as { _discovering?: boolean })._discovering = false;
 
-  // Recompute counts and queue embeddings ONCE after all chunks complete
+  // Recompute counts after source discovery
   plugin.source_collection.recomputeEmbeddedCount();
   plugin.block_collection.recomputeEmbeddedCount();
 
@@ -58,6 +59,8 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
       await plugin.runEmbeddingJob('[chunked-pipeline] final sweep');
     }
   }
+
+  plugin.app.workspace.trigger('open-connections:discovery-complete');
 
   plugin.logger.debug(`[SC] All ${total} new files processed`);
 

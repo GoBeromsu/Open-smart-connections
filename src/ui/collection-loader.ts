@@ -6,4 +6,5 @@
 export { syncCollectionEmbeddingContext, getEmbedAdapterSettings, resolveStorageNamespace } from './collection-embed-context';
 export { initCollections } from './collection-init';
 export { loadCollections, detectStaleSourcesOnStartup } from './collection-load';
+export { importBlocksChunked } from './collection-block-import';
 export { processNewSourcesChunked, queueUnembeddedEntities } from './collection-processing';
