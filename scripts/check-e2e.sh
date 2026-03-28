@@ -140,7 +140,7 @@ else
   CONN_RESULT='{"count":0}'
   for i in $(seq 1 15); do
     sleep 2
-    RESULT=$(eval_cmd '(function(){ var leaf = app.workspace.getLeavesOfType("open-connections-view")[0]; if (!leaf) return JSON.stringify({error: "no_leaf"}); var view = leaf.view; return JSON.stringify({count: view.results ? view.results.length : 0, file: app.workspace.getActiveFile() ? app.workspace.getActiveFile().path : "none"}); })()' || echo '{}')
+    RESULT=$(eval_cmd '(function(){ var leaf = app.workspace.getLeavesOfType("open-connections-view")[0]; if (!leaf) return JSON.stringify({error: "no_leaf"}); var view = leaf.view; return JSON.stringify({count: view.containerEl.querySelectorAll("[role=listitem]").length, file: app.workspace.getActiveFile() ? app.workspace.getActiveFile().path : "none"}); })()' || echo '{}')
 
     if [[ "$RESULT" == "FREEZE_DETECTED" ]]; then
       log "  FREEZE detected during connections check"

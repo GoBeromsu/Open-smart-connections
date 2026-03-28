@@ -138,6 +138,7 @@ export async function initializeEmbedding(
             plugin.logger.debug(`[SC][Init] Phase 3: ${queued} blocks to embed`);
             await plugin.runEmbeddingJob('[phase3] background block embed');
           }
+          plugin.app.workspace.trigger('open-connections:discovery-complete');
           plugin.logger.debug('[SC][Init] ✓ Phase 3 complete');
         })();
       }, 5000);

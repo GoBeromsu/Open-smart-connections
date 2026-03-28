@@ -130,11 +130,13 @@ export async function queryNodeSqliteNearest(
     params.push(...filter.exclude);
   }
 
+  const SQL_FETCH_CAP = 2000;
   const rows = db.prepare(`
     SELECT em.entity_key, em.vec
     FROM entity_embeddings em
     JOIN entities e ON e.entity_key = em.entity_key
     WHERE ${conditions.join(' AND ')}
+    LIMIT ${SQL_FETCH_CAP}
   `).all(...params) as unknown as NearestRow[];
   const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
   const minScore = filter.min_score;

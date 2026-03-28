@@ -6,7 +6,7 @@
  * Covers:
  *   getBlockConnections:
  *   - returns [] immediately when there are no embedded blocks
- *   - returns [] and logs a warning when the 10s timeout fires before nearest() resolves
+ *   - returns [] and logs a warning when the 30s timeout fires before nearest() resolves
  *   - returns results normally when nearest() resolves before timeout
  *   - dedupes results by source path, keeping the highest-scoring block
  *   - serves results from cache on a second call within TTL
@@ -128,7 +128,7 @@ describe('getBlockConnections', () => {
     expect(results).toHaveLength(0);
   });
 
-  it('returns [] and logs a warning when the 10s timeout fires before nearest() resolves', async () => {
+  it('returns [] and logs a warning when the 30s timeout fires before nearest() resolves', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const block = makeBlock({ key: 'note.md#h1', sourceKey: 'note.md', hasEmbed: true, vec: [1, 0, 0] });
     // nearest() never resolves during the test
@@ -136,8 +136,8 @@ describe('getBlockConnections', () => {
 
     const resultPromise = getBlockConnections(col, 'note.md');
 
-    // Advance past the 10s EMBED_TIMEOUT_MS
-    await vi.advanceTimersByTimeAsync(10_001);
+    // Advance past the 30s EMBED_TIMEOUT_MS
+    await vi.advanceTimersByTimeAsync(30_001);
     const results = await resultPromise;
 
     expect(results).toEqual([]);
