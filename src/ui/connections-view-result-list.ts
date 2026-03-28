@@ -3,6 +3,7 @@ import { setIcon } from 'obsidian';
 import type { ConnectionResult } from '../types/entities';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import type { ConnectionsView } from './ConnectionsView';
+import { registerConnectionsDomEvent } from './connections-view-dom';
 import { showResultContextMenu } from './result-context-menu';
 import { saveConnectionsSession } from './connections-view-session';
 
@@ -56,11 +57,11 @@ export function renderConnectionsResultList(
       setIcon(pinIcon, 'pin');
     }
 
-    view.registerDomEvent(item, 'click', (event) => {
-      void view.openBlockResult(fullPath, lastHeading, event);
+    registerConnectionsDomEvent(view, item, 'click', (event) => {
+      void view.openBlockResult(fullPath, lastHeading, event as MouseEvent);
     });
-    view.registerDomEvent(item, 'keydown', (event) => {
-      const keyEvent = event;
+    registerConnectionsDomEvent(view, item, 'keydown', (event) => {
+      const keyEvent = event as KeyboardEvent;
       if (keyEvent.key === 'Enter') {
         void view.openBlockResult(fullPath, lastHeading);
       } else if (keyEvent.key === 'ArrowDown') {
@@ -71,8 +72,8 @@ export function renderConnectionsResultList(
         (item.previousElementSibling as HTMLElement | null)?.focus();
       }
     });
-    view.registerDomEvent(item, 'contextmenu', (event) => {
-      showResultContextMenu(view.app, fullPath, event, {
+    registerConnectionsDomEvent(view, item, 'contextmenu', (event) => {
+      showResultContextMenu(view.app, fullPath, event as MouseEvent, {
         isPinned,
         onPin: () => {
           if (isPinned) {
@@ -90,9 +91,9 @@ export function renderConnectionsResultList(
         },
       });
     });
-    view.registerDomEvent(item, 'mouseover', (event) => {
+    registerConnectionsDomEvent(view, item, 'mouseover', (event) => {
       view.app.workspace.trigger('hover-link', {
-        event: event,
+        event: event as MouseEvent,
         source: 'open-connections-view',
         hoverParent: view,
         targetEl: item,
@@ -100,8 +101,8 @@ export function renderConnectionsResultList(
       });
     });
     item.setAttribute('draggable', 'true');
-    view.registerDomEvent(item, 'dragstart', (event) => {
-      (event).dataTransfer?.setData('text/plain', `[[${fullPath.replace(/\.md$/, '')}]]`);
+    registerConnectionsDomEvent(view, item, 'dragstart', (event) => {
+      (event as DragEvent).dataTransfer?.setData('text/plain', `[[${fullPath.replace(/\.md$/, '')}]]`);
     });
   }
 }

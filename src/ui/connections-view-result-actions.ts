@@ -3,6 +3,7 @@ import { Menu, setIcon } from 'obsidian';
 import type { ConnectionResult } from '../types/entities';
 import type { ConnectionsView } from './ConnectionsView';
 import { enqueueBlocksForEmbedding } from './connections-view-auto-embed';
+import { registerConnectionsDomEvent } from './connections-view-dom';
 import { saveConnectionsSession } from './connections-view-session';
 import { getConnectionsResultSourcePath } from './connections-view-result-list';
 
@@ -14,7 +15,7 @@ export function renderPauseButton(view: ConnectionsView, actions: HTMLElement, t
   setIcon(pauseBtn, view.session.paused ? 'play' : 'pause');
   if (view.session.paused) pauseBtn.addClass('plugin-icon-btn--active');
 
-  view.registerDomEvent(pauseBtn, 'click', () => {
+  registerConnectionsDomEvent(view, pauseBtn, 'click', () => {
     view.session.paused = !view.session.paused;
     if (view.session.paused) {
       view.session.pausedPath = targetPath;
@@ -42,7 +43,7 @@ export function renderFilterButton(
   });
   setIcon(filterBtn, 'filter');
 
-  view.registerDomEvent(filterBtn, 'click', () => {
+  registerConnectionsDomEvent(view, filterBtn, 'click', () => {
     const menu = new Menu();
     menu.addItem((item) =>
       item.setTitle('All folders').setIcon('folder').onClick(() => {
@@ -83,16 +84,18 @@ export function renderRefreshButton(view: ConnectionsView, actions: HTMLElement,
   });
   setIcon(refreshBtn, 'refresh-cw');
 
-  view.registerDomEvent(refreshBtn, 'click', async () => {
-    try {
-      const fileBlocks = view.plugin.block_collection?.for_source(targetPath) ?? [];
-      if (fileBlocks.length > 0) {
-        enqueueBlocksForEmbedding(fileBlocks);
-        await view.plugin.runEmbeddingJob('Connections view refresh');
+  registerConnectionsDomEvent(view, refreshBtn, 'click', () => {
+    void (async () => {
+      try {
+        const fileBlocks = view.plugin.block_collection?.for_source(targetPath) ?? [];
+        if (fileBlocks.length > 0) {
+          enqueueBlocksForEmbedding(fileBlocks);
+          await view.plugin.runEmbeddingJob('Connections view refresh');
+        }
+      } catch {
+        return;
       }
-    } catch {
-      return;
-    }
-    void view.renderView(targetPath);
+      void view.renderView(targetPath);
+    })();
   });
 }
