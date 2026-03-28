@@ -3,13 +3,7 @@ import type SmartConnectionsPlugin from '../main';
 import type { ConnectionResult } from '../types/entities';
 import type { LookupFilter } from './lookup-view-format';
 import { getLookupEntityCount, searchCollections } from './lookup-view-search';
-import {
-  handleLookupModelSwitched,
-  renderLookupResults,
-  showLookupEmpty,
-  showLookupError,
-  showLookupLoading,
-} from './lookup-view-render';
+import { renderLookupResults, showLookupEmpty, showLookupError, showLookupLoading } from './lookup-view-render';
 
 export const LOOKUP_VIEW_TYPE = 'open-connections-lookup';
 
@@ -159,7 +153,9 @@ export class LookupView extends ItemView {
     }
   }
 
-  private handleModelSwitched(): void { handleLookupModelSwitched(this.createRenderContext()); }
+  private handleModelSwitched(): void {
+    this.showEmpty('Embedding model changed. Results will refresh after active-model embeddings are ready.');
+  }
 
   renderResults(query: string, results: ConnectionResult[], elapsedMs?: number): void { renderLookupResults(this.createRenderContext(), query, results, elapsedMs); }
 
