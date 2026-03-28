@@ -10,7 +10,8 @@ import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingModelMeta, SearchFilter } from '../../types/entities';
 import { getEntityType } from './node-sqlite-helpers';
 import { initNodeSqliteDatabase } from './node-sqlite-registry';
-import { loadNodeSqliteEntities, loadNodeSqliteEntityVector, queryNodeSqliteNearest } from './node-sqlite-read';
+import { loadNodeSqliteEntities, loadNodeSqliteEntityVector, loadVectorIndexRows, queryNodeSqliteNearest } from './node-sqlite-read';
+import { FlatVectorIndex } from '../flat-vector-index';
 import { executeNodeSqliteSaveBatch } from './node-sqlite-save';
 import type { QueryMatch } from './node-sqlite-types';
 
@@ -24,6 +25,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
 
   private _db: DatabaseSync | null = null;
   private _closed = false;
+  private _vectorIndex: FlatVectorIndex | null = null;
 
   constructor(
     collection: EntityCollection<T>,
@@ -50,6 +52,20 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
 
   load(): void {
     loadNodeSqliteEntities(this.requireDb(), this.collection, this.entity_type);
+    this.rebuildVectorIndex();
+  }
+
+  rebuildVectorIndex(): void {
+    const modelKey = this.collection.embed_model_key;
+    const dims = this.collection.embed_model_dims;
+    if (!modelKey || modelKey === 'None' || !dims) {
+      this._vectorIndex = null;
+      return;
+    }
+    const rows = loadVectorIndexRows(this.requireDb(), modelKey, this.entity_type, dims);
+    const index = new FlatVectorIndex();
+    index.load(rows, dims);
+    this._vectorIndex = index;
   }
 
   save(): Promise<void> {
@@ -76,6 +92,11 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     filter: SearchFilter = {},
     fetchMultiplier: number = 3,
   ): Promise<QueryMatch[]> {
+    if (this._vectorIndex && this._vectorIndex.size > 0) {
+      const limit = Math.max(1, filter.limit ?? 50);
+      const fetchLimit = Math.max(limit, limit * Math.max(1, fetchMultiplier));
+      return this._vectorIndex.queryNearest(vec, filter, fetchLimit);
+    }
     return queryNodeSqliteNearest(
       this.requireDb(),
       this.collection as unknown as EntityCollection<EmbeddingEntity>,
@@ -108,6 +129,17 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
         deletedKeys,
         restoreDeletedKeys,
       );
+      if (this._vectorIndex) {
+        for (const entity of entities) {
+          if (entity.vec && entity.vec.length > 0) {
+            const f32 = entity.vec instanceof Float32Array ? entity.vec : new Float32Array(entity.vec);
+            this._vectorIndex.upsert(entity.key, f32);
+          }
+        }
+        for (const key of deletedKeys) {
+          this._vectorIndex.remove(key);
+        }
+      }
       return Promise.resolve();
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));

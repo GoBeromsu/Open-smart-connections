@@ -86,6 +86,31 @@ export function loadNodeSqliteEntityVector(
   };
 }
 
+export function loadVectorIndexRows(
+  db: DatabaseSync,
+  modelKey: string,
+  entityType: 'source' | 'block',
+  dims: number,
+): { entity_key: string; vec: Float32Array }[] {
+  const rows = db.prepare(`
+    SELECT em.entity_key, em.vec
+    FROM entity_embeddings em
+    JOIN entities e ON e.entity_key = em.entity_key
+    WHERE em.model_key = ? AND e.entity_type = ?
+      AND e.last_read_hash IS NOT NULL
+      AND em.embed_hash = e.last_read_hash
+  `).all(modelKey, entityType) as unknown as NearestRow[];
+
+  const result: { entity_key: string; vec: Float32Array }[] = [];
+  for (const row of rows) {
+    const vec = blobToF32(row.vec);
+    if (vec && vec.length === dims) {
+      result.push({ entity_key: row.entity_key, vec });
+    }
+  }
+  return result;
+}
+
 export async function queryNodeSqliteNearest(
   db: DatabaseSync,
   collection: EntityCollection<EmbeddingEntity>,
@@ -130,13 +155,11 @@ export async function queryNodeSqliteNearest(
     params.push(...filter.exclude);
   }
 
-  const SQL_FETCH_CAP = 2000;
   const rows = db.prepare(`
     SELECT em.entity_key, em.vec
     FROM entity_embeddings em
     JOIN entities e ON e.entity_key = em.entity_key
     WHERE ${conditions.join(' AND ')}
-    LIMIT ${SQL_FETCH_CAP}
   `).all(...params) as unknown as NearestRow[];
   const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
   const minScore = filter.min_score;
