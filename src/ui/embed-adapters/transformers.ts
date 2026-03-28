@@ -499,6 +499,7 @@ ${'</'}script></body></html>`;
       return;
     }
     const { id, result, error } = msg;
+    if (typeof id !== 'number') return;
     const pending = this.pending_requests.get(id);
     if (pending) {
       this.pending_requests.delete(id);

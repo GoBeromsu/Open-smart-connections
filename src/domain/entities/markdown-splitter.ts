@@ -92,8 +92,9 @@ function build_heading_ranges(headings: HeadingCache[], total_lines: number, max
 
   for (let i = 0; i < headings.length; i++) {
     const current = headings[i];
+    if (!current) continue;
 
-    while (heading_stack.length > 0 && heading_stack[heading_stack.length - 1].level >= current.level) {
+    while (heading_stack.length > 0 && (heading_stack[heading_stack.length - 1]?.level ?? -1) >= current.level) {
       heading_stack.pop();
     }
     heading_stack.push({ heading: current.heading, level: current.level });
@@ -103,8 +104,9 @@ function build_heading_ranges(headings: HeadingCache[], total_lines: number, max
     // Block ends before the next heading at the same or shallower level
     let end_line = total_lines - 1;
     for (let j = i + 1; j < headings.length; j++) {
-      if (headings[j].level <= current.level) {
-        end_line = headings[j].position.start.line - 1;
+      const nextHeading = headings[j];
+      if (nextHeading && nextHeading.level <= current.level) {
+        end_line = nextHeading.position.start.line - 1;
         break;
       }
     }
@@ -136,7 +138,8 @@ async function split_by_paragraphs(
   let paragraph_start = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().length === 0) {
+    const line = lines[i] ?? '';
+    if (line.trim().length === 0) {
       if (current_paragraph.length > 0) {
         paragraphs.push({
           text: current_paragraph.join('\n'),
@@ -147,7 +150,7 @@ async function split_by_paragraphs(
       }
       paragraph_start = i + 1;
     } else {
-      current_paragraph.push(lines[i]);
+      current_paragraph.push(line);
     }
   }
 
@@ -161,6 +164,7 @@ async function split_by_paragraphs(
 
   for (let i = 0; i < paragraphs.length; i++) {
     const para = paragraphs[i];
+    if (!para) continue;
     if (para.text.length < 100) continue;
 
     const block_key = `${source_path}#paragraph-${i + 1}`;
@@ -188,7 +192,8 @@ async function split_heading_content_by_paragraphs(
   let paragraph_start = start_line_offset + 1;
 
   for (let i = 0; i < content_lines.length; i++) {
-    const trimmed = content_lines[i].trim();
+    const line = content_lines[i] ?? '';
+    const trimmed = line.trim();
 
     // Empty line or heading marks paragraph boundary
     if (trimmed.length === 0 || trimmed.startsWith('#')) {
@@ -204,7 +209,7 @@ async function split_heading_content_by_paragraphs(
       }
       paragraph_start = start_line_offset + i + 2;
     } else {
-      current_paragraph.push(content_lines[i]);
+      current_paragraph.push(line);
     }
   }
 

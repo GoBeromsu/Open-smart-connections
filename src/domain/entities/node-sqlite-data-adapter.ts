@@ -13,7 +13,7 @@ import { mkdirSync } from 'fs';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
 import type { EntityData, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
-import { cos_sim_f32 } from '../../utils';
+import { cos_sim_f32, processInChunks } from '../../utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -516,15 +516,15 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   // query_nearest (JS-based cosine similarity)
   // -----------------------------------------------------------------------
 
-  query_nearest(
+  async query_nearest(
     vec: number[] | Float32Array,
     filter: SearchFilter = {},
     fetchMultiplier: number = 3,
   ): Promise<QueryMatch[]> {
-    if (!vec || vec.length === 0) return Promise.resolve([]);
+    if (!vec || vec.length === 0) return [];
 
     const modelKey = this.collection.embed_model_key;
-    if (!modelKey || modelKey === 'None') return Promise.resolve([]);
+    if (!modelKey || modelKey === 'None') return [];
 
     const db = this.requireDb();
     const limit = Math.max(1, filter.limit ?? 50);
@@ -575,18 +575,25 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
 
     const rows = db.prepare(sql).all(...params) as unknown as NearestRow[];
     const queryF32 = vec instanceof Float32Array ? vec : new Float32Array(vec);
-    const scored: QueryMatch[] = [];
+    const minScore = filter.min_score;
+    const scored = await processInChunks<NearestRow, QueryMatch>(
+      rows,
+      500,
+      async (chunk) => {
+        const chunkResults: QueryMatch[] = [];
+        for (const row of chunk) {
+          const candidateVec = blobToF32(row.vec);
+          if (!candidateVec || candidateVec.length !== queryF32.length) continue;
 
-    for (const row of rows) {
-      const candidateVec = blobToF32(row.vec);
-      if (!candidateVec || candidateVec.length !== queryF32.length) continue;
-
-      const score = cos_sim_f32(queryF32, candidateVec);
-      if (filter.min_score !== undefined && score < filter.min_score) continue;
-      scored.push({ entity_key: row.entity_key, score });
-    }
+          const score = cos_sim_f32(queryF32, candidateVec);
+          if (minScore !== undefined && score < minScore) continue;
+          chunkResults.push({ entity_key: row.entity_key, score });
+        }
+        return chunkResults;
+      },
+    );
 
     scored.sort((a, b) => b.score - a.score);
-    return Promise.resolve(scored.slice(0, fetchLimit));
+    return scored.slice(0, fetchLimit);
   }
 }

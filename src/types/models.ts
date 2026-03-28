@@ -48,6 +48,18 @@ export interface ModelInfo {
     input?: number;
     output?: number;
   };
+
+  /** Tokenizer configuration for token counting */
+  tokenizer?: TokenizerConfig;
+}
+
+export type TokenizerType = 'tiktoken' | 'char-estimate';
+
+export interface TokenizerConfig {
+  type: TokenizerType;
+  model_id?: string;
+  chars_per_token?: number;
+  safety_ratio?: number;
 }
 
 /**

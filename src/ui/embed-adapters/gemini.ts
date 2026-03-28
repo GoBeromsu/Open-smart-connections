@@ -27,6 +27,7 @@ export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
     endpoint:
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents',
     signup_url: GEMINI_SIGNUP_URL,
+    tokenizer: { type: 'char-estimate', chars_per_token: 3.0, safety_ratio: 0.80 },
   },
 };
 
@@ -35,16 +36,6 @@ export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
  * Handles token counting and API communication for Gemini models
  */
 export class GeminiEmbedAdapter extends EmbedModelApiAdapter {
-  /**
-   * Count tokens in input text using tokenizer
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
-  async count_tokens(input: string): Promise<number> {
-    if (!this.tiktoken) await this.load_tiktoken();
-    return this.tiktoken!.encode(input).length;
-  }
-
   /**
    * Prepare input text for embedding
    * Handles token limit truncation

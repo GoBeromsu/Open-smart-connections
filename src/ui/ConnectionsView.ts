@@ -92,8 +92,10 @@ export class ConnectionsView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.containerEl.children[1].empty();
-    this.container = this.containerEl.children[1] as HTMLElement;
+    const contentEl = this.containerEl.children[1];
+    if (!(contentEl instanceof HTMLElement)) return;
+    contentEl.empty();
+    this.container = contentEl;
     this.container.addClass('osc-connections-view');
 
     this.registerEvent(
@@ -215,6 +217,8 @@ export class ConnectionsView extends ItemView {
       this.autoQueueBlockEmbedding(allFileBlocks);
       return { type: 'embedding_in_progress', path: targetPath };
     }
+
+    return { type: 'embedding_in_progress', path: targetPath };
   }
 
   private applyViewState(state: ViewState): void {
@@ -316,7 +320,7 @@ export class ConnectionsView extends ItemView {
     if (!this.plugin.embed_ready) return;
     const firstKey = blocks[0]?.key;
     if (!firstKey) return;
-    const sourcePath = firstKey.split('#')[0];
+    const sourcePath = firstKey.split('#')[0] ?? '';
     if (this.autoEmbedRequestedForPath === sourcePath) return;
     this.autoEmbedRequestedForPath = sourcePath;
     this.clearAutoEmbedTimeout();
@@ -441,7 +445,8 @@ export class ConnectionsView extends ItemView {
       for (const r of results || []) {
         const sourcePath = (r.item as EmbeddingBlock).source_key ?? r.item.key.split('#')[0] ?? '';
         const parts = sourcePath.split('/');
-        if (parts.length > 1) folders.add(parts[0]);
+        const firstFolder = parts[0];
+        if (parts.length > 1 && firstFolder) folders.add(firstFolder);
       }
       for (const folder of Array.from(folders).sort()) {
         menu.addItem((i) =>
@@ -517,7 +522,7 @@ export class ConnectionsView extends ItemView {
 
       // Extract last heading from block key for subtitle
       const blockParts = blockKey.split('#');
-      const lastHeading = blockParts.length > 1 ? blockParts[blockParts.length - 1] : '';
+      const lastHeading = blockParts.length > 1 ? (blockParts[blockParts.length - 1] ?? '') : '';
 
       const item = list.createDiv({
         cls: `osc-result-item${isPinned ? ' osc-result-item--pinned' : ''}`,
@@ -681,8 +686,9 @@ export class ConnectionsView extends ItemView {
 
   static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
-    if (existing.length) {
-      void workspace.revealLeaf(existing[0]);
+    const existingLeaf = existing[0];
+    if (existingLeaf) {
+      void workspace.revealLeaf(existingLeaf);
     } else {
       void workspace.getRightLeaf(false)?.setViewState({
         type: CONNECTIONS_VIEW_TYPE,
@@ -693,6 +699,7 @@ export class ConnectionsView extends ItemView {
 
   static getView(workspace: Workspace): ConnectionsView | null {
     const leaves = workspace.getLeavesOfType(CONNECTIONS_VIEW_TYPE);
-    return leaves.length ? (leaves[0].view as ConnectionsView) : null;
+    const leaf = leaves[0];
+    return leaf ? (leaf.view as ConnectionsView) : null;
   }
 }

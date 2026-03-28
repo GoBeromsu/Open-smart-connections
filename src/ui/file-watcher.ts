@@ -9,7 +9,7 @@ import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { invalidateConnectionsCache } from './block-connections';
 import { isExcludedPath } from '../utils';
-import { runEmbeddingJobNow } from './embed-orchestrator';
+import { logEmbed, runEmbeddingJobNow } from './embed-orchestrator';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   function handleSourceChange(file: TFile): void {
@@ -51,12 +51,16 @@ export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
 
   plugin.registerEvent(
     plugin.app.workspace.on('editor-change', () => {
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !isSourceFile(activeFile, plugin)) return;
       debounceReImport(plugin);
     }),
   );
 
   plugin.registerEvent(
     plugin.app.workspace.on('active-leaf-change', () => {
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (!activeFile || !isSourceFile(activeFile, plugin)) return;
       debounceReImport(plugin);
     }),
   );
@@ -131,7 +135,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
     }
 
     const staleQueued = plugin.queueUnembeddedEntities();
-    plugin.logEmbed('reimport-queue-ready', {
+    logEmbed(plugin, 'reimport-queue-ready', {
       reason: 'run-reimport',
       current: staleQueued,
       total: staleQueued,

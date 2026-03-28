@@ -12,6 +12,7 @@
 
 import type { EmbeddingEntity } from '../types/entities';
 import type { EmbedModelAdapter, EmbedResult } from '../types/models';
+import type { EmbedRunOutcome } from '../types/embed-runtime';
 import { create_hash } from '../utils';
 // FatalError is checked by name (error.name === 'FatalError') to support both direct import
 // and test stubs. No import needed since instanceof is not used.
@@ -35,8 +36,6 @@ export interface EmbedQueueStats {
   outcome: EmbedRunOutcome;
   error?: string;
 }
-
-export type EmbedRunOutcome = 'completed' | 'halted' | 'failed';
 
 /**
  * Embedding pipeline options
@@ -172,7 +171,7 @@ export class EmbeddingPipeline {
         if (batch_index >= batches.length) return 0;
         let skipped = 0;
         for (let i = batch_index; i < batches.length; i++) {
-          skipped += batches[i].length;
+          skipped += batches[i]?.length ?? 0;
         }
         batch_index = batches.length;
         return skipped;
@@ -194,6 +193,9 @@ export class EmbeddingPipeline {
 
           const current_batch_index = batch_index++;
           const batch = batches[current_batch_index];
+          if (!batch) {
+            continue;
+          }
 
           // Prepare embed inputs for this batch
           await Promise.all(batch.map(e => e.get_embed_input()));
@@ -210,11 +212,12 @@ export class EmbeddingPipeline {
             local.skipped += skipped_in_batch.length;
             this.clear_queue_flags(skipped_in_batch);
             entities_processed += batch.length;
+            const lastBatchEntity = batch[batch.length - 1];
             if (on_progress) {
               on_progress(
                 entities_processed,
                 to_embed.length,
-                this.to_progress_snapshot(batch[batch.length - 1]),
+                this.to_progress_snapshot(lastBatchEntity),
               );
             }
             continue;
@@ -236,11 +239,12 @@ export class EmbeddingPipeline {
           }
 
           entities_processed += batch.length;
+          const lastReadyEntity = ready[ready.length - 1];
           if (on_progress) {
             on_progress(
               entities_processed,
               to_embed.length,
-              this.to_progress_snapshot(ready[ready.length - 1]),
+              this.to_progress_snapshot(lastReadyEntity),
             );
           }
 
@@ -602,7 +606,7 @@ export class EmbeddingPipeline {
       return { current_key: null, current_source_path: null };
     }
     const current_key = entity.key ?? null;
-    const current_source_path = current_key ? current_key.split('#')[0] : null;
+    const current_source_path = current_key ? (current_key.split('#')[0] ?? null) : null;
     return { current_key, current_source_path };
   }
 }

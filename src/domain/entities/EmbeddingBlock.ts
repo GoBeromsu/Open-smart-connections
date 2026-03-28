@@ -6,6 +6,8 @@
 
 import { EmbeddingEntity } from './EmbeddingEntity';
 import type { BlockData, EntityData } from '../../types/entities';
+import { getParagraphCoverage } from './block-paragraph-coverage';
+import type { BlockCollection } from './BlockCollection';
 import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingSource } from './EmbeddingSource';
 
@@ -106,7 +108,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
    * Get source key (file path)
    */
   get source_key(): string {
-    return this.key.split('#')[0];
+    return this.key.split('#')[0] ?? '';
   }
 
   /**
@@ -172,8 +174,16 @@ export class EmbeddingBlock extends EmbeddingEntity {
     const min_chars = (this.collection.settings?.min_chars as number | undefined) || 300;
     if (this.size < min_chars) return false;
 
-    // TODO: Check if fully covered by sub-blocks
-    // For now, assume we should embed
+    if (this.size === 0 || this.key.includes('#paragraph-')) {
+      return this.size > 0;
+    }
+
+    const collection = this.collection as BlockCollection;
+    const paragraphCoverage = getParagraphCoverage(collection, this.source_key, this.key);
+    if (paragraphCoverage > 0 && paragraphCoverage / this.size >= 0.9) {
+      return false;
+    }
+
     return true;
   }
 

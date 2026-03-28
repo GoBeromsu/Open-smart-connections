@@ -7,6 +7,7 @@ import { requestUrl } from 'obsidian';
 import type { TiktokenBPE } from 'js-tiktoken/lite';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { TransientError, FatalError } from '../../domain/config';
+import { createTokenizerProvider, type TokenizerProvider } from '../../domain/tokenizer-provider';
 
 /**
  * Base adapter class for API-based embedding models (e.g., OpenAI, Gemini)
@@ -19,6 +20,19 @@ export class EmbedModelApiAdapter {
   models: Record<string, ModelInfo>;
   settings: Record<string, unknown>;
   tiktoken: { encode(text: string): number[] } | null = null;
+  private _tokenizer_provider: TokenizerProvider | null = null;
+
+  get tokenizer_provider(): TokenizerProvider {
+    if (!this._tokenizer_provider) {
+      const model = this.models[this.model_key];
+      const config = model?.tokenizer ?? { type: 'char-estimate' as const };
+      this._tokenizer_provider = createTokenizerProvider(config, async (url: string): Promise<unknown> => {
+        const response = await requestUrl(url);
+        return response.json as unknown;
+      });
+    }
+    return this._tokenizer_provider;
+  }
 
   constructor(config: {
     adapter: string;
@@ -76,7 +90,7 @@ export class EmbedModelApiAdapter {
    * headroom below the provider hard limit.
    */
   get request_token_budget(): number {
-    return this.max_tokens;
+    return Math.max(1, Math.floor(this.max_tokens * this.tokenizer_provider.safety_ratio));
   }
 
   /**
@@ -92,8 +106,8 @@ export class EmbedModelApiAdapter {
    * @param input - Text to tokenize
    * @returns Token count
    */
-  count_tokens(input: string): Promise<number> {
-    throw new Error('count_tokens not implemented');
+  async count_tokens(input: string): Promise<number> {
+    return this.tokenizer_provider.count_tokens(input);
   }
 
   /**
@@ -121,6 +135,7 @@ export class EmbedModelApiAdapter {
     const normalized: { item: EmbedInput; originalIndex: number }[] = [];
     for (let i = 0; i < inputs.length; i++) {
       const raw = inputs[i];
+      if (!raw) continue;
       const embed_input = 'embed_input' in raw ? raw.embed_input : raw._embed_input;
       normalized.push({ item: { ...raw, embed_input } as EmbedInput, originalIndex: i });
     }
@@ -182,9 +197,14 @@ export class EmbedModelApiAdapter {
 
       // Map API results back to original positions while preserving the caller's order.
       for (let i = 0; i < batch.length && i < embeddings.length; i++) {
-        const idx = batch[i].originalIndex;
-        results[idx].vec = embeddings[i].vec;
-        results[idx].tokens = embeddings[i].tokens;
+        const entry = batch[i];
+        const embedding = embeddings[i];
+        if (!entry || !embedding) continue;
+        const idx = entry.originalIndex;
+        const result = results[idx];
+        if (!result) continue;
+        result.vec = embedding.vec;
+        result.tokens = embedding.tokens;
       }
     }
 
@@ -262,7 +282,8 @@ export class EmbedModelApiAdapter {
    */
   async test_api_key(): Promise<void> {
     const resp = await this.embed_batch([{ embed_input: 'test' }]);
-    if (!Array.isArray(resp) || resp.length === 0 || !resp[0].vec) {
+    const first = Array.isArray(resp) ? resp[0] : undefined;
+    if (!first?.vec) {
       throw new Error('API key validation failed');
     }
   }
@@ -278,15 +299,24 @@ export class EmbedModelApiAdapter {
     tokens_ct: number,
     max_tokens_override?: number,
   ): Promise<string | null> {
-    const max_tokens = max_tokens_override || this.max_tokens || 0;
-    const reduce_ratio = (tokens_ct - max_tokens) / tokens_ct;
-    const new_length = Math.floor(embed_input.length * (1 - reduce_ratio));
-    let trimmed_input = embed_input.slice(0, new_length);
-    const last_space_index = trimmed_input.lastIndexOf(' ');
-    if (last_space_index > 0) trimmed_input = trimmed_input.slice(0, last_space_index);
-    const prepared = await this.prepare_embed_input(trimmed_input);
-    if (prepared === null) return null;
-    return prepared;
+    const max_tokens = max_tokens_override || this.request_token_budget;
+    let trimmed = embed_input;
+    let current_tokens = tokens_ct;
+
+    for (let i = 0; i < 5 && current_tokens > max_tokens; i++) {
+      const reduce_ratio = (current_tokens - max_tokens) / current_tokens;
+      const aggressive_ratio = Math.min(reduce_ratio + 0.10, 0.5);
+      const new_length = Math.floor(trimmed.length * (1 - aggressive_ratio));
+      trimmed = trimmed.slice(0, new_length);
+
+      const last_space = trimmed.lastIndexOf(' ');
+      if (last_space > 0) trimmed = trimmed.slice(0, last_space);
+      if (trimmed.length === 0) return null;
+
+      current_tokens = await this.count_tokens(trimmed);
+    }
+
+    return current_tokens <= max_tokens ? trimmed : null;
   }
 
   /**

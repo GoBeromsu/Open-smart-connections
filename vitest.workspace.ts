@@ -1,7 +1,8 @@
 import { defineWorkspace } from 'vitest/config';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const __dirname = new URL('.', import.meta.url).pathname;
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineWorkspace([
   {

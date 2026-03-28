@@ -48,16 +48,6 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
   }
 
   /**
-   * Estimate token count for input text
-   * OpenRouter does not expose a tokenizer, so we use a character-based heuristic
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
-  count_tokens(input: string): Promise<number> {
-    return Promise.resolve(this.estimate_tokens(input));
-  }
-
-  /**
    * Prepare input text and ensure it fits within max_tokens
    * @param embed_input - Raw input text
    * @returns Processed input text

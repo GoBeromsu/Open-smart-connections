@@ -130,10 +130,13 @@ export class EmbeddingEntity {
    * Get embedding data for current model
    */
   protected get embedding_data(): EmbeddingData {
-    if (!this.data.embeddings[this.embed_model_key]) {
-      this.data.embeddings[this.embed_model_key] = { vec: [] };
+    const existing = this.data.embeddings[this.embed_model_key];
+    if (existing) {
+      return existing;
     }
-    return this.data.embeddings[this.embed_model_key];
+    const created: EmbeddingData = { vec: [] };
+    this.data.embeddings[this.embed_model_key] = created;
+    return created;
   }
 
   // Getters and setters
@@ -177,8 +180,9 @@ export class EmbeddingEntity {
    */
   set vec(vec: number[] | Float32Array | null) {
     if (vec === null) {
-      if (this.data.embeddings[this.embed_model_key]) {
-        this.data.embeddings[this.embed_model_key].vec = [];
+      const embedding = this.data.embeddings[this.embed_model_key];
+      if (embedding) {
+        embedding.vec = [];
       }
     } else {
       this.embedding_data.vec = vec;

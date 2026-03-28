@@ -65,7 +65,7 @@ export class LookupView extends ItemView {
   }
 
   private formatPath(key: string): string {
-    const filePath = key.split('#')[0];
+    const filePath = key.split('#')[0] ?? '';
     const parts = filePath.replace(/\.md$/, '').split('/');
     if (parts.length <= 1) return '';
     return parts.slice(0, -1).join(' > ');
@@ -140,8 +140,12 @@ export class LookupView extends ItemView {
   /* ─── Lifecycle ─── */
 
   onOpen(): Promise<void> {
-    this.containerEl.children[1].empty();
-    this.container = this.containerEl.children[1] as HTMLElement;
+    const contentEl = this.containerEl.children[1];
+    if (!(contentEl instanceof HTMLElement)) {
+      return Promise.resolve();
+    }
+    contentEl.empty();
+    this.container = contentEl;
     this.container.addClass('osc-lookup-view');
 
     // Search wrapper
@@ -309,10 +313,11 @@ export class LookupView extends ItemView {
 
     for (let index = 0; index < results.length; index++) {
       const result = results[index];
+      if (!result) continue;
       const score = result.score ?? result.sim ?? 0;
       const key = result.item?.key ?? '';
       const name = this.formatTitle(key);
-      const fullPath = key.split('#')[0];
+      const fullPath = key.split('#')[0] ?? '';
       const path = this.formatPath(key);
       const blockIndicator = this.formatBlockIndicator(key);
       const pctScore = Math.round(score * 100);
@@ -439,8 +444,9 @@ export class LookupView extends ItemView {
 
   static open(workspace: Workspace): void {
     const existing = workspace.getLeavesOfType(LOOKUP_VIEW_TYPE);
-    if (existing.length) {
-      void workspace.revealLeaf(existing[0]);
+    const existingLeaf = existing[0];
+    if (existingLeaf) {
+      void workspace.revealLeaf(existingLeaf);
     } else {
       void workspace.getRightLeaf(false)?.setViewState({
         type: LOOKUP_VIEW_TYPE,
