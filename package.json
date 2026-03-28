@@ -13,6 +13,7 @@
     "typecheck:watch": "tsc --noEmit -p tsconfig.typecheck.json --watch",
     "test": "vitest run --workspace vitest.workspace.ts",
     "test:watch": "vitest --workspace vitest.workspace.ts",
+    "verify:test-vault": "node scripts/verify-test-vault.mjs",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "ci": "pnpm run build && pnpm run lint && pnpm run test",
