@@ -11,13 +11,12 @@ import {
 } from './api-base';
 import type { AdapterConfig, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
-
-export const OLLAMA_SIGNUP_URL = 'https://ollama.com/download';
-
-interface OllamaModel {
-  name: string;
-  [key: string]: unknown;
-}
+import {
+  filter_embedding_models,
+  OLLAMA_SIGNUP_URL,
+  type OllamaModel,
+  parse_ollama_model_data,
+} from './ollama-models';
 
 /**
  * Adapter for Ollama's local embedding API
@@ -109,51 +108,11 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
         models_raw.push({ ...(detail_resp.json as Record<string, unknown>), name: m.name });
       }
 
-      this.model_data = this.parse_model_data(models_raw);
+      this.model_data = parse_ollama_model_data(models_raw, this.max_tokens);
       this.models = this.model_data;
     }
 
     return this.model_data;
-  }
-
-  /**
-   * Parse model data from Ollama API response
-   * @param model_data - Raw model data from Ollama
-   * @returns Map of model objects with capabilities and limits
-   */
-  parse_model_data(model_data: Record<string, unknown>[]): Record<string, ModelInfo> {
-    if (!Array.isArray(model_data)) {
-      return {};
-    }
-
-    if (model_data.length === 0) {
-      return {
-        no_models_available: {
-          model_key: 'no_models_available',
-          model_name: 'No models currently available',
-        },
-      };
-    }
-
-    return model_data.reduce<Record<string, ModelInfo>>((acc, model) => {
-      const info = (model.model_info || {}) as Record<string, unknown>;
-      const ctx = Object.entries(info).find(([k]) => k.includes('context_length'))?.[1] as
-        | number
-        | undefined;
-      const dims = Object.entries(info).find(([k]) => k.includes('embedding_length'))?.[1] as
-        | number
-        | undefined;
-      const name = model.name as string;
-
-      acc[name] = {
-        model_key: name,
-        model_name: name,
-        max_tokens: ctx || this.max_tokens,
-        dims,
-        description: (model.description as string) || `Model: ${name}`,
-      };
-      return acc;
-    }, {});
   }
 }
 
@@ -198,20 +157,6 @@ class OllamaEmbedResponseAdapter extends EmbedModelResponseAdapter {
       tokens,
     }));
   }
-}
-
-/**
- * Filter to extract embedding models from Ollama model list
- * @param models - Array of models from Ollama
- * @returns Filtered array of embedding models
- */
-export function filter_embedding_models(models: OllamaModel[]): OllamaModel[] {
-  if (!Array.isArray(models)) {
-    throw new TypeError('models must be an array');
-  }
-  return models.filter((mod) =>
-    ['embed', 'embedding', 'bge'].some((keyword) => mod.name.toLowerCase().includes(keyword)),
-  );
 }
 
 // Self-register
