@@ -39,8 +39,8 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     endpoint: 'https://api.upstage.ai/v1/embeddings',
     tokenizer: {
       type: 'char-estimate',
-      chars_per_token: 2.0,
-      safety_ratio: 0.75,
+      chars_per_token: 1.2,
+      safety_ratio: 0.9,
     },
   },
   'embedding-query': {
@@ -53,8 +53,8 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     endpoint: 'https://api.upstage.ai/v1/embeddings',
     tokenizer: {
       type: 'char-estimate',
-      chars_per_token: 2.0,
-      safety_ratio: 0.75,
+      chars_per_token: 1.2,
+      safety_ratio: 0.9,
     },
   },
 };

@@ -12,23 +12,23 @@ function makeAdapter(): UpstageEmbedAdapter {
 }
 
 describe('UpstageEmbedAdapter.prepare_embed_input', () => {
-  it('counts tokens using chars_per_token=2.0 from tokenizer config', async () => {
+  it('counts tokens using chars_per_token=1.2 from tokenizer config', async () => {
     const adapter = makeAdapter();
 
     const count = await adapter.count_tokens('x'.repeat(1000));
 
-    expect(count).toBe(500);
+    expect(count).toBe(834);
   });
 
   it('trims before the provider hard limit to leave safety headroom', async () => {
     const adapter = makeAdapter();
     const input = 'x'.repeat(200);
     const trimSpy = vi.spyOn(adapter, 'trim_input_to_max_tokens').mockResolvedValue('trimmed');
-    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(3001);
+    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(3601);
 
     const result = await adapter.prepare_embed_input(input);
 
-    expect(trimSpy).toHaveBeenCalledWith(input, 3001);
+    expect(trimSpy).toHaveBeenCalledWith(input, 3601);
     expect(result).toBe('trimmed');
   });
 
@@ -44,9 +44,9 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
     expect(result).toBe(input);
   });
 
-  it('request_token_budget is 75% of max_tokens to guard against solar tokenizer overcount', () => {
+  it('request_token_budget is 90% of max_tokens for Korean-optimized safety margin', () => {
     const adapter = makeAdapter();
-    expect(adapter.request_token_budget).toBe(3000);
+    expect(adapter.request_token_budget).toBe(3600);
   });
 
   it('sends one request per input to stay below the provider request token cap', async () => {
