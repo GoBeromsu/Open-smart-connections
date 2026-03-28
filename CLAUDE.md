@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Open Smart Connections is an Obsidian plugin (TypeScript, esbuild) that uses local embeddings to surface semantically related notes. It provides a **Connections** view showing notes related to the current file and a **Lookup** view for semantic search across the vault. Embedding runs in-browser via a Web Worker using Transformers.js (WebGPU with WASM fallback).
+Open Smart Connections is an Obsidian plugin (TypeScript, esbuild) that uses local embeddings to surface semantically related notes. It provides a **Connections** view showing notes related to the current file and a **Lookup** view for semantic search across the vault. Embedding runs in-browser via a srcdoc iframe using Transformers.js (WebGPU Metal-3 confirmed, WASM fallback). Vector search uses an in-memory `FlatVectorIndex` (contiguous Float32Array, 5-15ms queries).
 
 ## Build Commands
 
@@ -24,7 +24,7 @@ pnpm run typecheck:watch  # tsc --noEmit --watch
 The build process (`esbuild.js`):
 1. Bundles `src/main.ts` to `dist/main.js` using esbuild (CJS format, ES2018 target)
 2. Syncs `manifest.json` version from `package.json`
-3. Copies `manifest.json`, `src/styles.css`, and `embed-worker.js` to `dist/`
+3. Copies `manifest.json` and `src/styles.css` to `dist/`
 4. In watch mode, copies output to vaults listed in `DESTINATION_VAULTS` env var and touches `.hotreload`
 
 ## Release
@@ -98,8 +98,11 @@ src/
     ├── settings-migration.ts, debounce-controller.ts
     └── styles.base.css
 
-worker/
-└── embed-worker.ts           # Web Worker for Transformers.js (WebGPU/WASM)
+scripts/
+├── check-freeze.sh            # Autoresearch harness: UI freeze detection
+├── check-webgpu.sh            # Autoresearch harness: WebGPU activation
+├── check-connections.sh       # Autoresearch harness: Connections View results
+└── check-e2e.sh               # Autoresearch harness: full pipeline
 
 test/
 ├── *.test.ts                 # Vitest unit/integration tests
@@ -183,7 +186,7 @@ pnpm vitest run test/notices.test.ts
 | `src/ui/ConnectionsView.ts` | Connections panel (related notes) |
 | `src/ui/LookupView.ts` | Semantic search panel |
 | `src/ui/embed-adapters/` | Provider adapters (transformers, openai, ollama, etc.) |
-| `worker/embed-worker.ts` | Transformers.js Web Worker |
+| `src/domain/flat-vector-index.ts` | In-memory Float32Array vector index (cosine similarity, 5-15ms) |
 | `esbuild.js` | Build config (CSS/markdown plugins, vault copy) |
 
 ## Resources
