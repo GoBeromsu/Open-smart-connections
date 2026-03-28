@@ -107,6 +107,17 @@ export function renderBlockSettings(containerEl: HTMLElement, config: SettingsCo
 
 export function renderViewSettings(containerEl: HTMLElement, config: SettingsConfigAccessor): void {
   new Setting(containerEl)
+    .setName('Highlight threshold')
+    .setDesc('Results above this similarity score are highlighted with your accent color')
+    .addSlider((slider) => {
+      slider
+        .setLimits(0.5, 0.95, 0.05)
+        .setValue(config.getConfig('smart_view_filter.highlight_threshold', 0.8))
+        .setDynamicTooltip()
+        .onChange((value) => config.setConfig('smart_view_filter.highlight_threshold', value));
+    });
+
+  new Setting(containerEl)
     .setName('Show full path')
     .setDesc('Display folder path in result titles')
     .addToggle((toggle) => {

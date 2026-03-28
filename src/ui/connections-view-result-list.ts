@@ -4,6 +4,7 @@ import type { ConnectionResult } from '../types/entities';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import type { ConnectionsView } from './ConnectionsView';
 import { registerConnectionsDomEvent } from './connections-view-dom';
+import { scoreTierFor } from './lookup-view-format';
 import { showResultContextMenu } from './result-context-menu';
 import { saveConnectionsSession } from './connections-view-session';
 
@@ -39,11 +40,10 @@ export function renderConnectionsResultList(
     });
     item.style.setProperty('--osc-result-delay', `${Math.min(index * 25, 500)}ms`);
 
-    const scoreBadge = item.createSpan({ cls: 'osc-score' });
+    const threshold = view.plugin.settings?.smart_view_filter?.highlight_threshold ?? 0.8;
+    const tier = scoreTierFor(score, threshold);
+    const scoreBadge = item.createSpan({ cls: `osc-score osc-score--${tier}` });
     scoreBadge.setText(`${scorePercent}%`);
-    if (score >= 0.85) scoreBadge.addClass('osc-score--high');
-    else if (score >= 0.7) scoreBadge.addClass('osc-score--medium');
-    else scoreBadge.addClass('osc-score--low');
 
     const content = item.createDiv({ cls: 'osc-result-content' });
     content.createSpan({ text: name, cls: 'osc-result-title' });

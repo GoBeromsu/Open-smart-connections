@@ -122,6 +122,9 @@ export interface ViewFilterSettings {
 
   /** Whether to show full file paths */
   show_full_path: boolean;
+
+  /** Similarity score threshold (0-1) above which results are highlighted with accent color */
+  highlight_threshold: number;
 }
 
 /**

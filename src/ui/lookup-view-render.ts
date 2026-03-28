@@ -86,7 +86,8 @@ export function renderLookupResults(
     const score = result.score ?? result.sim ?? 0;
     const key = result.item?.key ?? '';
     const fullPath = key.split('#')[0] ?? '';
-    const tier = scoreTierFor(score);
+    const threshold = view.plugin.settings?.smart_view_filter?.highlight_threshold ?? 0.8;
+    const tier = scoreTierFor(score, threshold);
     const item = createDiv(list, {
       cls: 'osc-lookup-result',
       attr: {

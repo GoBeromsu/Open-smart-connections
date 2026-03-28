@@ -3,9 +3,9 @@ import type { ConnectionResult } from '../types/entities';
 export type LookupFilter = 'all' | 'notes' | 'blocks';
 export type ScoreTier = 'high' | 'medium' | 'low';
 
-export function scoreTierFor(score: number): ScoreTier {
-  if (score >= 0.85) return 'high';
-  if (score >= 0.7) return 'medium';
+export function scoreTierFor(score: number, highlightThreshold = 0.85): ScoreTier {
+  if (score >= highlightThreshold) return 'high';
+  if (score >= highlightThreshold - 0.15) return 'medium';
   return 'low';
 }
 

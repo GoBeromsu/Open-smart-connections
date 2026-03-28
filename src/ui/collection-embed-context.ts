@@ -13,6 +13,7 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
       plugin.source_collection.embed_model_key = newModelKey;
     }
     plugin.source_collection.embed_model_dims = modelDims;
+    plugin.source_collection.data_adapter.rebuildVectorIndex();
   }
 
   if (plugin.block_collection) {
@@ -24,6 +25,7 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
       plugin.block_collection.embed_model_key = newModelKey;
     }
     plugin.block_collection.embed_model_dims = modelDims;
+    plugin.block_collection.data_adapter.rebuildVectorIndex();
   }
 }
 

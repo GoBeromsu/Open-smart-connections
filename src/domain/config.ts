@@ -87,6 +87,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     expanded_view: false,
     render_markdown: true,
     show_full_path: false,
+    highlight_threshold: 0.8,
   },
 
   smart_notices: {

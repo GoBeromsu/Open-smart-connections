@@ -15,6 +15,7 @@ declare module 'obsidian' {
     on(name: 'open-connections:embed-progress', callback: (payload: EmbedProgressEventPayload) => void, ctx?: unknown): EventRef;
     on(name: 'open-connections:model-switched', callback: (payload?: unknown) => void, ctx?: unknown): EventRef;
     on(name: 'open-connections:settings-changed', callback: (payload: { key: string; oldValue: unknown; newValue: unknown }) => void, ctx?: unknown): EventRef;
+    on(name: 'open-connections:discovery-complete', callback: () => void, ctx?: unknown): EventRef;
 
     trigger(name: 'open-connections:core-ready'): void;
     trigger(name: 'open-connections:embed-ready'): void;
@@ -22,6 +23,7 @@ declare module 'obsidian' {
     trigger(name: 'open-connections:embed-progress', payload: EmbedProgressEventPayload): void;
     trigger(name: 'open-connections:model-switched', payload?: unknown): void;
     trigger(name: 'open-connections:settings-changed', payload: { key: string; oldValue: unknown; newValue: unknown }): void;
+    trigger(name: 'open-connections:discovery-complete'): void;
 
     // Obsidian built-in events used by our views
     trigger(name: 'hover-link', payload: { event: MouseEvent; source: string; hoverParent: unknown; targetEl: HTMLElement; linktext: string }): void;
