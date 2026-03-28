@@ -3,6 +3,10 @@ import { embedAdapterRegistry } from '../../domain/embed-model';
 import { errorMessage } from '../../utils';
 import './register-embed-adapters';
 
+function shouldDeferAdapterLoad(adapterType: string): boolean {
+  return adapterType === 'transformers';
+}
+
 export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<void> {
   try {
     const embedSettings = plugin.settings.smart_sources.embed_model;
@@ -17,7 +21,11 @@ export async function initEmbedModel(plugin: SmartConnectionsPlugin): Promise<vo
     );
 
     if (requiresLoad && typeof (adapter as unknown as { load?: () => Promise<void> }).load === 'function') {
-      await (adapter as unknown as { load: () => Promise<void> }).load();
+      if (shouldDeferAdapterLoad(adapterType)) {
+        plugin.logger.info(`[Init] Embed model created (${adapterType}/${modelKey}) — load deferred to first use`);
+      } else {
+        await (adapter as unknown as { load: () => Promise<void> }).load();
+      }
     }
 
     plugin.embed_adapter = adapter;
@@ -73,7 +81,13 @@ export async function initSearchEmbedModel(plugin: SmartConnectionsPlugin): Prom
     );
 
     if (requiresLoad && typeof (adapter as unknown as { load?: () => Promise<void> }).load === 'function') {
-      await (adapter as unknown as { load: () => Promise<void> }).load();
+      if (shouldDeferAdapterLoad(searchModelSettings.adapter)) {
+        plugin.logger.info(
+          `[Init] Search model created (${searchModelSettings.adapter}/${searchModelSettings.model_key}) — load deferred to first use`,
+        );
+      } else {
+        await (adapter as unknown as { load: () => Promise<void> }).load();
+      }
     }
 
     plugin._search_embed_model = adapter;

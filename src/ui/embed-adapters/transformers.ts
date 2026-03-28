@@ -51,6 +51,12 @@ export class TransformersEmbedAdapter {
   get models(): Record<string, ModelInfo> { return this.config.models || TRANSFORMERS_EMBED_MODELS; }
   get settings(): Record<string, unknown> { return this.config.settings; }
 
+  private async ensure_loaded(): Promise<void> {
+    if (this.loaded) return;
+    console.debug('[Transformers Adapter] Lazy-loading model on first use...');
+    await this.load();
+  }
+
   async load(): Promise<void> {
     if (this.iframe && this.loaded) return;
     if (this.iframe && !this.loaded) await this.unload();
@@ -69,6 +75,7 @@ export class TransformersEmbedAdapter {
   }
 
   async count_tokens(input: string): Promise<number> {
+    await this.ensure_loaded();
     const result = await this.send_message('count_tokens', input) as { tokens: number };
     return result.tokens;
   }
@@ -77,6 +84,7 @@ export class TransformersEmbedAdapter {
     const { results, valid_inputs, valid_indexes } = build_transformers_batch_results(inputs);
     if (valid_inputs.length === 0) return results;
 
+    await this.ensure_loaded();
     const embedded = await this.send_message('embed_batch', { inputs: valid_inputs }) as EmbedResult[];
     for (let i = 0; i < valid_indexes.length && i < embedded.length; i++) {
       const idx = valid_indexes[i];

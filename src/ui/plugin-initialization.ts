@@ -94,6 +94,8 @@ export async function initializeEmbedding(
   lifecycle: number = plugin._lifecycle_epoch,
 ): Promise<void> {
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  if (!isCurrentLifecycle(plugin, lifecycle)) return;
 
   const start = performance.now();
   plugin.logger.debug('[SC][Init] ▶ Phase 2: Embedding initialization');
