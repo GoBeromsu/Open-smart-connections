@@ -30,6 +30,7 @@ export class TransformersEmbedAdapter {
     unload: 10000,
     count_tokens: 20000,
     embed_batch: 180000,
+    get_gpu_diag: 5000,
   };
 
   constructor(
@@ -100,6 +101,11 @@ export class TransformersEmbedAdapter {
     return results;
   }
 
+  async get_gpu_diag(): Promise<unknown> {
+    if (!this.iframe?.contentWindow) return { error: 'iframe not available' };
+    return this.send_message('get_gpu_diag');
+  }
+
   get_model_info(model_key?: string): ModelInfo | undefined {
     return this.models[model_key || this.model_key];
   }
@@ -115,8 +121,12 @@ export class TransformersEmbedAdapter {
   }
 
   private _handle_message = (event: MessageEvent): void => {
-    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown };
+    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown; message?: string };
     if (msg.iframe_id !== this.iframe_id) return;
+    if (msg.type === 'log') {
+      console.debug(String(msg.message ?? ''));
+      return;
+    }
     if (msg.type === 'fatal') {
       const message = msg.error ? String(msg.error) : 'Unknown transformers iframe fatal error';
       if (typeof msg.id === 'number') {

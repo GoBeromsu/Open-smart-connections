@@ -44,7 +44,6 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
   }
 
   // Re-enable everything — source discovery is done
-  // Blocks are imported lazily when user opens a file (connections-view-state.ts)
   plugin.source_collection._initializing = false;
   (plugin as unknown as { _discovering?: boolean })._discovering = false;
 

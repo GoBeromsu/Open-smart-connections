@@ -4,6 +4,7 @@ import {
   initCollections,
   loadCollections,
   processNewSourcesChunked,
+  importBlocksChunked,
   queueUnembeddedEntities,
 } from './collection-loader';
 import { debounceReImport, registerFileWatchers } from './file-watcher';
@@ -123,6 +124,24 @@ export async function initializeEmbedding(
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
 
     plugin.logger.debug(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - start).toFixed(0)}ms`);
+
+    // Phase 3: Background block import — deferred so UI stays responsive
+    if (!plugin._unloading && isCurrentLifecycle(plugin, lifecycle)) {
+      setTimeout(() => {
+        void (async () => {
+          if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
+          plugin.logger.debug('[SC][Init] ▶ Phase 3: Background block import');
+          await importBlocksChunked(plugin);
+          if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
+          const queued = queueUnembeddedEntities(plugin);
+          if (queued > 0 && plugin.embedding_pipeline) {
+            plugin.logger.debug(`[SC][Init] Phase 3: ${queued} blocks to embed`);
+            await plugin.runEmbeddingJob('[phase3] background block embed');
+          }
+          plugin.logger.debug('[SC][Init] ✓ Phase 3 complete');
+        })();
+      }, 5000);
+    }
   } catch (error) {
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
     plugin.init_errors.push({ phase: 'initializeEmbedding', error: error as Error });

@@ -3,13 +3,31 @@ let pipeline = null;
 let tokenizer = null;
 let current_model_key = null;
 let processing_message = false;
+let gpu_diag = { backend: 'none', logs: [] };
+function gpu_log(msg) {
+  console.log(msg);
+  if (gpu_diag.logs.length >= 50) gpu_diag.logs.shift();
+  gpu_diag.logs.push(msg);
+}
 
 async function is_webgpu_available() {
-  if (!('gpu' in navigator)) return false;
+  if (!('gpu' in navigator)) {
+    gpu_log('[SC:GPU] navigator.gpu not available');
+    return false;
+  }
   try {
     const adapter = await navigator.gpu.requestAdapter();
-    return !!adapter;
-  } catch(e) { return false; }
+    if (adapter) {
+      const info = adapter.info || {};
+      gpu_log('[SC:GPU] is_webgpu_available: true, arch=' + (info.architecture || 'unknown') + ', vendor=' + (info.vendor || 'unknown'));
+      return true;
+    }
+    gpu_log('[SC:GPU] is_webgpu_available: false (no adapter)');
+    return false;
+  } catch(e) {
+    gpu_log('[SC:GPU] is_webgpu_available: false, error=' + (e && e.message ? e.message : String(e)));
+    return false;
+  }
 }
 
 async function load_transformers_with_fallback(model_key, use_gpu) {
@@ -32,15 +50,21 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
   }
 
   let last_error = null;
+  let final_backend = 'none';
   for (const config of configs) {
     const MAX_ATTEMPTS = 3;
+    gpu_log('[SC:GPU] trying config: ' + JSON.stringify(config));
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
         pipeline = await createPipeline('feature-extraction', model_key, config);
+        final_backend = config.device === 'webgpu' ? 'webgpu' : 'wasm';
+        gpu_diag.backend = final_backend;
+        gpu_log('[SC:GPU] config SUCCESS: ' + JSON.stringify(config));
         break;
       } catch (err) {
         last_error = err;
         const message = (err && err.message) ? String(err.message) : String(err);
+        gpu_log('[SC:GPU] config FAIL: ' + JSON.stringify(config) + ' attempt=' + attempt + ' error=' + message);
         const lc = message.toLowerCase();
         const is_transient = message.includes('Failed to fetch') || lc.includes('networkerror') || lc.includes('cdn') || lc.includes('cors') || lc.includes('err_connection');
         if (attempt < MAX_ATTEMPTS && is_transient) {
@@ -51,6 +75,7 @@ async function load_transformers_with_fallback(model_key, use_gpu) {
     }
     if (pipeline) break;
   }
+  gpu_log('[SC:GPU] final backend: ' + final_backend);
 
   if (!pipeline) {
     const last_message = (last_error && last_error.message) ? String(last_error.message) : String(last_error || '');
@@ -145,6 +170,9 @@ async function process_message(data) {
         processing_message = true;
         result = await count_tokens(params);
         processing_message = false;
+        break;
+      case 'get_gpu_diag':
+        result = gpu_diag;
         break;
       default:
         throw new Error('Unknown method: ' + method);

@@ -4,6 +4,14 @@ export function create_transformers_srcdoc(iframe_id: string): string {
   return `<html><body><script type="module">
 ${EMBED_CONNECTOR}
 const IFRAME_ID = '${iframe_id}';
+const _origLog = console.log;
+console.log = function(...args) {
+  _origLog.apply(console, args);
+  const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  if (msg.startsWith('[SC:GPU]')) {
+    window.parent.postMessage({ iframe_id: IFRAME_ID, type: 'log', message: msg }, '*');
+  }
+};
 function post_fatal(error, id = null) {
   const message = error instanceof Error
     ? (error.stack || error.message || String(error))
