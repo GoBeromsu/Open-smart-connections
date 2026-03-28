@@ -122,7 +122,7 @@ export async function initializeEmbedding(
     }
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
 
-    plugin.logger.debug(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - start).toFixed(0)}ms)`);
+    plugin.logger.debug(`[SC][Init] ✓ Phase 2 complete (${(performance.now() - start).toFixed(0)}ms`);
   } catch (error) {
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
     plugin.init_errors.push({ phase: 'initializeEmbedding', error: error as Error });

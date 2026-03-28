@@ -43,6 +43,8 @@ export function initNodeSqliteDatabase(
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('PRAGMA wal_autocheckpoint = 0');
+  db.exec('PRAGMA mmap_size = 67108864');
   ensureSchema(db);
   openDatabases.set(absoluteDbPath, { db, closed: false });
   return db;

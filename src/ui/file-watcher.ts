@@ -13,6 +13,7 @@ import { logEmbed, runEmbeddingJobNow } from './embed-orchestrator';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   function handleSourceChange(file: TFile): void {
+    if ((plugin as unknown as { _discovering?: boolean })._discovering) return;
     if (isSourceFile(file, plugin)) {
       invalidateConnectionsCache(file.path);
       queueSourceReImport(plugin, file.path);

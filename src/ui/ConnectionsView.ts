@@ -109,6 +109,10 @@ export class ConnectionsView extends ItemView {
   async renderView(targetPath?: string): Promise<void> {
     const gen = ++this._renderGen;
     if (!this.container) return;
+    if ((this.plugin as unknown as { _discovering?: boolean })._discovering) {
+      this._needsRefresh = true;
+      return;
+    }
     if (typeof this.container.checkVisibility === 'function' && !this.container.checkVisibility()) {
       this._needsRefresh = true;
       return;

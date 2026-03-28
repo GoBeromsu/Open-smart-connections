@@ -1,6 +1,8 @@
 import type SmartConnectionsPlugin from '../main';
 import { isExcludedPath } from '../utils';
 
+const DISCOVERY_CHUNK = 50;
+
 export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): Promise<void> {
   if (!plugin.source_collection?.vault || !plugin.block_collection) return;
 
@@ -13,12 +15,16 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
   if (newFiles.length === 0) return;
 
-  const chunkSize = plugin.settings.discovery_chunk_size || 100;
   const total = newFiles.length;
+  plugin.logger.debug(`[SC] Discovering ${total} new files (chunk=${DISCOVERY_CHUNK})`);
 
-  for (let index = 0; index < total; index += chunkSize) {
+  // Suppress file-watcher re-imports, view renders, and block parsing during initial discovery
+  (plugin as unknown as { _discovering?: boolean })._discovering = true;
+  plugin.source_collection._initializing = true;
+
+  for (let index = 0; index < total; index += DISCOVERY_CHUNK) {
     if (plugin._unloading) return;
-    const chunk = newFiles.slice(index, index + chunkSize);
+    const chunk = newFiles.slice(index, index + DISCOVERY_CHUNK);
 
     for (const file of chunk) {
       if (plugin._unloading) return;
@@ -31,19 +37,19 @@ export async function processNewSourcesChunked(plugin: SmartConnectionsPlugin): 
 
     await plugin.source_collection.data_adapter.save();
     await plugin.block_collection.data_adapter.save();
-    plugin.source_collection.recomputeEmbeddedCount();
-    plugin.block_collection.recomputeEmbeddedCount();
 
-    const queued = queueUnembeddedEntities(plugin);
-    const processed = Math.min(index + chunkSize, total);
-    if (queued > 0 && plugin.embedding_pipeline) {
-      await plugin.runEmbeddingJob(`[chunked-pipeline] ${processed}/${total}`);
-    }
-
+    const processed = Math.min(index + DISCOVERY_CHUNK, total);
     plugin.logger.debug(`[SC] Processed ${processed}/${total} files`);
-    plugin.refreshStatus?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
+
+  // Re-enable file watchers, view renders, and block parsing
+  (plugin as unknown as { _discovering?: boolean })._discovering = false;
+  plugin.source_collection._initializing = false;
+
+  // Recompute counts and queue embeddings ONCE after all chunks complete
+  plugin.source_collection.recomputeEmbeddedCount();
+  plugin.block_collection.recomputeEmbeddedCount();
 
   if (!plugin._unloading) {
     const remaining = queueUnembeddedEntities(plugin);

@@ -210,10 +210,9 @@ describe('processNewSourcesChunked', () => {
     await processNewSourcesChunked(plugin);
 
     expect(plugin.source_collection.import_source).toHaveBeenCalledTimes(3);
-    // 1 chunk + 1 final sweep = 2 calls
-    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(2);
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(1, '[chunked-pipeline] 3/3');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(2, '[chunked-pipeline] final sweep');
+    // Embedding job runs once after all chunks complete (final sweep only)
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(1);
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledWith('[chunked-pipeline] final sweep');
   });
 
   it('processes files in multiple chunks when N > chunk_size', async () => {
@@ -231,12 +230,9 @@ describe('processNewSourcesChunked', () => {
 
     await processNewSourcesChunked(plugin);
 
-    // 7 files / chunk_size 3 = 3 chunks (3+3+1) + 1 final sweep = 4 total
-    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(4);
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(1, '[chunked-pipeline] 3/7');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(2, '[chunked-pipeline] 6/7');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(3, '[chunked-pipeline] 7/7');
-    expect(plugin.runEmbeddingJob).toHaveBeenNthCalledWith(4, '[chunked-pipeline] final sweep');
+    // Embedding job runs once after all chunks complete (final sweep only)
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(1);
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledWith('[chunked-pipeline] final sweep');
   });
 
   it('handles exact chunk boundaries without skipping or adding extra chunks', async () => {
@@ -255,7 +251,8 @@ describe('processNewSourcesChunked', () => {
     await processNewSourcesChunked(plugin);
 
     expect(plugin.source_collection.import_source).toHaveBeenCalledTimes(6);
-    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(3);
+    // Embedding job runs once after all chunks complete (final sweep only)
+    expect(plugin.runEmbeddingJob).toHaveBeenCalledTimes(1);
     expect((plugin.runEmbeddingJob as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]).toContain('final sweep');
   });
 
