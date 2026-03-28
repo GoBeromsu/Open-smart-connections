@@ -563,18 +563,43 @@ ${'</'}script></body></html>`;
    * Generate embeddings for multiple inputs
    */
   async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
-    const normalized_inputs = inputs
-      .map((item) => {
-        const embed_input = 'embed_input' in item ? item.embed_input : item._embed_input;
-        return { ...item, embed_input } as EmbedInput;
-      })
-      .filter((item) => (item.embed_input?.length ?? 0) > 0);
+    const normalized_inputs = inputs.map((item, index) => {
+      const embed_input = 'embed_input' in item ? item.embed_input : item._embed_input;
+      return {
+        item: { ...item, embed_input } as EmbedInput,
+        original_index: index,
+      };
+    });
 
-    if (normalized_inputs.length === 0) {
-      return [];
+    const results: EmbedResult[] = normalized_inputs.map((entry) => ({
+      ...entry.item,
+      vec: [],
+      tokens: 0,
+    } as EmbedResult));
+
+    const valid_inputs = normalized_inputs.filter((entry) => (entry.item.embed_input?.length ?? 0) > 0);
+    if (valid_inputs.length === 0) {
+      return results;
     }
 
-    return await this.send_message('embed_batch', { inputs: normalized_inputs }) as EmbedResult[];
+    const embedded = await this.send_message(
+      'embed_batch',
+      { inputs: valid_inputs.map((entry) => entry.item) },
+    ) as EmbedResult[];
+
+    for (let i = 0; i < valid_inputs.length && i < embedded.length; i++) {
+      const entry = valid_inputs[i];
+      const embedding = embedded[i];
+      if (!entry || !embedding) continue;
+      const result = results[entry.original_index];
+      if (!result) continue;
+      result.vec = embedding.vec;
+      result.tokens = embedding.tokens;
+      result.key = embedding.key ?? result.key;
+      result.index = embedding.index ?? result.index;
+    }
+
+    return results;
   }
 
   /**

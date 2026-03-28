@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Workspace, debounce } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Workspace, debounce, setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import type { ConnectionResult } from '../types/entities';
 import type { LookupFilter } from './lookup-view-format';
@@ -60,7 +60,7 @@ export class LookupView extends ItemView {
 
     const searchWrapper = this.container.createDiv({ cls: 'osc-lookup-search-wrapper' });
     const searchIconEl = searchWrapper.createDiv({ cls: 'osc-lookup-search-icon' });
-    searchIconEl.setAttribute('data-icon', 'search');
+    setIcon(searchIconEl, 'search');
     this.searchInput = searchWrapper.createEl('input', {
       type: 'text',
       placeholder: 'Search notes semantically...',
@@ -71,7 +71,7 @@ export class LookupView extends ItemView {
       cls: 'osc-lookup-clear-btn',
       attr: { 'aria-label': 'Clear search' },
     });
-    this.clearBtn.setAttribute('data-icon', 'x');
+    setIcon(this.clearBtn, 'x');
 
     this.filterChipsEl = this.container.createDiv({ cls: 'osc-lookup-filters' });
     for (const filter of [
