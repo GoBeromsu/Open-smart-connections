@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { embedAdapterRegistry } from '../src/domain/embed-model';
 import { initEmbedModel } from '../src/ui/embed-orchestrator';
 
 function createPluginStub() {
@@ -41,5 +42,39 @@ describe('initEmbedModel', () => {
     expect(plugin.logger.info).toHaveBeenCalledWith(
       expect.stringContaining('load deferred to first use'),
     );
+  });
+
+  it('still eagerly loads non-transformers adapters that require load()', async () => {
+    const load = vi.fn(async () => {});
+    const adapter = {
+      adapter: 'custom',
+      model_key: 'custom-model',
+      dims: 1,
+      load,
+    };
+    vi.spyOn(embedAdapterRegistry, 'createAdapter').mockReturnValue({
+      adapter: adapter as any,
+      requiresLoad: true,
+    });
+
+    const plugin = {
+      settings: {
+        smart_sources: {
+          embed_model: {
+            adapter: 'custom',
+            custom: { model_key: 'custom-model' },
+          },
+        },
+      },
+      getEmbedAdapterSettings: vi.fn(() => ({ model_key: 'custom-model' })),
+      logger: { info: vi.fn(), error: vi.fn() },
+      notices: { show: vi.fn() },
+      embed_adapter: undefined,
+    } as any;
+
+    await initEmbedModel(plugin);
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(plugin.embed_adapter).toBe(adapter);
   });
 });
