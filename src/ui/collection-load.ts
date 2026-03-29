@@ -20,7 +20,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
     await processInChunks(
       plugin.source_collection.all,
       CHUNK_SIZE,
-      async (chunk) => {
+      (chunk) => {
         for (const source of chunk) {
           source.vault = plugin.source_collection!.vault;
           const file = plugin.app.vault.getAbstractFileByPath(source.key);
@@ -54,7 +54,7 @@ export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin
   await processInChunks(
     plugin.source_collection.all,
     CHUNK_SIZE,
-    async (chunk) => {
+    (chunk) => {
       for (const source of chunk) {
         const lastRead = source.data.last_read;
         if (!lastRead) continue;

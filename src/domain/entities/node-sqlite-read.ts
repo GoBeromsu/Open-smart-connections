@@ -167,7 +167,7 @@ export async function queryNodeSqliteNearest(
   const scored = await processInChunks<NearestRow, QueryMatch>(
     rows,
     500,
-    async (chunk) => {
+    (chunk) => {
       const chunkResults: QueryMatch[] = [];
       for (const row of chunk) {
         const candidateVec = blobToF32(row.vec);
