@@ -6,6 +6,8 @@
 
 import { EmbeddingEntity } from './EmbeddingEntity';
 import type { BlockData, EntityData } from '../../types/entities';
+import { getParagraphCoverage } from './block-paragraph-coverage';
+import type { BlockCollection } from './BlockCollection';
 import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingSource } from './EmbeddingSource';
 
@@ -106,7 +108,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
    * Get source key (file path)
    */
   get source_key(): string {
-    return this.key.split('#')[0];
+    return this.key.split('#')[0] ?? '';
   }
 
   /**
@@ -172,36 +174,14 @@ export class EmbeddingBlock extends EmbeddingEntity {
     const min_chars = (this.collection.settings?.min_chars as number | undefined) || 300;
     if (this.size < min_chars) return false;
 
-    // Check if this heading block is fully covered by sub-blocks.
-    // Paragraph sub-blocks (keys containing '#paragraph-') are leaf nodes —
-    // they never have sub-blocks of their own, so skip the coverage check.
-    const myKey = this.key;
-    const myTextLength = this.size;
-
-    if (myTextLength === 0 || myKey.includes('#paragraph-')) {
-      return myTextLength > 0;
+    if (this.size === 0 || this.key.includes('#paragraph-')) {
+      return this.size > 0;
     }
 
-    // Find sub-blocks by key prefix matching
-    const prefix = myKey + '#';
-    let subBlockTextLength = 0;
-    const items = this.collection?.items as Record<string, EmbeddingBlock> | undefined;
-    if (items) {
-      for (const key of Object.keys(items)) {
-        if (key.startsWith(prefix)) {
-          const subBlock = items[key];
-          subBlockTextLength += (subBlock?.data)?.length ?? subBlock?.size ?? 0;
-        }
-      }
-    }
-
-    // If sub-blocks cover >= 90% of this block's content, skip embedding.
-    // The sub-blocks will be embedded individually with better granularity.
-    if (subBlockTextLength > 0 && myTextLength > 0) {
-      const coverage = subBlockTextLength / myTextLength;
-      if (coverage >= 0.9) {
-        return false;
-      }
+    const collection = this.collection as BlockCollection;
+    const paragraphCoverage = getParagraphCoverage(collection, this.source_key, this.key);
+    if (paragraphCoverage > 0 && paragraphCoverage / this.size >= 0.9) {
+      return false;
     }
 
     return true;

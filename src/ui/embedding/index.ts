@@ -1,0 +1,10 @@
+export { saveCollections } from './collection-persistence';
+export { clearEmbedNotice, showEmbeddingFailureNotice, updateEmbedNotice } from './embed-notices';
+export { emitEmbedProgress } from './embed-progress-events';
+export { initEmbedModel, initSearchEmbedModel, getModelLoadTimeoutMs } from './init-embed-model';
+export { initPipeline } from './init-pipeline';
+export { logEmbed } from './log-embed';
+export { getActiveEmbeddingContext, getCurrentModelInfo, publishEmbedContext } from './model-info';
+export { reembedStaleEntities, runEmbeddingJob, scheduleFollowupRun } from './run-embedding-job';
+export { runEmbeddingJobNow } from './run-embedding-job-now';
+export { switchEmbeddingModel } from './switch-embedding-model';

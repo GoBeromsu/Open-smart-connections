@@ -5,6 +5,7 @@
 
 import { setIcon } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
+import { getCurrentModelInfo } from './embed-orchestrator';
 import { ConnectionsView } from './ConnectionsView';
 
 let cachedVaultTag = '';
@@ -70,7 +71,7 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
     return;
   }
 
-  const model = plugin.getCurrentModelInfo();
+  const model = getCurrentModelInfo(plugin);
   const modelTag = `${model.adapter}/${model.modelKey}`;
   const ctx = plugin.current_embed_context;
   const vaultTag = getVaultTag(plugin);

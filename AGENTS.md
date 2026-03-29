@@ -1,10 +1,10 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-25 | Updated: 2026-03-25 -->
+<!-- Generated: 2026-03-25 | Updated: 2026-03-28 -->
 
 # open-connections
 
 ## Purpose
-Open Smart Connections — Obsidian plugin that uses local embeddings (Transformers.js via Web Worker, WebGPU/WASM) to surface semantically related notes. Provides a **Connections** view (related notes) and **Lookup** view (semantic search). Embedding runs in-browser with no external API required.
+Open Smart Connections — Obsidian plugin that uses local embeddings (Transformers.js via srcdoc iframe, WebGPU Metal-3 confirmed) to surface semantically related notes. Provides a **Connections** view (related notes) and **Lookup** view (semantic search). Embedding runs in-browser with no external API required.
 
 ## Key Files
 
@@ -14,13 +14,15 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 | `src/domain/config.ts` | DEFAULT_SETTINGS, NOTICE_CATALOG, error classes |
 | `src/domain/embed-model.ts` | EmbedModel + EmbedAdapterRegistry |
 | `src/domain/embedding-pipeline.ts` | Batch embedding pipeline |
+| `src/domain/flat-vector-index.ts` | In-memory Float32Array vector index — cosine similarity search (5-15ms, yields every 1000 vectors) |
 | `src/ui/ConnectionsView.ts` | Related notes panel (ItemView) |
 | `src/ui/LookupView.ts` | Semantic search panel (ItemView) |
 | `src/ui/embed-orchestrator.ts` | Model lifecycle, embed jobs, phase transitions |
 | `src/ui/collection-loader.ts` | Source/Block collection init and chunked loading |
+| `src/ui/plugin-initialization.ts` | 3-phase init: Phase 1 (core), Phase 2 (embedding), Phase 3 (background block import) |
 | `src/ui/settings.ts` | Settings tab with live embedding status |
+| `src/ui/embed-adapters/transformers-connector.ts` | EMBED_CONNECTOR string with [SC:GPU] diagnostic logging |
 | `src/types/obsidian-augments.d.ts` | Typed workspace event overloads — eliminates as-any casts |
-| `worker/embed-worker.ts` | Transformers.js Web Worker (WebGPU → WASM fallback) |
 | `esbuild.js` | Build config (CJS, ES2018, vault copy in watch mode) |
 
 ## Subdirectories
@@ -36,7 +38,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 | `src/types/` | Pure type definitions + obsidian-augments.d.ts (see `src/types/AGENTS.md`) |
 | `src/utils/` | Pure utility functions (see `src/utils/AGENTS.md`) |
 | `src/shared/` | Boiler-template synced files — DO NOT EDIT (see `src/shared/AGENTS.md`) |
-| `worker/` | Transformers.js embed worker |
+| `scripts/` | Autoresearch harness scripts (check-freeze, check-webgpu, check-connections, check-e2e) |
 | `test/` | Vitest unit + sqlite-integration tests |
 
 ## For AI Agents
@@ -46,15 +48,27 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 - Custom workspace events (e.g. `open-connections:embed-progress`) are typed in `src/types/obsidian-augments.d.ts` — no `as any` casts on event names
 - `src/shared/` is synced from `obsidian-boiler-template` — never edit directly
 - Embedding kernel (`domain/embedding/kernel/`) uses Redux-style pattern: dispatch events, reducer handles transitions
-- Phase 1 (core, blocking) vs Phase 2 (embedding, background) initialization — UI is usable before Phase 2 completes
+- 3-phase initialization: Phase 1 (core, blocking), Phase 2 (embedding, background), Phase 3 (deferred block import via setTimeout 5s)
+- UI is usable before Phase 2 completes; blocks are imported in Phase 3 background
+- Vector search uses in-memory `FlatVectorIndex` (contiguous Float32Array) — loaded from SQLite at startup, kept in sync via upsert/remove
+- WebGPU confirmed active (Metal-3, fp32) — `[SC:GPU]` diagnostic logging in EMBED_CONNECTOR, queryable via `get_gpu_diag`
 
 ### Testing Requirements
 ```bash
 pnpm run ci          # build + lint + test (must pass before any commit)
-pnpm run test        # Vitest unit tests (260 tests, ~4s)
+pnpm run test        # Vitest unit tests (295 tests, ~4s)
 pnpm run typecheck   # tsc --noEmit
 pnpm run lint        # ESLint — 0 errors required
 ```
+
+### Autoresearch Harness Scripts (Karpathy-style)
+```bash
+bash scripts/check-freeze.sh Test       # Plugin loads without UI freeze
+bash scripts/check-webgpu.sh Test       # WebGPU backend active (Metal-3)
+bash scripts/check-connections.sh Test  # 3 files show connections (50 results, <5s)
+bash scripts/check-e2e.sh Test          # Full pipeline: sources + blocks + embedding
+```
+Each harness: build → deploy → boot Obsidian → eval check → PASS/FAIL. Freeze detection via eval timeout.
 
 ### Common Patterns
 ```typescript
@@ -75,6 +89,6 @@ const entities = this.block_collection.all; // EmbeddingBlock[]
 
 ### External
 - `obsidian` — Obsidian Plugin API
-- `@xenova/transformers` — Transformers.js (in Web Worker)
+- `@huggingface/transformers@3.8.0` — Transformers.js (CDN-loaded in srcdoc iframe, WebGPU Metal-3)
 - `node:sqlite` — SQLite storage (Node built-in, Electron 39.5.1+)
 - `vitest` — test runner

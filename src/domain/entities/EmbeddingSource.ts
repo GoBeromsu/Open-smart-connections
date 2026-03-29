@@ -8,7 +8,11 @@ import { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, SourceData } from '../../types/entities';
 import type { EntityCollection } from './EntityCollection';
 import type { TFileShim as TFile, CachedMetadataShim as CachedMetadata, VaultShim as Vault } from '../../types/obsidian-shims';
-import { create_hash } from '../../utils';
+import {
+  cacheEmbeddingSourceInput,
+  readEmbeddingSource,
+  updateEmbeddingSourceFromFile,
+} from './embedding-source-content';
 
 /**
  * Source entity representing a file in the vault
@@ -67,15 +71,7 @@ export class EmbeddingSource extends EmbeddingEntity {
    * Read file content using vault.cachedRead()
    */
   async read(): Promise<string> {
-    if (!this.vault || !this.file) {
-      return '';
-    }
-
-    try {
-      return await this.vault.cachedRead(this.file);
-    } catch {
-      return '';
-    }
+    return await readEmbeddingSource(this);
   }
 
   /**
@@ -83,27 +79,7 @@ export class EmbeddingSource extends EmbeddingEntity {
    * Excludes excluded blocks and adds breadcrumbs
    */
   async get_embed_input(content: string | null = null): Promise<void> {
-    if (typeof this._embed_input === 'string' && this._embed_input.length > 0) {
-      return; // Already cached
-    }
-
-    if (!content) {
-      content = await this.read();
-    }
-
-    if (!content) {
-      this._embed_input = '';
-      return;
-    }
-
-    // Add breadcrumbs
-    const breadcrumbs = this.path.split('/').join(' > ').replace('.md', '');
-
-    // Limit content length
-    const max_tokens = 500; // Default max tokens
-    const max_chars = Math.floor(max_tokens * 3.7);
-
-    this._embed_input = `${breadcrumbs}:\n${content}`.substring(0, max_chars);
+    await cacheEmbeddingSourceInput(this, content);
   }
 
   /**
@@ -112,30 +88,7 @@ export class EmbeddingSource extends EmbeddingEntity {
    * don't trigger unnecessary re-embedding.
    */
   async update_from_file(file: TFile): Promise<void> {
-    this.file = file;
-
-    // Fast path: stat unchanged → content hasn't changed either
-    if (this.data.mtime === file.stat.mtime && this.data.size === file.stat.size) {
-      return;
-    }
-
-    this.data.size = file.stat.size;
-    this.data.mtime = file.stat.mtime;
-
-    // First import (no stored hash) → stat-based hash to avoid reading every file at startup.
-    // Subsequent changes → content-based hash so mtime-only touches (Sync/git) don't re-embed.
-    let hash: string;
-    if (!this.read_hash || !this.vault) {
-      hash = await create_hash(`${file.stat.mtime}-${file.stat.size}`);
-    } else {
-      const content = await this.vault.cachedRead(file);
-      hash = await create_hash(content);
-    }
-
-    if (this.read_hash !== hash) {
-      this.read_hash = hash;
-      this.queue_embed();
-    }
+    await updateEmbeddingSourceFromFile(this, file);
   }
 
   /**

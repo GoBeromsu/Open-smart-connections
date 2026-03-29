@@ -128,7 +128,9 @@ export function registerCommands(plugin: Plugin): void {
         if (!results || results.length === 0) return;
 
         const randomIdx = Math.floor(Math.random() * results.length);
-        const randomPath = (results[randomIdx].item as EmbeddingBlock).source_key;
+        const randomResult = results[randomIdx];
+        if (!randomResult) return;
+        const randomPath = (randomResult.item as EmbeddingBlock).source_key;
         if (randomPath) p.open_note?.(randomPath);
       } catch (e: unknown) {
         p.logger?.error('Failed to find random connection', e);

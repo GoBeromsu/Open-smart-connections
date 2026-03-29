@@ -9,7 +9,7 @@ import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import type { ConnectionResult } from '../types/entities';
 import { average_vectors } from '../utils';
 
-const EMBED_TIMEOUT_MS = 10_000;
+const EMBED_TIMEOUT_MS = 30_000;
 
 interface CachedResult {
   results: ConnectionResult[];
@@ -75,8 +75,9 @@ export async function getBlockConnections(
     mainPromise.then(abandoned => {
       for (const r of abandoned) (r.item as EmbeddingBlock).evictVec?.();
     }).catch(() => {});
-    // Timeout exceeded — return empty results; view will retry on next render
+    // Timeout exceeded — return empty, invalidate cache so next render retries fresh
     console.warn('[SC] getBlockConnections timed out', filePath);
+    _cache.delete(filePath);
     return [];
   }
 

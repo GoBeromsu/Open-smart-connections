@@ -39,8 +39,8 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     endpoint: 'https://api.upstage.ai/v1/embeddings',
     tokenizer: {
       type: 'char-estimate',
-      chars_per_token: 2.0,
-      safety_ratio: 0.75,
+      chars_per_token: 1.2,
+      safety_ratio: 0.9,
     },
   },
   'embedding-query': {
@@ -53,8 +53,8 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
     endpoint: 'https://api.upstage.ai/v1/embeddings',
     tokenizer: {
       type: 'char-estimate',
-      chars_per_token: 2.0,
-      safety_ratio: 0.75,
+      chars_per_token: 1.2,
+      safety_ratio: 0.9,
     },
   },
 };
@@ -76,25 +76,6 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
     const tokens = await this.count_tokens(embed_input);
     if (tokens <= this.request_token_budget) return embed_input;
     return await this.trim_input_to_max_tokens(embed_input, tokens);
-  }
-
-  /**
-   * Upstage enforces a strict request-level token cap. Send one prepared input
-   * per HTTP request to avoid mixed-document batches exceeding the provider
-   * limit even when each individual input is already trimmed.
-   */
-  async embed_batch(inputs: ({ embed_input: string } | { _embed_input: string })[]): Promise<EmbedResult[]> {
-    const results: EmbedResult[] = [];
-
-    for (const input of inputs) {
-      const [result] = await super.embed_batch([input]);
-      results.push(result ?? {
-        vec: [],
-        tokens: 0,
-      });
-    }
-
-    return results;
   }
 
   /**
@@ -175,4 +156,5 @@ embedAdapterRegistry.register({
   requiresApiKey: true,
   requiresHost: false,
   signupUrl: UPSTAGE_SIGNUP_URL,
+  supportsBatch: true,
 });

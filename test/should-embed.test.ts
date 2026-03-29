@@ -1,17 +1,13 @@
 /**
  * @file should-embed.test.ts
- * @description Tests for EmbeddingBlock.should_embed sub-block coverage logic
+ * @description Tests for EmbeddingBlock.should_embed paragraph coverage logic.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { EmbeddingBlock } from '../src/domain/entities/EmbeddingBlock';
 
-/**
- * Build a minimal mock collection with the given items map and min_chars setting.
- * items values are plain objects — only .data.length and .size are accessed.
- */
 function makeCollection(
-  items: Record<string, { data: { length: number }; size: number }>,
+  items: Record<string, EmbeddingBlock>,
   min_chars: number = 300,
 ) {
   return {
@@ -19,12 +15,11 @@ function makeCollection(
     settings: { min_chars, embed_blocks: true },
     items,
     delete: () => {},
+    for_source: (sourceKey: string) =>
+      Object.values(items).filter((item) => item.key.startsWith(`${sourceKey}#`)),
   } as any;
 }
 
-/**
- * Build an EmbeddingBlock with the given key (path) and char length.
- */
 function makeBlock(
   collection: ReturnType<typeof makeCollection>,
   path: string,
@@ -34,90 +29,73 @@ function makeBlock(
 }
 
 describe('EmbeddingBlock.should_embed', () => {
-  it('returns true when block has no sub-blocks', () => {
-    const col = makeCollection({});
-    // Large enough heading block, no sub-blocks in collection
-    const block = makeBlock(col, 'note.md#Heading1', 1000);
-    col.items['note.md#Heading1'] = block;
+  it('returns true when block has no paragraph descendants', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items);
+    const block = makeBlock(collection, 'note.md#Heading1', 1000);
+    items[block.key] = block;
 
     expect(block.should_embed).toBe(true);
   });
 
-  it('returns true when sub-block coverage is below 90%', () => {
-    const col = makeCollection({});
+  it('returns true when paragraph coverage is below 90%', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items);
+    const heading = makeBlock(collection, 'note.md#Heading1', 1000);
+    const paragraph = makeBlock(collection, 'note.md#Heading1#paragraph-1', 500);
 
-    const heading = makeBlock(col, 'note.md#Heading1', 1000);
-    // Sub-block covers only 50% of the heading text
-    const sub = makeBlock(col, 'note.md#Heading1#paragraph-1', 500);
-
-    col.items['note.md#Heading1'] = heading;
-    col.items['note.md#Heading1#paragraph-1'] = sub;
+    items[heading.key] = heading;
+    items[paragraph.key] = paragraph;
 
     expect(heading.should_embed).toBe(true);
   });
 
-  it('returns false when sub-blocks cover >= 90% of heading text', () => {
-    const col = makeCollection({});
+  it('returns false when paragraph coverage is at least 90%', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items);
+    const heading = makeBlock(collection, 'note.md#Heading1', 1000);
+    const p1 = makeBlock(collection, 'note.md#Heading1#paragraph-1', 350);
+    const p2 = makeBlock(collection, 'note.md#Heading1#paragraph-2', 300);
+    const p3 = makeBlock(collection, 'note.md#Heading1#paragraph-3', 300);
 
-    const heading = makeBlock(col, 'note.md#Heading1', 1000);
-    // Three paragraph sub-blocks totalling 950 / 1000 = 95% coverage
-    const p1 = makeBlock(col, 'note.md#Heading1#paragraph-1', 350);
-    const p2 = makeBlock(col, 'note.md#Heading1#paragraph-2', 300);
-    const p3 = makeBlock(col, 'note.md#Heading1#paragraph-3', 300);
-
-    col.items['note.md#Heading1'] = heading;
-    col.items['note.md#Heading1#paragraph-1'] = p1;
-    col.items['note.md#Heading1#paragraph-2'] = p2;
-    col.items['note.md#Heading1#paragraph-3'] = p3;
+    items[heading.key] = heading;
+    items[p1.key] = p1;
+    items[p2.key] = p2;
+    items[p3.key] = p3;
 
     expect(heading.should_embed).toBe(false);
   });
 
-  it('returns true for paragraph sub-blocks (always embedded, never skipped)', () => {
-    const col = makeCollection({});
+  it('returns true for paragraph blocks', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items);
+    const paragraph = makeBlock(collection, 'note.md#Heading1#paragraph-1', 500);
+    items[paragraph.key] = paragraph;
 
-    const heading = makeBlock(col, 'note.md#Heading1', 1000);
-    const para = makeBlock(col, 'note.md#Heading1#paragraph-1', 500);
-
-    col.items['note.md#Heading1'] = heading;
-    col.items['note.md#Heading1#paragraph-1'] = para;
-
-    // paragraph block key contains '#paragraph-' — coverage check is skipped
-    expect(para.should_embed).toBe(true);
+    expect(paragraph.should_embed).toBe(true);
   });
 
-  it('returns false for blocks below min_chars threshold', () => {
-    const col = makeCollection({}, 300);
-    // length 100 is below min_chars 300
-    const block = makeBlock(col, 'note.md#TinySection', 100);
-    col.items['note.md#TinySection'] = block;
+  it('returns false for blocks below min_chars', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items, 300);
+    const block = makeBlock(collection, 'note.md#TinySection', 100);
+    items[block.key] = block;
 
     expect(block.should_embed).toBe(false);
   });
 
-  it('returns false at exactly 90% sub-block coverage boundary', () => {
-    const col = makeCollection({});
+  it('counts nested paragraph coverage for ancestor headings', () => {
+    const items: Record<string, EmbeddingBlock> = {};
+    const collection = makeCollection(items);
+    const heading = makeBlock(collection, 'note.md#Heading1', 1000);
+    const nestedHeading = makeBlock(collection, 'note.md#Heading1#Heading2', 400);
+    const paragraph = makeBlock(collection, 'note.md#Heading1#Heading2#paragraph-1', 920);
 
-    const heading = makeBlock(col, 'note.md#Heading1', 1000);
-    const para = makeBlock(col, 'note.md#Heading1#paragraph-1', 900); // exactly 90%
-
-    col.items['note.md#Heading1'] = heading;
-    col.items['note.md#Heading1#paragraph-1'] = para;
+    items[heading.key] = heading;
+    items[nestedHeading.key] = nestedHeading;
+    items[paragraph.key] = paragraph;
 
     expect(heading.should_embed).toBe(false);
-  });
-
-  it('ignores items in collection that do not share the key prefix', () => {
-    const col = makeCollection({});
-
-    const heading = makeBlock(col, 'note.md#Heading1', 1000);
-    // 'note.md#Heading2#paragraph-1' does NOT start with 'note.md#Heading1#'
-    const unrelated = makeBlock(col, 'note.md#Heading2#paragraph-1', 950);
-
-    col.items['note.md#Heading1'] = heading;
-    col.items['note.md#Heading2#paragraph-1'] = unrelated;
-
-    // No sub-blocks for Heading1, so should embed
-    expect(heading.should_embed).toBe(true);
+    expect(nestedHeading.should_embed).toBe(false);
   });
 });

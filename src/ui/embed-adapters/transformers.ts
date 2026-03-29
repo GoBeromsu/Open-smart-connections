@@ -1,519 +1,151 @@
 /**
  * @file transformers.ts
- * @description Adapter for local Transformers.js embedding models
- * Uses a hidden iframe (not Web Worker) for model loading and inference.
- * Obsidian's app://obsidian.md origin blocks cross-origin Worker creation,
- * but iframes with srcdoc share the same origin and can do dynamic import()
- * from CDN. This matches the proven v3.0.80 approach.
+ * @description Public Transformers.js adapter facade.
  */
 
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
+import { build_transformers_batch_results } from './transformers-batch';
+import { create_transformers_srcdoc, wait_for_iframe_load } from './transformers-iframe';
+import { TRANSFORMERS_EMBED_MODELS } from './transformers-models';
 
-/**
- * Transformers.js embedding models configuration
- */
-export const TRANSFORMERS_EMBED_MODELS: Record<string, ModelInfo> = {
-  'TaylorAI/bge-micro-v2': {
-    model_key: 'TaylorAI/bge-micro-v2',
-    model_name: 'BGE-micro-v2',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 25,
-    description: 'Local, 512 tokens, 384 dim (recommended)',
-  },
-  'Snowflake/snowflake-arctic-embed-xs': {
-    model_key: 'Snowflake/snowflake-arctic-embed-xs',
-    model_name: 'Snowflake Arctic Embed XS',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 25,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'Snowflake/snowflake-arctic-embed-s': {
-    model_key: 'Snowflake/snowflake-arctic-embed-s',
-    model_name: 'Snowflake Arctic Embed Small',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 35,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'Snowflake/snowflake-arctic-embed-m': {
-    model_key: 'Snowflake/snowflake-arctic-embed-m',
-    model_name: 'Snowflake Arctic Embed Medium',
-    batch_size: 1,
-    dims: 768,
-    max_tokens: 512,
-    size_mb: 90,
-    description: 'Local, 512 tokens, 768 dim',
-  },
-  'TaylorAI/gte-tiny': {
-    model_key: 'TaylorAI/gte-tiny',
-    model_name: 'GTE-tiny',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 30,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'onnx-community/embeddinggemma-300m-ONNX': {
-    model_key: 'onnx-community/embeddinggemma-300m-ONNX',
-    model_name: 'EmbeddingGemma-300M',
-    batch_size: 1,
-    dims: 768,
-    max_tokens: 2048,
-    size_mb: 600,
-    description: 'Local, 2,048 tokens, 768 dim',
-  },
-  'Mihaiii/Ivysaur': {
-    model_key: 'Mihaiii/Ivysaur',
-    model_name: 'Ivysaur',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 25,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'andersonbcdefg/bge-small-4096': {
-    model_key: 'andersonbcdefg/bge-small-4096',
-    model_name: 'BGE-small-4K',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 4096,
-    size_mb: 35,
-    description: 'Local, 4,096 tokens, 384 dim',
-  },
-  'Xenova/jina-embeddings-v2-base-zh': {
-    model_key: 'Xenova/jina-embeddings-v2-base-zh',
-    model_name: 'Jina-v2-base-zh-8K',
-    batch_size: 1,
-    dims: 768,
-    max_tokens: 8192,
-    size_mb: 170,
-    description: 'Local, 8,192 tokens, 768 dim, Chinese/English bilingual',
-  },
-  'Xenova/jina-embeddings-v2-small-en': {
-    model_key: 'Xenova/jina-embeddings-v2-small-en',
-    model_name: 'Jina-v2-small-en',
-    batch_size: 1,
-    dims: 512,
-    max_tokens: 8192,
-    size_mb: 35,
-    description: 'Local, 8,192 tokens, 512 dim',
-  },
-  'Xenova/bge-m3': {
-    model_key: 'Xenova/bge-m3',
-    model_name: 'BGE-M3',
-    batch_size: 1,
-    dims: 1024,
-    max_tokens: 8192,
-    size_mb: 500,
-    description: 'Local, 8,192 tokens, 1,024 dim',
-  },
-  'Xenova/multilingual-e5-large': {
-    model_key: 'Xenova/multilingual-e5-large',
-    model_name: 'Multilingual-E5-Large',
-    batch_size: 1,
-    dims: 1024,
-    max_tokens: 512,
-    size_mb: 400,
-    description: 'Local, 512 tokens, 1,024 dim',
-  },
-  'Xenova/multilingual-e5-small': {
-    model_key: 'Xenova/multilingual-e5-small',
-    model_name: 'Multilingual-E5-Small',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 120,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'Xenova/paraphrase-multilingual-MiniLM-L12-v2': {
-    model_key: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
-    model_name: 'Paraphrase-Multilingual-MiniLM-L12-v2',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 128,
-    size_mb: 120,
-    description: 'Local, 128 tokens, 384 dim',
-  },
-  'nomic-ai/nomic-embed-text-v1.5': {
-    model_key: 'nomic-ai/nomic-embed-text-v1.5',
-    model_name: 'Nomic-embed-text-v1.5',
-    batch_size: 1,
-    dims: 768,
-    max_tokens: 2048,
-    size_mb: 140,
-    description: 'Local, 8,192 tokens, 768 dim',
-  },
-  'Xenova/bge-small-en-v1.5': {
-    model_key: 'Xenova/bge-small-en-v1.5',
-    model_name: 'BGE-small',
-    batch_size: 1,
-    dims: 384,
-    max_tokens: 512,
-    size_mb: 35,
-    description: 'Local, 512 tokens, 384 dim',
-  },
-  'nomic-ai/nomic-embed-text-v1': {
-    model_key: 'nomic-ai/nomic-embed-text-v1',
-    model_name: 'Nomic-embed-text',
-    batch_size: 1,
-    dims: 768,
-    max_tokens: 2048,
-    size_mb: 140,
-    description: 'Local, 2,048 tokens, 768 dim',
-  },
+type PendingRequest = {
+  resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
+  timeout_id: number;
+  method: string;
 };
 
-/**
- * Inline connector script for the embedding iframe.
- * This runs inside a hidden iframe and handles transformers.js model
- * loading and inference via postMessage communication with the main window.
- */
-const EMBED_CONNECTOR = `
-let pipeline = null;
-let tokenizer = null;
-let current_model_key = null;
-let processing_message = false;
+export { TRANSFORMERS_EMBED_MODELS } from './transformers-models';
 
-async function is_webgpu_available() {
-  if (!('gpu' in navigator)) return false;
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    return !!adapter;
-  } catch(e) { return false; }
-}
-
-async function load_transformers_with_fallback(model_key, use_gpu) {
-  const { pipeline: createPipeline, env, AutoTokenizer } = await import(
-    'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0'
-  );
-
-  env.allowLocalModels = false;
-  if (typeof env.useBrowserCache !== 'undefined') {
-    env.useBrowserCache = true;
-  }
-
-  const configs = use_gpu ? [
-    { device: 'webgpu', dtype: 'fp32', quantized: false },
-    { device: 'webgpu', dtype: 'q8', quantized: true },
-    { quantized: true },
-    { quantized: false }
-  ] : [
-    { quantized: true },
-    { quantized: false }
-  ];
-
-  // Set WASM threads for CPU mode
-  if (!use_gpu && env.backends && env.backends.onnx && env.backends.onnx.wasm) {
-    env.backends.onnx.wasm.numThreads = 8;
-  }
-
-  let last_error = null;
-  for (const config of configs) {
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      try {
-        console.log(
-          '[Transformers Iframe] trying config:',
-          JSON.stringify(config),
-          'attempt=' + attempt,
-        );
-        pipeline = await createPipeline('feature-extraction', model_key, config);
-        console.log('[Transformers Iframe] pipeline initialized');
-        break;
-      } catch (err) {
-        console.warn('[Transformers Iframe] config failed:', err);
-        last_error = err;
-        const message = (err && err.message) ? String(err.message) : String(err);
-        const lc = message.toLowerCase();
-        const is_transient = message.includes('Failed to fetch') || lc.includes('networkerror') || lc.includes('cdn') || lc.includes('cors') || lc.includes('err_connection');
-        if (attempt < MAX_ATTEMPTS && is_transient) {
-          const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
-          console.log('[Transformers Iframe] retrying in ' + delay + 'ms...');
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-    }
-    if (pipeline) break;
-  }
-
-  if (!pipeline) {
-    const last_message = (last_error && last_error.message)
-      ? String(last_error.message)
-      : String(last_error || '');
-    if (last_message.toLowerCase().includes('timed out') || last_message.toLowerCase().includes('timeout')) {
-      throw new Error('[download:timeout] Model download timed out. Try a smaller model or increase timeout in settings.');
-    }
-    if (last_message.toLowerCase().includes('quota') || last_message.toLowerCase().includes('storage')) {
-      throw new Error('[download:quota] Browser storage quota exceeded. Clear browser cache and retry.');
-    }
-    if (last_message.includes('Failed to fetch') || last_message.toLowerCase().includes('network')) {
-      throw new Error('[download:network] Failed to download model files. Check your network connection and retry.');
-    }
-    if (last_message.includes('404') || last_message.toLowerCase().includes('not found')) {
-      throw new Error('[download:model_not_found] Model not found. Try switching to BGE-micro-v2.');
-    }
-    throw last_error || new Error('[download:unknown] Failed to initialize transformers pipeline');
-  }
-
-  tokenizer = await AutoTokenizer.from_pretrained(model_key);
-  current_model_key = model_key;
-}
-
-async function count_tokens(input) {
-  if (!tokenizer) throw new Error('Tokenizer not loaded');
-  const { input_ids } = await tokenizer(input);
-  return { tokens: input_ids.data.length };
-}
-
-async function prepare_input(embed_input, max_tokens) {
-  let { tokens } = await count_tokens(embed_input);
-  if (tokens <= max_tokens) return { text: embed_input, tokens };
-
-  let truncated = embed_input;
-  while (tokens > max_tokens && truncated.length > 0) {
-    const pct = max_tokens / tokens;
-    const max_chars = Math.floor(truncated.length * pct * 0.9);
-    truncated = truncated.slice(0, max_chars);
-    const last_space = truncated.lastIndexOf(' ');
-    if (last_space > 0) truncated = truncated.slice(0, last_space);
-    tokens = (await count_tokens(truncated)).tokens;
-  }
-  return { text: truncated, tokens };
-}
-
-async function process_batch(inputs, max_tokens, batch_size) {
-  const results = [];
-  for (let i = 0; i < inputs.length; i += batch_size) {
-    const batch = inputs.slice(i, i + batch_size);
-    const prepared = await Promise.all(batch.map(item => prepare_input(item.embed_input, max_tokens)));
-    const embed_inputs = prepared.map(p => p.text);
-    const tokens = prepared.map(p => p.tokens);
-
-    try {
-      const resp = await pipeline(embed_inputs, { pooling: 'mean', normalize: true });
-      for (let j = 0; j < batch.length; j++) {
-        const vec = Array.from(resp[j].data).map(val => Math.round(val * 1e8) / 1e8);
-        results.push({ ...batch[j], vec, tokens: tokens[j] });
-      }
-    } catch (err) {
-      for (let j = 0; j < batch.length; j++) {
-        try {
-          const p = await prepare_input(batch[j].embed_input, max_tokens);
-          const resp = await pipeline(p.text, { pooling: 'mean', normalize: true });
-          const vec = Array.from(resp[0].data).map(val => Math.round(val * 1e8) / 1e8);
-          results.push({ ...batch[j], vec, tokens: p.tokens });
-        } catch (single_err) {
-          results.push({ ...batch[j], vec: [], tokens: 0, error: single_err.message });
-        }
-      }
-    }
-  }
-  return results;
-}
-
-async function process_message(data) {
-  const { method, params, id, iframe_id } = data;
-  try {
-    let result;
-    switch (method) {
-      case 'load':
-        console.log('[Transformers Iframe] load', params);
-        if (!pipeline || current_model_key !== params.model_key) {
-          const has_gpu = await is_webgpu_available();
-          await load_transformers_with_fallback(params.model_key, has_gpu);
-        }
-        result = { model_loaded: true };
-        break;
-      case 'unload':
-        if (pipeline && typeof pipeline.dispose === 'function') pipeline.dispose();
-        pipeline = null; tokenizer = null; current_model_key = null;
-        result = { model_unloaded: true };
-        break;
-      case 'embed_batch':
-        if (!pipeline) throw new Error('Model not loaded');
-        while (processing_message) await new Promise(r => setTimeout(r, 100));
-        processing_message = true;
-        result = await process_batch(params.inputs, params.max_tokens || 512, params.batch_size || 8);
-        processing_message = false;
-        break;
-      case 'count_tokens':
-        if (!tokenizer) throw new Error('Tokenizer not loaded');
-        while (processing_message) await new Promise(r => setTimeout(r, 100));
-        processing_message = true;
-        result = await count_tokens(params);
-        processing_message = false;
-        break;
-      default:
-        throw new Error('Unknown method: ' + method);
-    }
-    return { id, result, iframe_id };
-  } catch (error) {
-    return { id, error: error.message, iframe_id };
-  }
-}
-`;
-
-/**
- * Adapter for local Transformers.js embedding models.
- * Uses a hidden iframe with inline script (matching v3.0.80 approach).
- * The iframe shares the app://obsidian.md origin and can do dynamic
- * import() from CDN for loading @huggingface/transformers.
- */
 export class TransformersEmbedAdapter {
-  adapter: string = 'transformers';
-  model_key: string;
-  dims: number;
-  models: Record<string, ModelInfo>;
-  settings: Record<string, unknown>;
-  loaded: boolean = false;
+  adapter = 'transformers';
+  loaded = false;
   iframe: HTMLIFrameElement | null = null;
-  message_id: number = 0;
-  pending_requests: Map<number, {
-    resolve: (value: unknown) => void;
-    reject: (error: unknown) => void;
-    timeout_id: number;
-    method: string;
-  }> = new Map();
-  private iframe_id: string;
-  private origin: string;
+  message_id = 0;
+  pending_requests = new Map<number, PendingRequest>();
+  private readonly iframe_id: string;
   private static readonly MESSAGE_TIMEOUTS_MS: Record<string, number> = {
     load: 180000,
     unload: 10000,
     count_tokens: 20000,
     embed_batch: 180000,
+    get_gpu_diag: 5000,
   };
 
-  constructor(config: {
-    adapter: string;
-    model_key: string;
-    dims: number;
-    models: Record<string, ModelInfo>;
-    settings: Record<string, unknown>;
-    plugin_dir?: string;
-    fs_adapter?: unknown;
-  }) {
-    this.adapter = config.adapter;
-    this.model_key = config.model_key;
-    this.dims = config.dims;
-    this.models = config.models || TRANSFORMERS_EMBED_MODELS;
-    this.settings = config.settings;
+  constructor(
+    public config: {
+      adapter: string;
+      model_key: string;
+      dims: number;
+      models: Record<string, ModelInfo>;
+      settings: Record<string, unknown>;
+      plugin_dir?: string;
+      fs_adapter?: unknown;
+    },
+  ) {
     this.iframe_id = `smart_embed_iframe_${Date.now()}`;
-    this.origin = typeof window !== 'undefined' ? window.location.origin : '';
   }
 
-  /**
-   * Initialize the iframe and load the model.
-   */
+  get model_key(): string { return this.config.model_key; }
+  get dims(): number { return this.config.dims; }
+  get models(): Record<string, ModelInfo> { return this.config.models || TRANSFORMERS_EMBED_MODELS; }
+  get settings(): Record<string, unknown> { return this.config.settings; }
+
+  private async ensure_loaded(): Promise<void> {
+    if (this.loaded) return;
+    console.debug('[Transformers Adapter] Lazy-loading model on first use...');
+    await this.load();
+  }
+
   async load(): Promise<void> {
     if (this.iframe && this.loaded) return;
-    if (this.iframe && !this.loaded) {
-      await this.unload();
-    }
+    if (this.iframe && !this.loaded) await this.unload();
+    document.getElementById(this.iframe_id)?.remove();
 
-    // Remove any existing iframe with this ID
-    const existing = document.getElementById(this.iframe_id);
-    if (existing) existing.remove();
-
-    // Create hidden iframe
     this.iframe = document.createElement('iframe');
     this.iframe.classList.add('osc-hidden');
     this.iframe.id = this.iframe_id;
     document.body.appendChild(this.iframe);
-
-    // Set up message listener on the main window
     window.addEventListener('message', this._handle_message);
+    this.iframe.srcdoc = create_transformers_srcdoc(this.iframe_id);
 
-    // Generate the srcdoc with inline connector script
-    const srcdoc = `<html><body><script type="module">
-${EMBED_CONNECTOR}
-const IFRAME_ID = '${this.iframe_id}';
-function post_fatal(error, id = null) {
-  const message = error instanceof Error
-    ? (error.stack || error.message || String(error))
-    : String(error || 'Unknown iframe error');
-  window.parent.postMessage({ iframe_id: IFRAME_ID, id, type: 'fatal', error: message }, '*');
-}
-window.addEventListener('error', (event) => {
-  post_fatal(event.error || event.message, null);
-});
-window.addEventListener('unhandledrejection', (event) => {
-  post_fatal(event.reason, null);
-});
-window.addEventListener('message', async (event) => {
-  if (!event.data || event.data.iframe_id !== IFRAME_ID) return;
-  try {
-    const response = await process_message(event.data);
-    window.parent.postMessage(response, '*');
-  } catch (error) {
-    post_fatal(error, event.data?.id ?? null);
-  }
-});
-console.log('[Transformers Iframe] ready, id=' + IFRAME_ID);
-${'</'}script></body></html>`;
-
-    this.iframe.srcdoc = srcdoc;
-
-    // Wait for iframe to load with timeout guard.
-    await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => {
-        reject(new Error('Timed out waiting for transformers iframe to initialize.'));
-      }, 15000);
-      this.iframe!.onload = () => {
-        window.clearTimeout(timeout);
-        resolve();
-      };
-      this.iframe!.onerror = () => {
-        window.clearTimeout(timeout);
-        reject(new Error('Failed to initialize transformers iframe.'));
-      };
-    });
-
-    // Load the model in the iframe
+    await wait_for_iframe_load(this.iframe);
     await this.send_message('load', { model_key: this.model_key });
     this.loaded = true;
   }
 
-  /**
-   * Handle message from iframe
-   */
+  async count_tokens(input: string): Promise<number> {
+    await this.ensure_loaded();
+    const result = await this.send_message('count_tokens', input) as { tokens: number };
+    return result.tokens;
+  }
+
+  async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
+    const { results, valid_inputs, valid_indexes } = build_transformers_batch_results(inputs);
+    if (valid_inputs.length === 0) return results;
+
+    await this.ensure_loaded();
+    const embedded = await this.send_message('embed_batch', { inputs: valid_inputs }) as EmbedResult[];
+    for (let i = 0; i < valid_indexes.length && i < embedded.length; i++) {
+      const idx = valid_indexes[i];
+      const embedding = embedded[i];
+      if (idx === undefined || !embedding) continue;
+      const result = results[idx];
+      if (!result) continue;
+      result.vec = embedding.vec;
+      result.tokens = embedding.tokens;
+      result.key = embedding.key ?? result.key;
+      result.index = embedding.index ?? result.index;
+    }
+    return results;
+  }
+
+  async get_gpu_diag(): Promise<unknown> {
+    if (!this.iframe?.contentWindow) return { error: 'iframe not available' };
+    return this.send_message('get_gpu_diag');
+  }
+
+  get_model_info(model_key?: string): ModelInfo | undefined {
+    return this.models[model_key || this.model_key];
+  }
+
+  async unload(): Promise<void> {
+    if (!this.iframe) return;
+    try {
+      await this.send_message('unload');
+    } catch {
+      // iframe may already be gone
+    }
+    this.dispose_iframe();
+  }
+
   private _handle_message = (event: MessageEvent): void => {
-    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown };
+    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown; message?: string };
     if (msg.iframe_id !== this.iframe_id) return;
+    if (msg.type === 'log') {
+      console.debug(String(msg.message ?? ''));
+      return;
+    }
     if (msg.type === 'fatal') {
-      const id = typeof msg.id === 'number' ? msg.id : null;
-      const message = msg.error
-        ? String(msg.error)
-        : 'Unknown transformers iframe fatal error';
-      if (id !== null) {
-        this.reject_pending(id, new Error(`Transformers iframe fatal error: ${message}`));
+      const message = msg.error ? String(msg.error) : 'Unknown transformers iframe fatal error';
+      if (typeof msg.id === 'number') {
+        this.reject_pending(msg.id, new Error(`Transformers iframe fatal error: ${message}`));
       }
       this.reject_all_pending(new Error(`Transformers iframe fatal error: ${message}`));
       this.dispose_iframe();
       return;
     }
-    const { id, result, error } = msg;
-    const pending = this.pending_requests.get(id);
-    if (pending) {
-      this.pending_requests.delete(id);
-      window.clearTimeout(pending.timeout_id);
-      if (error) {
-        pending.reject(new Error(error));
-      } else {
-        pending.resolve(result);
-      }
-    }
+
+    if (typeof msg.id !== 'number') return;
+    const pending = this.pending_requests.get(msg.id);
+    if (!pending) return;
+    this.pending_requests.delete(msg.id);
+    window.clearTimeout(pending.timeout_id);
+    if (msg.error) pending.reject(new Error(msg.error));
+    else pending.resolve(msg.result);
   };
 
-  /**
-   * Send message to iframe and wait for response
-   */
   private send_message(method: string, params?: unknown): Promise<unknown> {
     return new Promise((resolve, reject) => {
       if (!this.iframe?.contentWindow) {
@@ -524,77 +156,12 @@ ${'</'}script></body></html>`;
       const id = this.message_id++;
       const timeout_ms = this.get_timeout_ms(method);
       const timeout_id = window.setTimeout(() => {
-        const pending = this.pending_requests.get(id);
-        if (!pending) return;
-        this.pending_requests.delete(id);
-        pending.reject(
-          new Error(`Timed out waiting for iframe response: method=${method}, timeoutMs=${timeout_ms}`),
-        );
-        if (method === 'load') {
-          this.dispose_iframe();
-        }
+        this.reject_pending(id, new Error(`Timed out waiting for iframe response: method=${method}, timeoutMs=${timeout_ms}`));
+        if (method === 'load') this.dispose_iframe();
       }, timeout_ms);
-      this.pending_requests.set(id, {
-        resolve,
-        reject,
-        timeout_id,
-        method,
-      });
-
-      // srcdoc iframes have origin "null", so we use '*' for targetOrigin.
-      // Security is ensured by the iframe_id check in _handle_message.
-      this.iframe.contentWindow.postMessage(
-        { id, method, params, iframe_id: this.iframe_id },
-        '*',
-      );
+      this.pending_requests.set(id, { resolve, reject, timeout_id, method });
+      this.iframe.contentWindow.postMessage({ id, method, params, iframe_id: this.iframe_id }, '*');
     });
-  }
-
-  /**
-   * Count tokens in input text
-   */
-  async count_tokens(input: string): Promise<number> {
-    const result = await this.send_message('count_tokens', input) as { tokens: number };
-    return result.tokens;
-  }
-
-  /**
-   * Generate embeddings for multiple inputs
-   */
-  async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
-    const normalized_inputs = inputs
-      .map((item) => {
-        const embed_input = 'embed_input' in item ? item.embed_input : item._embed_input;
-        return { ...item, embed_input } as EmbedInput;
-      })
-      .filter((item) => (item.embed_input?.length ?? 0) > 0);
-
-    if (normalized_inputs.length === 0) {
-      return [];
-    }
-
-    return await this.send_message('embed_batch', { inputs: normalized_inputs }) as EmbedResult[];
-  }
-
-  /**
-   * Get model information
-   */
-  get_model_info(model_key?: string): ModelInfo | undefined {
-    return this.models[model_key || this.model_key];
-  }
-
-  /**
-   * Unload the model and remove iframe
-   */
-  async unload(): Promise<void> {
-    if (this.iframe) {
-      try {
-        await this.send_message('unload');
-      } catch {
-        // Iframe may already be gone
-      }
-      this.dispose_iframe();
-    }
   }
 
   private get_timeout_ms(method: string): number {
@@ -630,7 +197,6 @@ ${'</'}script></body></html>`;
   }
 }
 
-// Self-register
 embedAdapterRegistry.register({
   name: 'transformers',
   displayName: 'Local (Transformers.js)',
@@ -640,4 +206,5 @@ embedAdapterRegistry.register({
   requiresApiKey: false,
   requiresHost: false,
   requiresLoad: true,
+  supportsBatch: false,
 });

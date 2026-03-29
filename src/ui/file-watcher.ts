@@ -9,10 +9,11 @@ import { TFile } from 'obsidian';
 import type SmartConnectionsPlugin from '../main';
 import { invalidateConnectionsCache } from './block-connections';
 import { isExcludedPath } from '../utils';
-import { runEmbeddingJobNow } from './embed-orchestrator';
+import { logEmbed, runEmbeddingJobNow } from './embed-orchestrator';
 
 export function registerFileWatchers(plugin: SmartConnectionsPlugin): void {
   function handleSourceChange(file: TFile): void {
+    if ((plugin as unknown as { _discovering?: boolean })._discovering) return;
     if (isSourceFile(file, plugin)) {
       invalidateConnectionsCache(file.path);
       queueSourceReImport(plugin, file.path);
@@ -135,7 +136,7 @@ export async function runReImport(plugin: SmartConnectionsPlugin): Promise<void>
     }
 
     const staleQueued = plugin.queueUnembeddedEntities();
-    plugin.logEmbed('reimport-queue-ready', {
+    logEmbed(plugin, 'reimport-queue-ready', {
       reason: 'run-reimport',
       current: staleQueued,
       total: staleQueued,

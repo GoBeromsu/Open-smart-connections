@@ -1,6 +1,7 @@
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
 import { NodeSqliteDataAdapter } from './node-sqlite-data-adapter';
+import { ensureEntityVector } from './entity-collection-vectors';
 
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   items: Record<string, T> = {};
@@ -194,32 +195,6 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
   }
 
   async ensure_entity_vector(entity: T): Promise<void> {
-    if (entity.vec && entity.vec.length > 0) return;
-    const model_key = this.embed_model_key;
-    if (!model_key || model_key === 'None') return;
-
-    const loaded = await this.data_adapter.load_entity_vector(entity.key, model_key);
-    if (!loaded.vec || loaded.vec.length === 0) return;
-
-    if (!entity.data.embeddings[model_key]) {
-      entity.data.embeddings[model_key] = { vec: [] };
-    }
-    entity.data.embeddings[model_key].vec = loaded.vec;
-    if (loaded.tokens !== undefined) {
-      entity.data.embeddings[model_key].tokens = loaded.tokens;
-    }
-
-    if (loaded.meta) {
-      if (!entity.data.embedding_meta || typeof entity.data.embedding_meta !== 'object') {
-        entity.data.embedding_meta = {};
-      }
-      entity.data.embedding_meta[model_key] = {
-        ...(entity.data.embedding_meta[model_key] || {}),
-        ...loaded.meta,
-      };
-    }
-
-    entity._queue_embed = false;
-    entity._queue_save = false;
+    await ensureEntityVector(this, entity);
   }
 }

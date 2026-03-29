@@ -17,6 +17,37 @@ function createAdapter(timeoutMs: number): TransformersEmbedAdapter {
 }
 
 describe('TransformersEmbedAdapter', () => {
+  it('lazy-loads the transformers model on first count_tokens call', async () => {
+    const adapter = createAdapter(1000) as any;
+    const loadSpy = vi.spyOn(adapter, 'load').mockImplementation(async () => {
+      adapter.loaded = true;
+    });
+    vi.spyOn(adapter, 'send_message').mockResolvedValue({ tokens: 7 });
+
+    const result = await adapter.count_tokens('hello');
+
+    expect(result).toBe(7);
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(adapter.send_message).toHaveBeenCalledWith('count_tokens', 'hello');
+  });
+
+  it('lazy-loads the transformers model on first embed_batch call', async () => {
+    const adapter = createAdapter(1000) as any;
+    const loadSpy = vi.spyOn(adapter, 'load').mockImplementation(async () => {
+      adapter.loaded = true;
+    });
+    vi.spyOn(adapter, 'send_message').mockResolvedValue([{ vec: [0.1, 0.2], tokens: 5 }]);
+
+    const result = await adapter.embed_batch([{ embed_input: 'hello', key: 'a.md', index: 0 }]);
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(adapter.send_message).toHaveBeenCalledWith('embed_batch', {
+      inputs: [{ embed_input: 'hello', key: 'a.md', index: 0 }],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]?.vec).toEqual([0.1, 0.2]);
+  });
+
   it('rejects load requests that do not receive iframe responses', async () => {
     const adapter = createAdapter(10) as any;
     const removeSpy = vi.fn();

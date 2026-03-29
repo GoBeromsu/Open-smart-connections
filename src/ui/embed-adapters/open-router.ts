@@ -11,8 +11,11 @@ import {
 } from './api-base';
 import type { AdapterConfig, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
-
-export const OPEN_ROUTER_SIGNUP_URL = 'https://openrouter.ai/keys';
+import {
+  build_open_router_fallback_model,
+  OPEN_ROUTER_SIGNUP_URL,
+  parse_open_router_model_data,
+} from './open-router-models';
 
 /**
  * Adapter for OpenRouter's embedding API
@@ -75,15 +78,7 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
     }
 
     if (!this.api_key) {
-      const fallback_id = 'text-embedding-3-small';
-      return {
-        [fallback_id]: {
-          model_key: fallback_id,
-          model_name: fallback_id,
-          description: 'OpenRouter embedding model',
-          max_tokens: this.max_tokens,
-        },
-      };
+      return build_open_router_fallback_model(this.max_tokens);
     }
 
     try {
@@ -95,55 +90,15 @@ export class OpenRouterEmbedAdapter extends EmbedModelApiAdapter {
         },
       });
 
-      const parsed = this.parse_model_data(resp.json as unknown[] | Record<string, unknown>);
+      const parsed = parse_open_router_model_data(
+        resp.json as unknown[] | Record<string, unknown>,
+        this.max_tokens,
+      );
       this.models = parsed;
       return parsed;
     } catch {
-      const fallback_id = 'text-embedding-3-small';
-      return {
-        [fallback_id]: {
-          model_key: fallback_id,
-          model_name: fallback_id,
-          description: 'OpenRouter embedding model',
-          max_tokens: this.max_tokens,
-        },
-      };
+      return build_open_router_fallback_model(this.max_tokens);
     }
-  }
-
-  /**
-   * Parse OpenRouter /v1/models response into standard format
-   * Only keeps models that look like embeddings
-   * @param model_data - Raw models payload from OpenRouter
-   * @returns Map of model objects keyed by id
-   */
-  parse_model_data(model_data: Record<string, unknown> | unknown[]): Record<string, ModelInfo> {
-    let list: Record<string, unknown>[] = [];
-    if (Array.isArray((model_data as Record<string, unknown>)?.data)) list = (model_data as Record<string, unknown>).data as Record<string, unknown>[];
-    else if (Array.isArray(model_data)) list = model_data as Record<string, unknown>[];
-    else {
-      return { _: { model_key: 'No models found.' } };
-    }
-
-    const out: Record<string, ModelInfo> = {};
-    for (const model of list) {
-      const model_id = (model.id || model.name) as string | undefined;
-      if (!model_id) continue;
-      if (!is_embedding_model(model_id)) continue;
-
-      out[model_id] = {
-        model_key: model_id,
-        model_name: model_id,
-        max_tokens: (model.context_length as number) || this.max_tokens,
-        description: (model.name as string) || (model.description as string) || `Model: ${model_id}`,
-      };
-    }
-
-    if (!Object.keys(out).length) {
-      return { _: { model_key: 'No embedding models found.' } };
-    }
-
-    return out;
   }
 }
 
@@ -190,19 +145,6 @@ class OpenRouterEmbedResponseAdapter extends EmbedModelResponseAdapter {
       };
     });
   }
-}
-
-/**
- * Heuristic filter: true when an id looks like an embedding model
- * @param id - Model identifier
- * @returns True if model appears to be an embedding model
- */
-function is_embedding_model(id: string): boolean {
-  const lower = String(id || '').toLowerCase();
-  const segments = lower.split(/[-:/_]/);
-  if (segments.some((seg) => ['embed', 'embedding', 'bge'].includes(seg))) return true;
-  if (lower.includes('text-embedding')) return true;
-  return false;
 }
 
 // Self-register

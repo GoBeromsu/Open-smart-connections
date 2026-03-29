@@ -5,6 +5,7 @@
 
 import { EntityCollection } from './EntityCollection';
 import { EmbeddingBlock } from './EmbeddingBlock';
+import { invalidateParagraphCoverage } from './block-paragraph-coverage';
 import type { EmbeddingSource } from './EmbeddingSource';
 import type { SourceCollection } from './SourceCollection';
 import { parse_markdown_blocks } from './markdown-splitter';
@@ -32,6 +33,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   }
 
   protected onItemAdded(block: EmbeddingBlock): void {
+    invalidateParagraphCoverage(this, block.source_key);
     const sourceKey = block.source_key;
     let set = this._sourceIndex.get(sourceKey);
     if (!set) {
@@ -42,7 +44,8 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
   }
 
   protected onItemRemoved(key: string): void {
-    const sourceKey = key.split('#')[0];
+    const sourceKey = key.split('#')[0] ?? '';
+    invalidateParagraphCoverage(this, sourceKey);
     const set = this._sourceIndex.get(sourceKey);
     if (set) {
       set.delete(key);
@@ -99,11 +102,13 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
       source.cached_metadata,
       max_depth,
     );
+    invalidateParagraphCoverage(this, source.key);
 
     // Create or update block entities — strip embeddings so Object.assign in
     // create_or_update does not overwrite vectors loaded from the DB with {}
     for (const block_data of blocks) {
-      const { embeddings: _, ...update_data } = block_data;
+      const update_data = { ...block_data };
+      delete (update_data as { embeddings?: unknown }).embeddings;
       this.create_or_update(update_data);
     }
 
@@ -115,6 +120,7 @@ export class BlockCollection extends EntityCollection<EmbeddingBlock> {
    * Delete blocks for a source
    */
   delete_source_blocks(source_key: string): void {
+    invalidateParagraphCoverage(this, source_key);
     const blocks = this.get_source_blocks(source_key);
     blocks.forEach(block => this.delete(block.key));
   }

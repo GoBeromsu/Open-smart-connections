@@ -1,18 +1,19 @@
 /**
  * @file api-base.ts
- * @description Base adapter classes for API-based embedding models
+ * @description Public API adapter base classes.
  */
 
-import { requestUrl } from 'obsidian';
-import type { TiktokenBPE } from 'js-tiktoken/lite';
 import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
-import { TransientError, FatalError } from '../../domain/config';
-import { createTokenizerProvider, type TokenizerProvider } from '../../domain/tokenizer-provider';
+import type { TokenizerProvider } from '../../domain/tokenizer-provider';
+import { embed_api_batch } from './api-adapter-batch';
+import {
+  load_tiktoken_tokenizer,
+  prepare_request_headers,
+  request_api,
+  resolve_tokenizer_provider,
+  trim_input_to_max_tokens,
+} from './api-adapter-request';
 
-/**
- * Base adapter class for API-based embedding models (e.g., OpenAI, Gemini)
- * Handles HTTP requests and response processing for remote embedding services
- */
 export class EmbedModelApiAdapter {
   adapter: string;
   model_key: string;
@@ -21,21 +22,6 @@ export class EmbedModelApiAdapter {
   settings: Record<string, unknown>;
   tiktoken: { encode(text: string): number[] } | null = null;
   private _tokenizer_provider: TokenizerProvider | null = null;
-
-  /**
-   * Resolve tokenizer from ModelInfo.tokenizer config. Lazy-loaded.
-   */
-  get tokenizer_provider(): TokenizerProvider {
-    if (!this._tokenizer_provider) {
-      const model = this.models[this.model_key];
-      const config = model?.tokenizer ?? { type: 'char-estimate' as const };
-      this._tokenizer_provider = createTokenizerProvider(config, async (url: string): Promise<unknown> => {
-        const resp = await requestUrl(url);
-        return resp.json as unknown;
-      });
-    }
-    return this._tokenizer_provider;
-  }
 
   constructor(config: {
     adapter: string;
@@ -51,323 +37,90 @@ export class EmbedModelApiAdapter {
     this.settings = config.settings;
   }
 
-  /**
-   * Get the request adapter class
-   */
-  get req_adapter(): typeof EmbedModelRequestAdapter {
-    return EmbedModelRequestAdapter;
+  get tokenizer_provider(): TokenizerProvider {
+    if (!this._tokenizer_provider) {
+      this._tokenizer_provider = resolve_tokenizer_provider(this.models, this.model_key);
+    }
+    return this._tokenizer_provider;
   }
 
-  /**
-   * Get the response adapter class
-   */
-  get res_adapter(): typeof EmbedModelResponseAdapter {
-    return EmbedModelResponseAdapter;
-  }
-
-  /**
-   * Get API endpoint URL
-   */
-  get endpoint(): string | undefined {
-    const model = this.models[this.model_key];
-    return model?.endpoint;
-  }
-
-  /**
-   * Get API key from settings
-   */
+  get req_adapter(): typeof EmbedModelRequestAdapter { return EmbedModelRequestAdapter; }
+  get res_adapter(): typeof EmbedModelResponseAdapter { return EmbedModelResponseAdapter; }
+  get endpoint(): string | undefined { return this.models[this.model_key]?.endpoint; }
   get api_key(): string | undefined {
     return (this.settings[`${this.adapter}.api_key`] as string | undefined) || (this.settings.api_key as string | undefined);
   }
-
-  /**
-   * Get max tokens for current model
-   */
-  get max_tokens(): number {
-    const model = this.models[this.model_key];
-    return model?.max_tokens || 8191;
-  }
-
-  /**
-   * Per-request token budget. Derived from max_tokens * tokenizer safety_ratio.
-   */
+  get max_tokens(): number { return this.models[this.model_key]?.max_tokens || 8191; }
   get request_token_budget(): number {
     return Math.max(1, Math.floor(this.max_tokens * this.tokenizer_provider.safety_ratio));
   }
+  get batch_size(): number { return this.models[this.model_key]?.batch_size || 1; }
 
-  /**
-   * Get batch size for current model
-   */
-  get batch_size(): number {
-    const model = this.models[this.model_key];
-    return model?.batch_size || 1;
-  }
-
-  /**
-   * Count tokens in input text
-   * @param input - Text to tokenize
-   * @returns Token count
-   */
   async count_tokens(input: string): Promise<number> {
     return this.tokenizer_provider.count_tokens(input);
   }
 
-  /**
-   * Estimate token count for input text
-   * Uses character-based estimation (3.7 chars per token)
-   * @param input - Input to estimate tokens for
-   * @returns Estimated token count
-   */
   estimate_tokens(input: string | object): number {
     if (typeof input === 'object') input = JSON.stringify(input);
     return Math.ceil(input.length / 3.7);
   }
 
-  /**
-   * Process a batch of inputs for embedding
-   * @param inputs - Array of input objects
-   * @returns Processed inputs with embeddings
-   */
   async embed_batch(inputs: (EmbedInput | { _embed_input: string })[]): Promise<EmbedResult[]> {
-    if (!this.api_key) throw new Error('API key not set');
-
-    // Normalize ALL inputs — preserve 1:1 mapping with input array.
-    // Items that fail preparation get { vec: [], tokens: 0 } instead of being dropped,
-    // which prevents BatchIntegrityError in the pipeline.
-    const normalized: { item: EmbedInput; originalIndex: number }[] = [];
-    for (let i = 0; i < inputs.length; i++) {
-      const raw = inputs[i];
-      const embed_input = 'embed_input' in raw ? raw.embed_input : raw._embed_input;
-      normalized.push({ item: { ...raw, embed_input } as EmbedInput, originalIndex: i });
-    }
-
-    // Prepare inputs — track which succeeded
-    const prepared = await Promise.all(
-      normalized.map(async (entry) => {
-        if (!entry.item.embed_input || entry.item.embed_input.length === 0) return { ...entry, prepared: null };
-        const prepared = await this.prepare_embed_input(entry.item.embed_input);
-        if (typeof prepared !== 'string' || prepared.length === 0) {
-          return { ...entry, prepared: null, token_count: 0 };
-        }
-        const token_count = await this.count_tokens(prepared);
-        return { ...entry, prepared, token_count };
-      }),
-    );
-
-    const valid = prepared.filter((e): e is typeof e & { prepared: string } => e.prepared !== null);
-
-    // Build result array preserving original positions
-    const results: EmbedResult[] = normalized.map((entry) => ({
-      ...entry.item,
-      vec: [],
-      tokens: 0,
-    } as EmbedResult));
-
-    if (valid.length === 0) {
-      return results;
-    }
-
-    const budget = Math.max(1, this.request_token_budget || this.max_tokens || 1);
-    const request_batches: typeof valid[] = [];
-    let current_batch: typeof valid = [];
-    let current_tokens = 0;
-
-    for (const entry of valid) {
-      const token_count = Math.max(1, entry.token_count || 0);
-      if (current_batch.length > 0 && current_tokens + token_count > budget) {
-        request_batches.push(current_batch);
-        current_batch = [];
-        current_tokens = 0;
-      }
-      current_batch.push(entry);
-      current_tokens += token_count;
-    }
-    if (current_batch.length > 0) {
-      request_batches.push(current_batch);
-    }
-
-    for (const batch of request_batches) {
-      const _req = new this.req_adapter(this, batch.map((entry) => entry.prepared));
-      const request_params = _req.to_platform();
-      const resp = await this.request(request_params);
-      const _res = new this.res_adapter(this, resp);
-      const embeddings = _res.to_openai();
-      if (!embeddings) {
-        continue;
-      }
-
-      // Map API results back to original positions while preserving the caller's order.
-      for (let i = 0; i < batch.length && i < embeddings.length; i++) {
-        const idx = batch[i].originalIndex;
-        results[idx].vec = embeddings[i].vec;
-        results[idx].tokens = embeddings[i].tokens;
-      }
-    }
-
-    return results;
+    return embed_api_batch(this, inputs);
   }
 
-  /**
-   * Prepare input text for embedding
-   * @param embed_input - Raw input text
-   * @returns Processed input text
-   */
-  prepare_embed_input(embed_input: string): Promise<string | null> {
+  prepare_embed_input(_embed_input: string): Promise<string | null> {
     throw new Error('prepare_embed_input not implemented');
   }
 
-  /**
-   * Prepare request headers
-   * @returns Headers object with authorization
-   */
   prepare_request_headers(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.api_key}`,
-    };
+    return prepare_request_headers(this.api_key);
   }
 
-  /**
-   * Make API request. Throws typed errors for the pipeline to handle.
-   * No retry at this level — the pipeline is the single retry layer.
-   * @param req - Request configuration
-   * @returns API response JSON
-   */
   async request(req: Record<string, unknown>): Promise<unknown> {
-    try {
-      const resp = await requestUrl({
-        url: this.endpoint!,
-        method: (req.method as string) || 'POST',
-        headers: req.headers as Record<string, string>,
-        body: req.body as string,
-        throw: false,
-      });
-
-      if (resp.status >= 400) {
-        const message = resp.text || 'Request failed';
-        if (resp.status === 429 || resp.status >= 500) {
-          throw new TransientError(message, resp.status);
-        }
-        throw new FatalError(message, resp.status);
-      }
-
-      return resp.json;
-    } catch (error: unknown) {
-      // Re-throw typed errors
-      if (error instanceof TransientError || error instanceof FatalError) {
-        throw error;
-      }
-      // Network/unknown errors are transient
-      const msg = error instanceof Error ? error.message : 'Network error';
-      throw new TransientError(msg, 0);
-    }
+    return request_api(this.endpoint!, req);
   }
 
-  /**
-   * Embed a search query. Subclasses can override to use a query-specific model
-   * (e.g., Upstage uses embedding-query vs embedding-passage).
-   * Defaults to embed_batch.
-   */
   embed_query(query: string): Promise<EmbedResult[]> {
     return this.embed_batch([{ embed_input: query }]);
   }
 
-  /**
-   * Validate API key by making test request
-   * @returns True if API key is valid
-   */
   async test_api_key(): Promise<void> {
-    const resp = await this.embed_batch([{ embed_input: 'test' }]);
-    if (!Array.isArray(resp) || resp.length === 0 || !resp[0].vec) {
-      throw new Error('API key validation failed');
-    }
+    const first = (await this.embed_batch([{ embed_input: 'test' }]))[0];
+    if (!first?.vec) throw new Error('API key validation failed');
   }
 
-  /**
-   * Trim input text to satisfy max_tokens
-   * @param embed_input - Input text
-   * @param tokens_ct - Existing token count
-   * @param max_tokens_override - Optional token limit override
-   * @returns Trimmed text or null if cannot trim
-   */
   async trim_input_to_max_tokens(
     embed_input: string,
     tokens_ct: number,
     max_tokens_override?: number,
   ): Promise<string | null> {
-    const max_tokens = max_tokens_override || this.request_token_budget;
-    let trimmed = embed_input;
-    let current_tokens = tokens_ct;
-    const MAX_ITERATIONS = 5;
-
-    for (let i = 0; i < MAX_ITERATIONS && current_tokens > max_tokens; i++) {
-      const reduce_ratio = (current_tokens - max_tokens) / current_tokens;
-      const aggressive_ratio = Math.min(reduce_ratio + 0.10, 0.5);
-      const new_length = Math.floor(trimmed.length * (1 - aggressive_ratio));
-      trimmed = trimmed.slice(0, new_length);
-
-      const last_space = trimmed.lastIndexOf(' ');
-      if (last_space > 0) trimmed = trimmed.slice(0, last_space);
-
-      if (trimmed.length === 0) return null;
-      current_tokens = await this.count_tokens(trimmed);
-    }
-
-    return current_tokens <= max_tokens ? trimmed : null;
+    return trim_input_to_max_tokens(
+      (input) => this.count_tokens(input),
+      embed_input,
+      tokens_ct,
+      max_tokens_override || this.request_token_budget,
+    );
   }
 
-  /**
-   * Load tiktoken tokenizer for accurate token counting
-   */
   async load_tiktoken(): Promise<void> {
-    // Lazy load tiktoken if needed by subclass
-    const { Tiktoken } = await import('js-tiktoken/lite');
-    const resp = await requestUrl('https://raw.githubusercontent.com/brianpetro/jsbrains/refs/heads/main/smart-embed-model/cl100k_base.json');
-    this.tiktoken = new Tiktoken(resp.json as TiktokenBPE);
+    this.tiktoken = await load_tiktoken_tokenizer();
   }
 
-  /**
-   * Get model information
-   * @param model_key - Optional model key override
-   * @returns Model information
-   */
   get_model_info(model_key?: string): ModelInfo | undefined {
     return this.models[model_key || this.model_key];
   }
 }
 
-/**
- * Base class for request adapters to handle various input schemas and convert them to platform-specific schema
- */
 export class EmbedModelRequestAdapter {
-  adapter: EmbedModelApiAdapter;
-  embed_inputs: string[];
+  constructor(
+    public adapter: EmbedModelApiAdapter,
+    public embed_inputs: string[],
+  ) {}
 
-  constructor(adapter: EmbedModelApiAdapter, embed_inputs: string[]) {
-    this.adapter = adapter;
-    this.embed_inputs = embed_inputs;
-  }
-
-  get model_id(): string {
-    return this.adapter.model_key;
-  }
-
-  get model_dims(): number | undefined {
-    return this.adapter.dims;
-  }
-
-  /**
-   * Get request headers
-   * @returns Headers object
-   */
-  get_headers(): Record<string, string> {
-    return this.adapter.prepare_request_headers();
-  }
-
-  /**
-   * Convert request to platform-specific format
-   * @returns Platform-specific request parameters
-   */
+  get model_id(): string { return this.adapter.model_key; }
+  get model_dims(): number | undefined { return this.adapter.dims; }
+  get_headers(): Record<string, string> { return this.adapter.prepare_request_headers(); }
   to_platform(): Record<string, unknown> {
     return {
       method: 'POST',
@@ -376,39 +129,21 @@ export class EmbedModelRequestAdapter {
     };
   }
 
-  /**
-   * Prepare request body for API call
-   * @returns Request body object
-   */
   prepare_request_body(): Record<string, unknown> {
     throw new Error('prepare_request_body not implemented');
   }
 }
 
-/**
- * Base class for response adapters to handle various output schemas and convert them to standard schema
- */
 export class EmbedModelResponseAdapter {
-  adapter: EmbedModelApiAdapter;
-  response: unknown;
+  constructor(
+    public adapter: EmbedModelApiAdapter,
+    public response: unknown,
+  ) {}
 
-  constructor(adapter: EmbedModelApiAdapter, response: unknown) {
-    this.adapter = adapter;
-    this.response = response;
-  }
-
-  /**
-   * Convert response to standard format
-   * @returns Array of embedding results
-   */
   to_openai(): EmbedResult[] {
     return this.parse_response();
   }
 
-  /**
-   * Parse API response
-   * @returns Parsed embedding results
-   */
   parse_response(): EmbedResult[] {
     throw new Error('parse_response not implemented');
   }

@@ -79,14 +79,16 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 
   smart_blocks: {
     embed_blocks: true,
-    min_chars: 200,
+    min_chars: 20,
     block_heading_depth: 3,
+    re_embed_min_change: 200,
   },
 
   smart_view_filter: {
     expanded_view: false,
     render_markdown: true,
     show_full_path: false,
+    highlight_threshold: 0.8,
   },
 
   smart_notices: {

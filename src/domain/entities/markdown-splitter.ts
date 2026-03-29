@@ -1,31 +1,12 @@
 import type { BlockData } from '../../types/entities';
 import type { CachedMetadataShim as CachedMetadata, HeadingCacheShim as HeadingCache } from '../../types/obsidian-shims';
-import { create_hash } from '../../utils';
+import { splitByParagraphs, splitHeadingContentByParagraphs } from './markdown-splitter-paragraphs';
 
 interface BlockRange {
   key: string;
   headings: string[];
   start_line: number;
   end_line: number;
-}
-
-async function make_block(
-  source_path: string,
-  key: string,
-  text: string,
-  lines: [number, number],
-  headings: string[],
-): Promise<BlockData> {
-  return {
-    path: key,
-    source_path,
-    text,
-    length: text.length,
-    lines,
-    headings,
-    embeddings: {},
-    last_read: { hash: await create_hash(text) },
-  };
 }
 
 /**
@@ -49,7 +30,7 @@ export async function parse_markdown_blocks(
   const headings = metadata?.headings || [];
 
   if (headings.length === 0) {
-    return split_by_paragraphs(source_path, lines);
+    return splitByParagraphs(source_path, lines);
   }
   return split_by_headings(source_path, lines, headings, max_depth);
 }
@@ -69,11 +50,20 @@ async function split_by_headings(
     if (block_content.trim().length === 0) continue;
 
     const block_key = source_path + range.key;
-    blocks.push(await make_block(source_path, block_key, block_content, [range.start_line, range.end_line], range.headings));
+    blocks.push({
+      path: block_key,
+      source_path,
+      text: block_content,
+      length: block_content.length,
+      lines: [range.start_line, range.end_line],
+      headings: range.headings,
+      embeddings: {},
+      last_read: { hash: await import('../../utils').then(({ create_hash }) => create_hash(block_content)) },
+    });
 
     // Also split content within heading into paragraphs if large enough
     if (block_content.length > 1000) {
-      const paragraph_blocks = await split_heading_content_by_paragraphs(
+      const paragraph_blocks = await splitHeadingContentByParagraphs(
         block_content,
         source_path,
         range.start_line,
@@ -92,8 +82,9 @@ function build_heading_ranges(headings: HeadingCache[], total_lines: number, max
 
   for (let i = 0; i < headings.length; i++) {
     const current = headings[i];
+    if (!current) continue;
 
-    while (heading_stack.length > 0 && heading_stack[heading_stack.length - 1].level >= current.level) {
+    while (heading_stack.length > 0 && (heading_stack[heading_stack.length - 1]?.level ?? -1) >= current.level) {
       heading_stack.pop();
     }
     heading_stack.push({ heading: current.heading, level: current.level });
@@ -103,8 +94,9 @@ function build_heading_ranges(headings: HeadingCache[], total_lines: number, max
     // Block ends before the next heading at the same or shallower level
     let end_line = total_lines - 1;
     for (let j = i + 1; j < headings.length; j++) {
-      if (headings[j].level <= current.level) {
-        end_line = headings[j].position.start.line - 1;
+      const nextHeading = headings[j];
+      if (nextHeading && nextHeading.level <= current.level) {
+        end_line = nextHeading.position.start.line - 1;
         break;
       }
     }
@@ -123,99 +115,4 @@ function build_heading_ranges(headings: HeadingCache[], total_lines: number, max
   }
 
   return ranges;
-}
-
-async function split_by_paragraphs(
-  source_path: string,
-  lines: string[],
-): Promise<BlockData[]> {
-  const blocks: BlockData[] = [];
-  const paragraphs: Array<{ text: string; start: number; end: number }> = [];
-
-  let current_paragraph: string[] = [];
-  let paragraph_start = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().length === 0) {
-      if (current_paragraph.length > 0) {
-        paragraphs.push({
-          text: current_paragraph.join('\n'),
-          start: paragraph_start,
-          end: i - 1,
-        });
-        current_paragraph = [];
-      }
-      paragraph_start = i + 1;
-    } else {
-      current_paragraph.push(lines[i]);
-    }
-  }
-
-  if (current_paragraph.length > 0) {
-    paragraphs.push({
-      text: current_paragraph.join('\n'),
-      start: paragraph_start,
-      end: lines.length - 1,
-    });
-  }
-
-  for (let i = 0; i < paragraphs.length; i++) {
-    const para = paragraphs[i];
-    if (para.text.length < 100) continue;
-
-    const block_key = `${source_path}#paragraph-${i + 1}`;
-    blocks.push(await make_block(source_path, block_key, para.text, [para.start, para.end], [`paragraph-${i + 1}`]));
-  }
-
-  return blocks;
-}
-
-// NOTE: The paragraph-splitting logic here intentionally duplicates split_by_paragraphs
-// because it differs in: min-length threshold (200 vs 100), boundary conditions
-// (heading lines are boundaries here), line offset tracking, and first-line skipping.
-async function split_heading_content_by_paragraphs(
-  content: string,
-  source_path: string,
-  start_line_offset: number,
-  parent_headings: string[],
-): Promise<BlockData[]> {
-  const blocks: BlockData[] = [];
-  const lines = content.split('\n');
-
-  // Skip the heading line itself
-  const content_lines = lines.slice(1);
-  let current_paragraph: string[] = [];
-  let paragraph_start = start_line_offset + 1;
-
-  for (let i = 0; i < content_lines.length; i++) {
-    const trimmed = content_lines[i].trim();
-
-    // Empty line or heading marks paragraph boundary
-    if (trimmed.length === 0 || trimmed.startsWith('#')) {
-      if (current_paragraph.length > 0) {
-        const para_text = current_paragraph.join('\n');
-
-        if (para_text.length > 200) {
-          const key = `${source_path}${parent_headings.map(h => `#${h}`).join('')}#paragraph-${blocks.length + 1}`;
-          blocks.push(await make_block(source_path, key, para_text, [paragraph_start, start_line_offset + i], [...parent_headings, `paragraph-${blocks.length + 1}`]));
-        }
-
-        current_paragraph = [];
-      }
-      paragraph_start = start_line_offset + i + 2;
-    } else {
-      current_paragraph.push(content_lines[i]);
-    }
-  }
-
-  // Add final paragraph
-  if (current_paragraph.length > 0) {
-    const para_text = current_paragraph.join('\n');
-    if (para_text.length > 200) {
-      const key = `${source_path}${parent_headings.map(h => `#${h}`).join('')}#paragraph-${blocks.length + 1}`;
-      blocks.push(await make_block(source_path, key, para_text, [paragraph_start, start_line_offset + content_lines.length], [...parent_headings, `paragraph-${blocks.length + 1}`]));
-    }
-  }
-
-  return blocks;
 }

@@ -5,6 +5,7 @@
 .vscode
 dist
 node_modules
+artifacts
 package-lock.json
 stylesheets
 ref.claude/

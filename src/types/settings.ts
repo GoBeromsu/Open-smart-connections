@@ -108,6 +108,9 @@ export interface BlockSettings {
 
   /** Maximum heading level to split blocks at (1-6). H1..H<depth> create new blocks; deeper headings merge into parent. */
   block_heading_depth: number;
+
+  /** Minimum content size delta (chars) to trigger re-embedding. Prevents costly API calls on trivial edits. */
+  re_embed_min_change: number;
 }
 
 /**
@@ -122,6 +125,9 @@ export interface ViewFilterSettings {
 
   /** Whether to show full file paths */
   show_full_path: boolean;
+
+  /** Similarity score threshold (0-1) above which results are highlighted with accent color */
+  highlight_threshold: number;
 }
 
 /**
