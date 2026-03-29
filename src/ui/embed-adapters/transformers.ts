@@ -206,4 +206,5 @@ embedAdapterRegistry.register({
   requiresApiKey: false,
   requiresHost: false,
   requiresLoad: true,
+  supportsBatch: false,
 });

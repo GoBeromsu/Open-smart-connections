@@ -156,4 +156,5 @@ embedAdapterRegistry.register({
   requiresApiKey: true,
   requiresHost: false,
   signupUrl: UPSTAGE_SIGNUP_URL,
+  supportsBatch: true,
 });

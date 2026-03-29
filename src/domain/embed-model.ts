@@ -46,6 +46,9 @@ export interface AdapterRegistration {
 
   /** Optional async load step after construction (e.g., Transformers.js model download) */
   requiresLoad?: boolean;
+
+  /** Whether the API supports multiple inputs per HTTP request. false → base class sends 1 input per request. */
+  supportsBatch?: boolean;
 }
 
 class EmbedAdapterRegistry {
