@@ -95,6 +95,7 @@ function makePlugin(
         getName: () => 'test-vault',
       },
       metadataCache: {},
+      workspace: { trigger: vi.fn() },
     },
     embed_adapter: undefined,
     manifest: { id: 'open-connections' },

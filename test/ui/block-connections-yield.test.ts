@@ -102,7 +102,7 @@ describe('getBlockConnections — batched vector loading', () => {
     expect(results[0].score).toBe(0.88);
   });
 
-  it('still respects the 10s timeout when using batched loading', async () => {
+  it('still respects the 30s timeout when using batched loading', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const queryPath = 'slow.md';
     const embeddedBlocks = Array.from({ length: 5 }, (_, i) =>
@@ -112,7 +112,7 @@ describe('getBlockConnections — batched vector loading', () => {
     const col = makeBlockCollection(embeddedBlocks, () => new Promise(() => {})); // never resolves
 
     const resultPromise = getBlockConnections(col, queryPath);
-    await vi.advanceTimersByTimeAsync(10_001);
+    await vi.advanceTimersByTimeAsync(30_001);
     const results = await resultPromise;
 
     expect(results).toEqual([]);
