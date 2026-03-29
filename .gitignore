@@ -10,3 +10,8 @@ package-lock.json
 stylesheets
 ref.claude/
 .omc/
+
+# Generated/temporary
+coverage/
+.openchrome/
+.claude/
