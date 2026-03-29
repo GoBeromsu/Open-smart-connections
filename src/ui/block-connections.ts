@@ -56,6 +56,7 @@ export async function getBlockConnections(
   let timeoutId: number | undefined;
   const mainPromise = (async (): Promise<ConnectionResult[]> => {
     await Promise.all(embedded.map(b => blockCollection.ensure_entity_vector(b)));
+    await new Promise(r => queueMicrotask(r));
     const withVec = embedded.filter(b => b.vec && b.vec.length > 0);
     if (withVec.length === 0) return [];
     const avgVec = average_vectors(withVec.map(b => b.vec!));
