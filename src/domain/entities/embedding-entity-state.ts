@@ -1,11 +1,14 @@
-import type { ConnectionResult, SearchFilter } from '../../types/entities';
+import type { ConnectionResult, EmbeddingModelMeta, SearchFilter } from '../../types/entities';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import { hasEmbeddingDimMismatch } from './embedding-entity-meta';
 
-function isChangeBelowThreshold(entity: EmbeddingEntity): boolean {
-  const threshold = (entity.collection.settings?.re_embed_min_change as number | undefined) ?? 0;
+function isChangeBelowThreshold(
+  entity: EmbeddingEntity,
+  meta: EmbeddingModelMeta | undefined,
+  threshold: number,
+): boolean {
   if (threshold <= 0) return false;
-  const lastSize = entity.active_embedding_meta?.size;
+  const lastSize = meta?.size;
   if (typeof lastSize !== 'number') return false;
   return Math.abs(entity.size - lastSize) < threshold;
 }
@@ -13,16 +16,17 @@ function isChangeBelowThreshold(entity: EmbeddingEntity): boolean {
 export function isEntityUnembedded(entity: EmbeddingEntity): boolean {
   const current_vec = entity.vec;
   const read_hash = entity.read_hash;
-  const active_hash = entity.active_embedding_meta?.hash;
+  const active_meta = entity.active_embedding_meta;
+  const active_hash = active_meta?.hash;
   const expected_dims = entity.collection.embed_model_dims;
-  const active_dims = entity.active_embedding_meta?.dims;
+  const active_dims = active_meta?.dims;
+  const raw = entity.collection.settings?.re_embed_min_change;
+  const threshold = typeof raw === 'number' ? raw : 0;
 
   if (!current_vec) {
     if (!read_hash) return true;
     if (!active_hash) return true;
-    if (active_hash !== read_hash) {
-      return !isChangeBelowThreshold(entity);
-    }
+    if (active_hash !== read_hash) return !isChangeBelowThreshold(entity, active_meta, threshold);
     if (
       typeof expected_dims === 'number' &&
       expected_dims > 0 &&
@@ -38,9 +42,7 @@ export function isEntityUnembedded(entity: EmbeddingEntity): boolean {
   if (hasEmbeddingDimMismatch(entity, current_vec)) return true;
   if (!read_hash) return true;
   if (!active_hash) return true;
-  if (active_hash !== read_hash) {
-    return !isChangeBelowThreshold(entity);
-  }
+  if (active_hash !== read_hash) return !isChangeBelowThreshold(entity, active_meta, threshold);
   return false;
 }
 
