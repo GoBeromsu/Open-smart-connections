@@ -72,6 +72,17 @@ export function renderBlockSettings(containerEl: HTMLElement, config: SettingsCo
     });
 
   new Setting(containerEl)
+    .setName('Re-embed minimum change')
+    .setDesc('Skip re-embedding when content change is smaller than this (chars). Saves API costs on trivial edits.')
+    .addSlider((slider) => {
+      slider
+        .setLimits(0, 500, 10)
+        .setValue(config.getConfig('smart_blocks.re_embed_min_change', 200))
+        .setDynamicTooltip()
+        .onChange((value) => config.setConfig('smart_blocks.re_embed_min_change', value));
+    });
+
+  new Setting(containerEl)
     .setName('Save frequency')
     .setDesc('Save progress every n batches. Lower = safer on crash, higher = less disk i/o')
     .addSlider((slider) => {

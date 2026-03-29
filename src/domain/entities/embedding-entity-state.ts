@@ -2,6 +2,14 @@ import type { ConnectionResult, SearchFilter } from '../../types/entities';
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import { hasEmbeddingDimMismatch } from './embedding-entity-meta';
 
+function isChangeBelowThreshold(entity: EmbeddingEntity): boolean {
+  const threshold = (entity.collection.settings?.re_embed_min_change as number | undefined) ?? 0;
+  if (threshold <= 0) return false;
+  const lastSize = entity.active_embedding_meta?.size;
+  if (typeof lastSize !== 'number') return false;
+  return Math.abs(entity.size - lastSize) < threshold;
+}
+
 export function isEntityUnembedded(entity: EmbeddingEntity): boolean {
   const current_vec = entity.vec;
   const read_hash = entity.read_hash;
@@ -11,7 +19,10 @@ export function isEntityUnembedded(entity: EmbeddingEntity): boolean {
 
   if (!current_vec) {
     if (!read_hash) return true;
-    if (!active_hash || active_hash !== read_hash) return true;
+    if (!active_hash) return true;
+    if (active_hash !== read_hash) {
+      return !isChangeBelowThreshold(entity);
+    }
     if (
       typeof expected_dims === 'number' &&
       expected_dims > 0 &&
@@ -26,7 +37,10 @@ export function isEntityUnembedded(entity: EmbeddingEntity): boolean {
 
   if (hasEmbeddingDimMismatch(entity, current_vec)) return true;
   if (!read_hash) return true;
-  if (!active_hash || active_hash !== read_hash) return true;
+  if (!active_hash) return true;
+  if (active_hash !== read_hash) {
+    return !isChangeBelowThreshold(entity);
+  }
   return false;
 }
 
