@@ -79,25 +79,6 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
   }
 
   /**
-   * Upstage enforces a strict request-level token cap. Send one prepared input
-   * per HTTP request to avoid mixed-document batches exceeding the provider
-   * limit even when each individual input is already trimmed.
-   */
-  async embed_batch(inputs: ({ embed_input: string } | { _embed_input: string })[]): Promise<EmbedResult[]> {
-    const results: EmbedResult[] = [];
-
-    for (const input of inputs) {
-      const [result] = await super.embed_batch([input]);
-      results.push(result ?? {
-        vec: [],
-        tokens: 0,
-      });
-    }
-
-    return results;
-  }
-
-  /**
    * Override embed_query to use embedding-query model for search queries.
    * Both query and passage models share the same 4096-dim vector space,
    * so query vectors can be compared directly against passage vectors.

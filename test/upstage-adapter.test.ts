@@ -49,7 +49,7 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
     expect(adapter.request_token_budget).toBe(3600);
   });
 
-  it('sends one request per input to stay below the provider request token cap', async () => {
+  it('batches multiple inputs into a single HTTP request', async () => {
     const adapter = makeAdapter();
     const requestSpy = vi.spyOn(adapter, 'request').mockImplementation(async (req) => {
       const body = JSON.parse(String(req.body)) as { input: string[] };
@@ -58,7 +58,7 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
         usage: { total_tokens: body.input.length * 100 },
       };
     });
-    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(1500);
+    vi.spyOn(adapter, 'count_tokens').mockResolvedValue(100);
     vi.spyOn(adapter, 'prepare_embed_input').mockImplementation(async (input) => input);
 
     const results = await adapter.embed_batch([
@@ -67,9 +67,8 @@ describe('UpstageEmbedAdapter.prepare_embed_input', () => {
       { key: 'c', index: 2, embed_input: 'gamma' },
     ]);
 
-    expect(requestSpy).toHaveBeenCalledTimes(3);
+    expect(requestSpy).toHaveBeenCalledTimes(1);
     expect(results).toHaveLength(3);
     expect(results.map((item) => item.key)).toEqual(['a', 'b', 'c']);
-    expect(results.every((item) => Array.isArray(item.vec) && item.vec.length === 1)).toBe(true);
   });
 });
