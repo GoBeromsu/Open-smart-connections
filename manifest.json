@@ -1,10 +1,10 @@
 {
-  "id": "open-connections",
-  "name": "Open Connections",
-  "author": "beomsu koh",
-  "description": "Chat with your notes & see links to related content with Local or Remote models.",
-  "minAppVersion": "1.1.0",
-  "authorUrl": "https://github.com/beomsuKoh/obsidian-smart-connections",
-  "isDesktopOnly": true,
-  "version": "3.9.33"
+	"id": "open-connections",
+	"name": "Open Connections",
+	"author": "beomsu koh",
+	"description": "Chat with your notes & see links to related content with Local or Remote models.",
+	"minAppVersion": "1.1.0",
+	"authorUrl": "https://github.com/beomsuKoh/obsidian-smart-connections",
+	"isDesktopOnly": true,
+	"version": "3.9.33"
 }
