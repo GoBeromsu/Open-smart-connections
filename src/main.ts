@@ -78,6 +78,7 @@ import {
   refreshStatus as _refreshStatus,
   setupStatusBar as _setupStatusBar,
 } from './ui/status-bar';
+import { OpenConnectionsMcpServer } from './ui/mcp-server';
 
 export default class SmartConnectionsPlugin extends Plugin {
   settings: PluginSettings;
@@ -101,6 +102,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   current_embed_context: EmbeddingRunContext | null = null;
   embedding_job_queue?: EmbeddingKernelJobQueue;
   pendingReImportPaths = new Set<string>();
+  mcp_server?: OpenConnectionsMcpServer;
   _lifecycle_epoch = 0;
   _embed_state: EmbedStateSnapshot = { phase: 'idle', modelFingerprint: null, lastError: null };
   _notices?: SmartConnectionsNotices;
@@ -167,6 +169,21 @@ export default class SmartConnectionsPlugin extends Plugin {
   getLastKnownVersion(): Promise<string> { return _getLastKnownVersion(this); }
   setLastKnownVersion(version: string): Promise<void> { return _setLastKnownVersion(this, version); }
   addToGitignore(ignore: string, message: string | null = null): Promise<void> { return _addToGitignore(this, ignore, message); }
+  getMcpServer(): OpenConnectionsMcpServer {
+    if (!this.mcp_server) this.mcp_server = new OpenConnectionsMcpServer(this);
+    return this.mcp_server;
+  }
+  async syncMcpServer(): Promise<void> { await this.getMcpServer().syncWithSettings(); }
+  async startMcpServer(): Promise<void> {
+    this.settings.mcp.enabled = true;
+    await this.saveSettings();
+    await this.getMcpServer().start();
+  }
+  async stopMcpServer(): Promise<void> {
+    this.settings.mcp.enabled = false;
+    await this.saveSettings();
+    await this.getMcpServer().stop();
+  }
 
   ensureEmbeddingKernel(): void {
     if (!this.embedding_job_queue) this.embedding_job_queue = new EmbeddingKernelJobQueue();

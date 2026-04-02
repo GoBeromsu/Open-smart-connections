@@ -176,7 +176,7 @@ export async function queryNodeSqliteNearest(
         if (minScore !== undefined && score < minScore) continue;
         chunkResults.push({ entity_key: row.entity_key, score });
       }
-      return chunkResults;
+      return Promise.resolve(chunkResults);
     },
   );
 

@@ -82,6 +82,14 @@ export async function initializeCore(
   plugin.ready = true;
   plugin.refreshStatus();
   plugin.app.workspace.trigger('open-connections:core-ready');
+  try {
+    await plugin.syncMcpServer();
+  } catch (error) {
+    plugin.logger.warn('[MCP] Failed to sync server during core init', { error });
+    plugin.notices?.show('mcp_server_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const sourceCount = plugin.source_collection?.size ?? 0;
   const blockCount = plugin.block_collection?.size ?? 0;

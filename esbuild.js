@@ -177,10 +177,32 @@ const build_options = {
   plugins: [css_with_plugin(), markdown_plugin, copy_output_plugin()],
 };
 
+// Standalone MCP server build (Node-only, no Obsidian dependency)
+// Uses ESM format because package.json has "type": "module".
+const standalone_build_options = {
+  entryPoints: { 'mcp': 'standalone/entry.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.js' },
+  format: 'esm',
+  bundle: true,
+  write: true,
+  target: 'es2022',
+  logLevel: 'info',
+  treeShaking: true,
+  platform: 'node',
+  external: ['node:*'],
+  banner: { js: '#!/usr/bin/env node' },
+  // Do NOT externalize 'obsidian' — standalone must never import it.
+  // If a transitive import pulls it in, the build will fail (which is correct).
+};
+
 if (is_watch) {
   const ctx = await esbuild.context(build_options);
   await ctx.watch();
   console.log('Watching for changes...');
 } else {
-  await esbuild.build(build_options).catch(() => process.exit(1));
+  await Promise.all([
+    esbuild.build(build_options),
+    esbuild.build(standalone_build_options),
+  ]).catch(() => process.exit(1));
 }

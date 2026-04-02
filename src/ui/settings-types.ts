@@ -22,6 +22,8 @@ export interface SmartConnectionsPlugin extends Plugin {
   switchEmbeddingModel?: (reason?: string) => Promise<void>;
   reembedStaleEntities?: (reason?: string) => Promise<number>;
   refreshStatus?: () => void;
+  getMcpServer?: () => { isRunning: boolean; endpointUrl: string };
+  syncMcpServer?: () => Promise<void>;
   getActiveEmbeddingContext?: () => {
     runId: number;
     current: number;

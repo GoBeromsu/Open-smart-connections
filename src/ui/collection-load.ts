@@ -26,7 +26,7 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
           const file = plugin.app.vault.getAbstractFileByPath(source.key);
           if (file instanceof TFile) source.file = file;
         }
-        return [];
+        return Promise.resolve([] as unknown[]);
       },
       yieldToEventLoop,
     );
@@ -68,7 +68,7 @@ export async function detectStaleSourcesOnStartup(plugin: SmartConnectionsPlugin
           staleCount++;
         }
       }
-      return [];
+      return Promise.resolve([] as unknown[]);
     },
     yieldToEventLoop,
   );
