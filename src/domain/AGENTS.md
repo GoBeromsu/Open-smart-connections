@@ -13,7 +13,6 @@ Business logic layer for open-connections. Contains all embedding domain logic, 
 | `config.ts` | DEFAULT_SETTINGS, NOTICE_CATALOG, error classes |
 | `embed-model.ts` | EmbedModel + EmbedAdapterRegistry (provider registration) |
 | `embedding-pipeline.ts` | Batch embedding pipeline — processes queued entities |
-| `embed-error.ts` | Typed embedding error hierarchy |
 
 ## Subdirectories
 
