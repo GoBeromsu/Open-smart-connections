@@ -32,6 +32,10 @@ export function initNodeSqliteDatabase(
         throw new Error('[NodeSQLite] vaultAdapter.getBasePath() not available');
       })();
   const absoluteDbPath = join(basePath, configDir, 'plugins', pluginId, `${pluginId}.db`);
+  return initNodeSqliteDatabaseAtPath(absoluteDbPath);
+}
+
+export function initNodeSqliteDatabaseAtPath(absoluteDbPath: string): DatabaseSync {
   mkdirSync(dirname(absoluteDbPath), { recursive: true });
 
   const existing = openDatabases.get(absoluteDbPath);

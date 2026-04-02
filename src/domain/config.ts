@@ -94,6 +94,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   smart_notices: {
     muted: {},
   },
+
+  mcp: {
+    enabled: false,
+    port: 27124,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -158,6 +163,18 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   },
   failed_reinitialize_model: {
     template: 'Failed to re-initialize model. Check console.',
+  },
+  mcp_server_started: {
+    template: 'MCP server started at {{url}}',
+    timeout: 5000,
+  },
+  mcp_server_stopped: {
+    template: 'MCP server stopped.',
+    timeout: 3000,
+  },
+  mcp_server_failed: {
+    template: 'Failed to start MCP server: {{error}}',
+    timeout: 8000,
   },
 };
 

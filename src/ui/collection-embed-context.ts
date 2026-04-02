@@ -1,4 +1,5 @@
 import type SmartConnectionsPlugin from '../main';
+import { getEmbedAdapterSettings } from '../utils/embed-settings';
 
 export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): void {
   const newModelKey = plugin.embed_adapter?.model_key;
@@ -29,14 +30,6 @@ export function syncCollectionEmbeddingContext(plugin: SmartConnectionsPlugin): 
   }
 }
 
-export function getEmbedAdapterSettings(embedSettings?: Record<string, unknown>): Record<string, unknown> {
-  if (!embedSettings) return {};
-  const adapterType = embedSettings.adapter;
-  if (typeof adapterType !== 'string' || adapterType.length === 0) return {};
-  const settings = embedSettings[adapterType];
-  return settings && typeof settings === 'object' ? settings as Record<string, unknown> : {};
-}
-
 export function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir: string): string {
   const adapter = plugin.app.vault.adapter as unknown as { getBasePath?: () => string };
   const basePath = typeof adapter?.getBasePath === 'function'
@@ -45,3 +38,5 @@ export function resolveStorageNamespace(plugin: SmartConnectionsPlugin, dataDir:
   const vaultName = plugin.app.vault.getName();
   return `${plugin.manifest.id}:${basePath || vaultName}:${dataDir.replace(/\/(sources|blocks)$/, '')}`;
 }
+
+export { getEmbedAdapterSettings };

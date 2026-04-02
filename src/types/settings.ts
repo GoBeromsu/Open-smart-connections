@@ -151,6 +151,17 @@ export interface SmartNoticesSettings {
 }
 
 /**
+ * MCP server settings
+ */
+export interface McpSettings {
+  /** Whether the local MCP server should auto-start */
+  enabled: boolean;
+
+  /** Localhost port for the MCP HTTP endpoint */
+  port: number;
+}
+
+/**
  * Main plugin settings
  */
 export interface PluginSettings {
@@ -189,4 +200,7 @@ export interface PluginSettings {
 
   /** Smart notices settings */
   smart_notices: SmartNoticesSettings;
+
+  /** MCP server settings */
+  mcp: McpSettings;
 }

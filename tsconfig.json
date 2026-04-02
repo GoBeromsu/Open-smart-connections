@@ -23,6 +23,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "worker/**/*", "test/**/*"],
+  "include": ["src/**/*", "worker/**/*", "test/**/*", "standalone/**/*"],
   "exclude": ["node_modules", "lib", "dist"]
 }

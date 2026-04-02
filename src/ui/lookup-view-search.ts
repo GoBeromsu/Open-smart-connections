@@ -1,7 +1,7 @@
 import type SmartConnectionsPlugin from '../main';
 import type { ConnectionResult, SearchFilter } from '../types/entities';
+import { searchNearestAcrossCollections } from '../domain/semantic-search';
 import type { LookupFilter } from './lookup-view-format';
-import { dedupeLookupResults } from './lookup-view-format';
 
 type SearchableCollection = {
   all: unknown[];
@@ -39,19 +39,5 @@ export async function searchCollections(
   limit: number,
 ): Promise<ConnectionResult[]> {
   const collections = getActiveCollections(plugin, activeFilter);
-  if (collections.length === 0) return [];
-
-  const filter: SearchFilter = { limit };
-  const perCollection = await Promise.all(
-    collections.map(async (collection) => {
-      try {
-        return await collection.nearest(queryVec, filter);
-      } catch {
-        return [];
-      }
-    }),
-  );
-
-  const merged = perCollection.flat().sort((a, b) => b.score - a.score);
-  return dedupeLookupResults(merged, limit);
+  return await searchNearestAcrossCollections(collections, queryVec, limit);
 }

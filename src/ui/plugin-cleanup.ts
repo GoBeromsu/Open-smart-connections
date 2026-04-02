@@ -7,6 +7,9 @@ export function cleanupPlugin(plugin: SmartConnectionsPlugin): void {
   plugin.logger.debug('Unloading Open Connections plugin');
   beginLifecycle(plugin);
   plugin._unloading = true;
+  void plugin.mcp_server?.stop(false).catch((error: unknown) => {
+    plugin.logger.warn('[MCP] Failed to stop server during unload', { error });
+  });
 
   plugin.embedding_pipeline?.halt();
   clearEmbedNotice(plugin);

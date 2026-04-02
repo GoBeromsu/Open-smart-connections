@@ -18,6 +18,8 @@ interface SmartConnectionsPluginCommands extends Plugin {
   logger?: { error(msg: string, err?: unknown): void };
   reembedStaleEntities?(reason: string): Promise<number>;
   open_note?(path: string): void;
+  startMcpServer?(): Promise<void>;
+  stopMcpServer?(): Promise<void>;
 }
 
 /**
@@ -75,6 +77,22 @@ export function registerCommands(plugin: Plugin): void {
     name: 'Re-embed stale entities',
     callback: async () => {
       await p.reembedStaleEntities?.('Command: Re-embed stale entities');
+    },
+  });
+
+  plugin.addCommand({
+    id: 'start-mcp-server',
+    name: 'Start local server',
+    callback: async () => {
+      await p.startMcpServer?.();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'stop-mcp-server',
+    name: 'Stop local server',
+    callback: async () => {
+      await p.stopMcpServer?.();
     },
   });
 

@@ -9,7 +9,7 @@ import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingModelMeta, SearchFilter } from '../../types/entities';
 import { getEntityType } from './node-sqlite-helpers';
-import { initNodeSqliteDatabase } from './node-sqlite-registry';
+import { initNodeSqliteDatabase, initNodeSqliteDatabaseAtPath } from './node-sqlite-registry';
 import { loadNodeSqliteEntities, loadNodeSqliteEntityVector, loadVectorIndexRows, queryNodeSqliteNearest } from './node-sqlite-read';
 import { FlatVectorIndex } from '../flat-vector-index';
 import { executeNodeSqliteSaveBatch } from './node-sqlite-save';
@@ -40,6 +40,11 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
 
   initVaultContext(vaultAdapter: unknown, configDir: string, pluginId: string): void {
     this._db = initNodeSqliteDatabase(vaultAdapter, configDir, pluginId);
+    this._closed = false;
+  }
+
+  initDbPath(absoluteDbPath: string): void {
+    this._db = initNodeSqliteDatabaseAtPath(absoluteDbPath);
     this._closed = false;
   }
 
