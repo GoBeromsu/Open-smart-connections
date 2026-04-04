@@ -6,7 +6,9 @@ export default {
       envVar: 'DESTINATION_VAULTS',
     },
   },
-  sync: {},
+  sync: {
+    skipDestinations: [['eslint.config.mts']],
+  },
   ci: {
     pushBranches: ['main'],
   },

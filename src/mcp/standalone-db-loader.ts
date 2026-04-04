@@ -8,8 +8,8 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { loadVectorIndexRows } from '../src/domain/entities/node-sqlite-read';
-import { FlatVectorIndex } from '../src/domain/flat-vector-index';
+import { loadVectorIndexRows } from '../domain/entities/node-sqlite-read';
+import { FlatVectorIndex } from '../domain/flat-vector-index';
 
 /** Block-level metadata used for search result previews and heading display. */
 export interface BlockMeta {
@@ -73,10 +73,10 @@ export function detectDims(db: DatabaseSync, modelKey: string): number | null {
   return row?.dims ?? null;
 }
 
-function parseExtraJson(extra: string | null | unknown): Record<string, unknown> {
+function parseExtraJson(extra: unknown): Record<string, unknown> {
   if (!extra || typeof extra !== 'string') return {};
   try {
-    const parsed = JSON.parse(extra);
+    const parsed: unknown = JSON.parse(extra);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : {};

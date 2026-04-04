@@ -6,7 +6,8 @@
  * embeds queries via the configured API adapter. No Obsidian imports.
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -16,11 +17,11 @@ import type {
   McpModelInfo,
   McpSearchResult,
   McpContextLogger,
-} from '../src/types/mcp-context';
-import type { PluginSettings } from '../src/types/settings';
-import { FlatVectorIndex } from '../src/domain/flat-vector-index';
-import { average_vectors } from '../src/utils/average-vectors';
-import { ensureSchema } from '../src/domain/entities/node-sqlite-helpers';
+} from '../types/mcp-context';
+import type { PluginSettings } from '../types/settings';
+import { FlatVectorIndex } from '../domain/flat-vector-index';
+import { average_vectors } from '../utils/average-vectors';
+import { ensureSchema } from '../domain/entities/node-sqlite-helpers';
 import {
   embedQuery,
   resolveEmbedConfig,
@@ -90,7 +91,7 @@ class StandaloneMcpContext implements McpContext {
   async readNote(notePath: string): Promise<string | null> {
     const full = join(this.vaultPath, notePath);
     if (!existsSync(full)) return null;
-    return readFileSync(full, 'utf8');
+    return await readFile(full, 'utf8');
   }
 
   noteExists(notePath: string): boolean {

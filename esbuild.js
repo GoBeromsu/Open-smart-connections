@@ -180,7 +180,7 @@ const build_options = {
 // Standalone MCP server build (Node-only, no Obsidian dependency)
 // Uses ESM format because package.json has "type": "module".
 const standalone_build_options = {
-  entryPoints: { 'mcp': 'standalone/entry.ts' },
+  entryPoints: { 'mcp': 'src/mcp/entry.ts' },
   outdir: 'dist',
   outExtension: { '.js': '.js' },
   format: 'esm',

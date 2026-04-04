@@ -79,11 +79,14 @@ export default tseslint.config(
 			}],
 		},
 	},
-	// Worker files: run in Web Worker / Node-like context, need node globals (Buffer, process).
+	// Worker / MCP server files: run in Node-like context, need node globals.
 	{
-		files: ['worker/**/*.ts'],
+		files: ['worker/**/*.ts', 'src/mcp/**/*.ts'],
 		languageOptions: {
 			globals: { ...globals.node },
+		},
+		rules: {
+			'import/no-nodejs-modules': 'off',
 		},
 	},
 	// Config files: legitimately import Node.js built-in modules.

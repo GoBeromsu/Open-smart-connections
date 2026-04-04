@@ -8,7 +8,7 @@
  * outside the Obsidian browser environment.
  */
 
-import type { EmbedModelSettings, SearchModelSettings } from '../src/types/settings';
+import type { EmbedModelSettings, SearchModelSettings } from '../types/settings';
 
 export interface StandaloneEmbedConfig {
   adapter: string;
