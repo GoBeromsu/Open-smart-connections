@@ -8,27 +8,44 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
-import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
+import type { AdapterConfig, EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const GEMINI_SIGNUP_URL = 'https://aistudio.google.com/apikey';
+export const DEFAULT_GEMINI_EMBED_MODEL_KEY = 'gemini-embedding-001';
+const GEMINI_DEFAULT_DIMS = 768;
+const GEMINI_DEFAULT_BATCH_SIZE = 50;
+const GEMINI_DEFAULT_MAX_TOKENS = 2048;
+const GEMINI_DEFAULT_DESCRIPTION = 'API, 2,048 tokens, 768 dim';
+const GEMINI_DEFAULT_TOKENIZER = {
+  type: 'char-estimate' as const,
+  chars_per_token: 3.0,
+  safety_ratio: 0.80,
+};
+
+function buildGeminiModelInfo(modelKey: string, dims: number = GEMINI_DEFAULT_DIMS): ModelInfo {
+  const isDefaultModel = modelKey === DEFAULT_GEMINI_EMBED_MODEL_KEY;
+
+  return {
+    model_key: modelKey,
+    model_name: isDefaultModel ? 'Gemini Embedding' : `Gemini (${modelKey})`,
+    batch_size: GEMINI_DEFAULT_BATCH_SIZE,
+    dims,
+    max_tokens: GEMINI_DEFAULT_MAX_TOKENS,
+    description: isDefaultModel
+      ? GEMINI_DEFAULT_DESCRIPTION
+      : `${GEMINI_DEFAULT_DESCRIPTION} — custom Gemini model key`,
+    endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${modelKey}:batchEmbedContents`,
+    signup_url: GEMINI_SIGNUP_URL,
+    tokenizer: GEMINI_DEFAULT_TOKENIZER,
+  };
+}
 
 /**
  * Gemini embedding models configuration
  */
 export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
-  'gemini-embedding-001': {
-    model_key: 'gemini-embedding-001',
-    model_name: 'Gemini Embedding',
-    batch_size: 50,
-    dims: 768,
-    max_tokens: 2048,
-    description: 'API, 2,048 tokens, 768 dim',
-    endpoint:
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents',
-    signup_url: GEMINI_SIGNUP_URL,
-    tokenizer: { type: 'char-estimate', chars_per_token: 3.0, safety_ratio: 0.80 },
-  },
+  [DEFAULT_GEMINI_EMBED_MODEL_KEY]: buildGeminiModelInfo(DEFAULT_GEMINI_EMBED_MODEL_KEY),
 };
 
 /**
@@ -36,6 +53,17 @@ export const GEMINI_EMBED_MODELS: Record<string, ModelInfo> = {
  * Handles token counting and API communication for Gemini models
  */
 export class GeminiEmbedAdapter extends EmbedModelApiAdapter {
+  constructor(config: AdapterConfig) {
+    super(config);
+
+    if (!this.models[this.model_key]) {
+      this.models = {
+        ...this.models,
+        [this.model_key]: buildGeminiModelInfo(this.model_key, this.dims || GEMINI_DEFAULT_DIMS),
+      };
+    }
+  }
+
   /**
    * Prepare input text for embedding
    * Handles token limit truncation
@@ -180,8 +208,9 @@ embedAdapterRegistry.register({
   displayName: 'Google Gemini',
   AdapterClass: GeminiEmbedAdapter,
   models: GEMINI_EMBED_MODELS,
-  defaultDims: 768,
+  defaultDims: GEMINI_DEFAULT_DIMS,
   requiresApiKey: true,
   requiresHost: false,
   signupUrl: GEMINI_SIGNUP_URL,
+  dynamicModels: true,
 });

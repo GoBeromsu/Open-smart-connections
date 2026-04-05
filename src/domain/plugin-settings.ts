@@ -1,6 +1,9 @@
 import { DEFAULT_SETTINGS } from './config';
 import type { PluginSettings } from '../types/settings';
 
+const LEGACY_GEMINI_MODEL_KEY = 'text-embedding-004';
+const DEFAULT_GEMINI_MODEL_KEY = 'gemini-embedding-001';
+
 export function hydratePluginSettings(data: Record<string, unknown> | null): {
   settings: PluginSettings;
   removedLegacyKeys: boolean;
@@ -96,6 +99,18 @@ export function hydratePluginSettings(data: Record<string, unknown> | null): {
       removedLegacyKeys = true;
     } else if (upstageSettings.model_key && upstageSettings.model_key !== 'embedding-passage') {
       upstageSettings.model_key = 'embedding-passage';
+      removedLegacyKeys = true;
+    }
+  }
+
+  if (upstageAdapter?.adapter === 'gemini') {
+    let geminiSettings = upstageAdapter['gemini'] as Record<string, unknown> | undefined;
+    if (!geminiSettings) {
+      geminiSettings = { model_key: DEFAULT_GEMINI_MODEL_KEY };
+      upstageAdapter['gemini'] = geminiSettings;
+      removedLegacyKeys = true;
+    } else if (!geminiSettings.model_key || geminiSettings.model_key === LEGACY_GEMINI_MODEL_KEY) {
+      geminiSettings.model_key = DEFAULT_GEMINI_MODEL_KEY;
       removedLegacyKeys = true;
     }
   }

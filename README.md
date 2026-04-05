@@ -267,6 +267,18 @@ pnpm run ci           # Full CI pipeline (build + lint + test)
 2. Your test vault reloads (if configured correctly)
 3. Changes appear instantly without restarting Obsidian
 
+### Provider Runtime Verification (Test Vault)
+
+For provider triage work, keep a dedicated `Test` vault with the target provider already configured in `.obsidian/plugins/open-connections/data.json`, then run:
+
+```bash
+pnpm run verify:test-vault                                  # generic plugin reload + error smoke check
+bash scripts/check-provider-runtime.sh upstage embedding-passage 4096
+bash scripts/check-upstage.sh                               # longer Upstage embedding run
+```
+
+`check-provider-runtime.sh` is the fast provider smoke probe: it rebuilds the plugin, reloads it in Obsidian, and verifies the active adapter/model/dimensions, `embed_ready`, and dev-error surfaces before you move on to broader issue triage or smoke-matrix work.
+
 ## Contributing
 
 We welcome contributions! Please follow these steps:

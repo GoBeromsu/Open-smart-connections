@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { embedAdapterRegistry } from '../src/domain/embed-model';
-import '../src/ui/embedding/register-embed-adapters';
+import { RUNTIME_REGISTERED_EMBED_ADAPTERS } from '../src/ui/embedding/register-embed-adapters';
 
 describe('EmbedAdapterRegistry', () => {
-  it('has only transformers and upstage registered', () => {
+  it('registers the supported runtime adapters', () => {
     const names = embedAdapterRegistry.getAdapterNames().sort();
-    expect(names).toEqual(['transformers', 'upstage']);
+    expect(names).toEqual([...RUNTIME_REGISTERED_EMBED_ADAPTERS].sort());
   });
 
   it('upstage has supportsBatch: true', () => {
@@ -39,7 +39,7 @@ describe('EmbedAdapterRegistry', () => {
   });
 
   it('throws for unregistered adapter', () => {
-    expect(() => embedAdapterRegistry.createAdapter('openai', 'test', {}))
-      .toThrow(/Unknown embed adapter: openai/);
+    expect(() => embedAdapterRegistry.createAdapter('nonexistent', 'test', {}))
+      .toThrow(/Unknown embed adapter: nonexistent/);
   });
 });

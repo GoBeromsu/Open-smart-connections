@@ -83,8 +83,9 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   const configDirIdx = argv.indexOf('--config-dir');
-  const configDir = (configDirIdx !== -1 && argv[configDirIdx + 1])
-    ? argv[configDirIdx + 1]
+  const configDirArg = configDirIdx !== -1 ? argv[configDirIdx + 1] : undefined;
+  const configDir = typeof configDirArg === 'string' && configDirArg.length > 0
+    ? configDirArg
     : DEFAULT_CONFIG_DIR;
 
   const useHttp = argv.includes('--http');

@@ -8,7 +8,7 @@ import { embedAdapterRegistry } from '../src/domain/embed-model';
 import { TRANSFORMERS_EMBED_MODELS } from '../src/ui/embed-adapters/transformers';
 import { OPENAI_EMBED_MODELS } from '../src/ui/embed-adapters/openai';
 import '../src/ui/embed-adapters/ollama';
-import { GEMINI_EMBED_MODELS } from '../src/ui/embed-adapters/gemini';
+import { DEFAULT_GEMINI_EMBED_MODEL_KEY, GEMINI_EMBED_MODELS } from '../src/ui/embed-adapters/gemini';
 import '../src/ui/embed-adapters/lm-studio';
 import { UPSTAGE_EMBED_MODELS } from '../src/ui/embed-adapters/upstage';
 import '../src/ui/embed-adapters/open-router';
@@ -36,7 +36,7 @@ describe('EmbedAdapterRegistry', () => {
     const cases = [
       { adapterType: 'openai', modelKey: 'text-embedding-3-small', settings: { api_key: 'test-key' }, dims: 1536 },
       { adapterType: 'upstage', modelKey: 'embedding-passage', settings: { api_key: 'test-key' }, dims: 4096 },
-      { adapterType: 'gemini', modelKey: 'gemini-embedding-001', settings: { api_key: 'test-key' }, dims: 768 },
+      { adapterType: 'gemini', modelKey: DEFAULT_GEMINI_EMBED_MODEL_KEY, settings: { api_key: 'test-key' }, dims: 768 },
     ];
 
     for (const testCase of cases) {
@@ -59,6 +59,20 @@ describe('EmbedAdapterRegistry', () => {
 
     expect(adapter.model_key).toBe('bge-m3');
     expect(adapter.dims).toBe(1024);
+  });
+
+  it('creates Gemini adapters for custom model keys using generated model info', () => {
+    const customModelKey = 'gemini-embedding-2-preview';
+
+    const { adapter } = embedAdapterRegistry.createAdapter(
+      'gemini',
+      customModelKey,
+      { api_key: 'test-key' },
+    );
+
+    expect(adapter.model_key).toBe(customModelKey);
+    expect(adapter.dims).toBe(768);
+    expect(adapter.get_model_info()?.endpoint).toContain(`${customModelKey}:batchEmbedContents`);
   });
 
   it('exposes registration metadata needed by factory and settings flows', () => {
