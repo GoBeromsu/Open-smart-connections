@@ -1,5 +1,6 @@
 import { Setting } from 'obsidian';
 
+import { DEFAULT_GEMINI_EMBED_MODEL_KEY } from './embed-adapters/gemini';
 import {
   renderApiKeyField,
   renderHostField,
@@ -19,7 +20,7 @@ function ensureModelKeyForAdapter(config: SettingsConfigAccessor, adapterName: s
     transformers: 'TaylorAI/bge-micro-v2',
     ollama: 'bge-m3',
     openai: 'text-embedding-3-small',
-    gemini: 'text-embedding-004',
+    gemini: DEFAULT_GEMINI_EMBED_MODEL_KEY,
     upstage: 'embedding-passage',
   };
   const fallback = defaults[adapterName];
