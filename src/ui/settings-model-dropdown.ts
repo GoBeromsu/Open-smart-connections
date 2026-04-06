@@ -90,7 +90,11 @@ function renderKnownModelDropdown(
   knownModels: Array<{ value: string; name: string }>,
 ): void {
   const { containerEl, adapterName, config, confirmReembed, triggerReEmbed, display } = deps;
+  const customModeFlag = 'oscCustomModelOpen';
   const isCustom = !knownModels.some((model) => model.value === currentModelKey) && currentModelKey !== '';
+  const isCustomModeOpen = containerEl.dataset[customModeFlag] === adapterName;
+  const showCustomInput = isCustom || isCustomModeOpen
+    || config.getConfig<string>(`smart_sources.embed_model.${adapterName}.model_key`, '') === '__custom__';
 
   new Setting(containerEl)
     .setName('Model')
@@ -100,18 +104,23 @@ function renderKnownModelDropdown(
         dropdown.addOption(model.value, model.name);
       }
       dropdown.addOption('__custom__', 'Custom...');
-      dropdown.setValue(isCustom ? '__custom__' : currentModelKey);
+      dropdown.setValue(showCustomInput ? '__custom__' : currentModelKey);
       dropdown.onChange(async (value) => {
         if (value === '__custom__') {
+          containerEl.dataset[customModeFlag] = adapterName;
           display();
           return;
         }
+        delete containerEl.dataset[customModeFlag];
         if (value !== currentModelKey) {
           const confirmed = await confirmReembed(
             'Changing the embedding model requires re-embedding all notes. This may take a while. Continue?',
           );
           if (!confirmed) {
-            dropdown.setValue(isCustom ? '__custom__' : currentModelKey);
+            if (showCustomInput) {
+              containerEl.dataset[customModeFlag] = adapterName;
+            }
+            dropdown.setValue(showCustomInput ? '__custom__' : currentModelKey);
             return;
           }
         }
@@ -120,7 +129,7 @@ function renderKnownModelDropdown(
       });
     });
 
-  if (!isCustom && config.getConfig<string>(`smart_sources.embed_model.${adapterName}.model_key`, '') !== '__custom__') {
+  if (!showCustomInput) {
     return;
   }
 
@@ -144,6 +153,7 @@ function renderKnownModelDropdown(
           'Applying a custom embedding model requires re-embedding notes. Continue?',
         );
         if (!confirmed) return;
+        delete containerEl.dataset[customModeFlag];
         config.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, nextValue);
         await triggerReEmbed();
       });
