@@ -27,28 +27,85 @@ fail() {
 }
 
 eval_cmd() {
-  local tmpfile
-  tmpfile=$(mktemp)
-  obsidian "vault=$VAULT" eval "code=$1" 2>&1 | grep -v FATAL | sed 's/^=> //' > "$tmpfile" &
-  local pid=$!
-  local i=0
-  while kill -0 "$pid" 2>/dev/null; do
-    sleep 1
-    i=$((i + 1))
-    if (( i >= EVAL_TIMEOUT )); then
-      kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-      rm -f "$tmpfile"
-      echo "FREEZE_DETECTED"
-      return 1
-    fi
-  done
-  wait "$pid" 2>/dev/null || true
-  cat "$tmpfile"
-  rm -f "$tmpfile"
+  local code="$1"
+  VAULT="$VAULT" EVAL_TIMEOUT="$EVAL_TIMEOUT" CODE="$code" python3 - <<'PY'
+import os
+import subprocess
+import sys
+
+vault = os.environ["VAULT"]
+timeout = int(os.environ["EVAL_TIMEOUT"])
+code = os.environ["CODE"]
+
+try:
+    completed = subprocess.run(
+        ["obsidian", f"vault={vault}", "eval", f"code={code}"],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+except subprocess.TimeoutExpired:
+    print("FREEZE_DETECTED")
+    sys.exit(1)
+
+output = (completed.stdout or "") + (completed.stderr or "")
+for line in output.splitlines():
+    if "FATAL" in line:
+        continue
+    if line.startswith("=> "):
+        print(line[3:])
+    else:
+        print(line)
+PY
 }
 
 log() { echo "$1" | tee -a "$LOGFILE"; }
+
+open_vault() {
+  local encoded_path
+  encoded_path=$(VAULT_PATH="$VAULT_PATH" python3 - <<'PY'
+import os, urllib.parse
+print(urllib.parse.quote(os.environ["VAULT_PATH"]))
+PY
+)
+  open "obsidian://open?path=${encoded_path}"
+}
+
+restart_obsidian() {
+  log "  Restarting Obsidian for a clean runtime..."
+  pkill -x Obsidian 2>/dev/null || true
+  sleep 2
+  open -a Obsidian
+  sleep 5
+  open_vault
+}
+
+wait_for_ping() {
+  local ping=""
+  for _ in $(seq 1 30); do
+    ping=$(eval_cmd '1+1' || true)
+    [[ "$ping" == *"2"* ]] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+wait_for_plugin_ready() {
+  local ready=""
+  for _ in $(seq 1 60); do
+    ready=$(eval_cmd 'app.plugins.plugins["open-connections"]?.ready?.toString()' || true)
+    [[ "$ready" == "true" ]] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+sanitize_dev_output() {
+  printf '%s' "$1" \
+    | grep -v -E '^(No errors captured\.?|No console messages captured\.?|Error: Debugger not attached\..*)$' \
+    || true
+}
 
 if [[ ! -d "$VAULT_PATH" ]]; then
   fail "Vault not found: $VAULT_PATH"
@@ -70,32 +127,26 @@ cp src/styles.css "$PLUGIN_DIR/styles.css" 2>/dev/null || true
 log "  OK"
 
 log "[2/4] Ensure plugin ready..."
-PING=$(eval_cmd '1+1' || true)
-if [[ "$PING" != *"2"* ]]; then
-  open -a Obsidian
-  sleep 5
-  open "obsidian://open?vault=$VAULT"
-  for i in $(seq 1 30); do
-    PING=$(eval_cmd '1+1' || true)
-    [[ "$PING" == *"2"* ]] && break
-    sleep 1
-  done
+if ! wait_for_ping; then
+  restart_obsidian
+  wait_for_ping || fail "Obsidian CLI ping never recovered"
 fi
 obsidian "vault=$VAULT" plugin:reload "id=$PLUGIN" 2>&1 | grep -v FATAL > /dev/null || true
 sleep 3
-for i in $(seq 1 60); do
-  READY=$(eval_cmd 'app.plugins.plugins["open-connections"]?.ready?.toString()' || true)
-  [[ "$READY" == "true" ]] && break
-  sleep 1
-done
-[[ "$READY" == "true" ]] || fail "plugin.ready never became true"
+if ! wait_for_plugin_ready; then
+  log "  plugin.ready missed the reload window; retrying once after restart..."
+  restart_obsidian
+  wait_for_ping || fail "Obsidian CLI ping never recovered after restart"
+  wait_for_plugin_ready || fail "plugin.ready never became true"
+fi
 log "  plugin.ready: true"
 
 log "[3/4] Capture provider runtime state..."
 obsidian "vault=$VAULT" dev:errors clear 2>&1 | grep -v FATAL > /dev/null || true
+obsidian "vault=$VAULT" dev:debug on 2>&1 | grep -v FATAL > /dev/null || true
 RUNTIME_JSON=$(eval_cmd '(function(){var p=app.plugins.plugins["open-connections"]; return JSON.stringify({adapter:p?.embed_adapter?.adapter ?? null, model_key:p?.embed_adapter?.model_key ?? null, dims:p?.embed_adapter?.dims ?? null, embed_ready:!!p?.embed_ready, phase:p?._embed_state?.phase ?? null, last_error:p?._embed_state?.lastError ?? null});})()' || true)
-DEV_ERRORS=$(obsidian "vault=$VAULT" dev:errors 2>&1 | grep -v FATAL || true)
-DEV_CONSOLE_ERRORS=$(obsidian "vault=$VAULT" dev:console level=error 2>&1 | grep -v FATAL || true)
+DEV_ERRORS=$(sanitize_dev_output "$(obsidian "vault=$VAULT" dev:errors 2>&1 | grep -v FATAL || true)")
+DEV_CONSOLE_ERRORS=$(sanitize_dev_output "$(obsidian "vault=$VAULT" dev:console level=error 2>&1 | grep -v FATAL || true)")
 
 ACTUAL_ADAPTER=$(printf '%s' "$RUNTIME_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("adapter") or ""))' 2>/dev/null || true)
 ACTUAL_MODEL_KEY=$(printf '%s' "$RUNTIME_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("model_key") or ""))' 2>/dev/null || true)
