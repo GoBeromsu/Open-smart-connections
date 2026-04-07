@@ -8,11 +8,12 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
+import { DEFAULT_GEMINI_EMBED_MODEL_KEY } from '../../domain/embed-provider-policy';
 import type { AdapterConfig, EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
 export const GEMINI_SIGNUP_URL = 'https://aistudio.google.com/apikey';
-export const DEFAULT_GEMINI_EMBED_MODEL_KEY = 'gemini-embedding-001';
+export { DEFAULT_GEMINI_EMBED_MODEL_KEY };
 const GEMINI_DEFAULT_DIMS = 768;
 const GEMINI_DEFAULT_BATCH_SIZE = 50;
 const GEMINI_DEFAULT_MAX_TOKENS = 2048;

@@ -3,16 +3,15 @@ import { Tiktoken } from 'js-tiktoken/lite';
 import type { TiktokenBPE } from 'js-tiktoken/lite';
 
 import { FatalError, TransientError } from '../../domain/config';
-import { createTokenizerProvider, type TokenizerProvider } from '../../domain/tokenizer-provider';
+import { createModelTokenizerProvider } from '../../domain/model-tokenizer';
+import type { TokenizerProvider } from '../../domain/tokenizer-provider';
 import type { ModelInfo } from '../../types/models';
 
 export function resolve_tokenizer_provider(
   models: Record<string, ModelInfo>,
   model_key: string,
 ): TokenizerProvider {
-  const model = models[model_key];
-  const config = model?.tokenizer ?? { type: 'char-estimate' as const };
-  return createTokenizerProvider(config, async (url: string): Promise<unknown> => {
+  return createModelTokenizerProvider(models, model_key, async (url: string): Promise<unknown> => {
     const response = await requestUrl(url);
     return response.json as unknown;
   });

@@ -1,4 +1,5 @@
 import type SmartConnectionsPlugin from '../../main';
+import { resolveEmbeddingRunPolicy } from '../../domain/embed-provider-policy';
 import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
 import type { EmbeddingEntity } from '../../types/entities';
 import { errorMessage } from '../../utils';
@@ -54,14 +55,12 @@ export async function runEmbeddingJobNow(
   let lastProgressEmit = 0;
 
   try {
-    const dims = context.dims ?? 384;
-    const effectiveSaveInterval = dims > 1024 ? 2 : dims > 512 ? 3 : (plugin.settings.embed_save_interval || 5);
-    const configuredConcurrency = plugin.settings.embed_concurrency || 5;
-    const effectiveConcurrency = context.adapter === 'upstage'
-      ? 1
-      : dims > 1024
-        ? Math.max(1, Math.min(configuredConcurrency, 3))
-        : configuredConcurrency;
+    const { saveInterval: effectiveSaveInterval, concurrency: effectiveConcurrency } = resolveEmbeddingRunPolicy({
+      adapter: context.adapter,
+      dims: context.dims ?? 384,
+      configuredSaveInterval: plugin.settings.embed_save_interval,
+      configuredConcurrency: plugin.settings.embed_concurrency,
+    });
 
     const stats = await plugin.embedding_pipeline.process(entitiesToEmbed, {
       batch_size: 10,
