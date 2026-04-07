@@ -5,21 +5,39 @@
 
 export const DEFAULT_EXCLUDED_FOLDERS = ['node_modules', '.trash', '.git'];
 
+function normalizeFolderPattern(value: string): string {
+  return value
+    .replace(/\\/g, '/')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
+}
+
 export function isExcludedPath(
   path: string,
   folderExclusions: string = '',
   fileExclusions: string = '',
 ): boolean {
-  const segments = path.split('/');
+  const normalizedPath = normalizeFolderPattern(path);
+  const segments = normalizedPath.split('/').filter(Boolean);
 
   for (const segment of segments) {
     if (DEFAULT_EXCLUDED_FOLDERS.includes(segment)) return true;
   }
 
   if (folderExclusions) {
-    const userFolders = folderExclusions.split(',').map((value) => value.trim()).filter(Boolean);
-    for (const segment of segments) {
-      if (userFolders.includes(segment)) return true;
+    const userFolders = folderExclusions
+      .split(',')
+      .map(normalizeFolderPattern)
+      .filter(Boolean);
+
+    for (const folder of userFolders) {
+      if (!folder.includes('/')) {
+        if (segments.includes(folder)) return true;
+        continue;
+      }
+      if (normalizedPath === folder || normalizedPath.startsWith(`${folder}/`)) {
+        return true;
+      }
     }
   }
 
