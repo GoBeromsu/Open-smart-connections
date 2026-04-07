@@ -1,6 +1,10 @@
 import { Setting } from 'obsidian';
 
-import { DEFAULT_GEMINI_EMBED_MODEL_KEY } from './embed-adapters/gemini';
+import {
+  getDefaultEmbedModelKey,
+  getManagedSearchModel,
+  shouldClearManagedSearchModel,
+} from '../domain/embed-provider-policy';
 import {
   renderApiKeyField,
   renderHostField,
@@ -12,34 +16,27 @@ import type { SettingsConfigAccessor, SmartConnectionsPlugin } from './settings-
 function ensureModelKeyForAdapter(config: SettingsConfigAccessor, adapterName: string): void {
   const existing = config.getConfig(`smart_sources.embed_model.${adapterName}.model_key`, '');
   if (typeof existing === 'string' && existing.trim().length > 0) {
-    if (adapterName === 'upstage') autoPopulateUpstageSearchModel(config);
+    applyManagedSearchModel(config, adapterName);
     return;
   }
 
-  const defaults: Record<string, string> = {
-    transformers: 'TaylorAI/bge-micro-v2',
-    ollama: 'bge-m3',
-    openai: 'text-embedding-3-small',
-    gemini: DEFAULT_GEMINI_EMBED_MODEL_KEY,
-    upstage: 'embedding-passage',
-  };
-  const fallback = defaults[adapterName];
+  const fallback = getDefaultEmbedModelKey(adapterName);
   if (!fallback) return;
   config.setConfig(`smart_sources.embed_model.${adapterName}.model_key`, fallback);
-  if (adapterName === 'upstage') autoPopulateUpstageSearchModel(config);
+  applyManagedSearchModel(config, adapterName);
 }
 
-function autoPopulateUpstageSearchModel(config: SettingsConfigAccessor): void {
-  config.setConfig('smart_sources.search_model', {
-    adapter: 'upstage',
-    model_key: 'embedding-query',
-  });
+function applyManagedSearchModel(config: SettingsConfigAccessor, adapterName: string): void {
+  const searchModel = getManagedSearchModel(adapterName);
+  if (searchModel) {
+    config.setConfig('smart_sources.search_model', searchModel);
+  }
 }
 
-function clearUpstageSearchModelIfStale(config: SettingsConfigAccessor, newAdapter: string): void {
+function clearManagedSearchModelIfStale(config: SettingsConfigAccessor, newAdapter: string): void {
   if (newAdapter === 'upstage') return;
   const searchModel = config.getConfig<{ adapter?: string; model_key?: string } | null>('smart_sources.search_model', null);
-  if (searchModel?.adapter === 'upstage' && searchModel?.model_key === 'embedding-query') {
+  if (shouldClearManagedSearchModel(searchModel, newAdapter)) {
     config.setConfig('smart_sources.search_model', undefined);
   }
 }
@@ -91,7 +88,7 @@ export function renderEmbeddingModelSection(
 
           config.setConfig('smart_sources.embed_model.adapter', value);
           ensureModelKeyForAdapter(config, value);
-          clearUpstageSearchModelIfStale(config, value);
+          clearManagedSearchModelIfStale(config, value);
           display();
           await triggerReEmbed();
         })();

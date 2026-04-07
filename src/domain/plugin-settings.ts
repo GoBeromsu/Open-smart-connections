@@ -1,8 +1,6 @@
 import { DEFAULT_SETTINGS } from './config';
+import { normalizeProviderEmbedModelSettings } from './embed-provider-policy';
 import type { PluginSettings } from '../types/settings';
-
-const LEGACY_GEMINI_MODEL_KEY = 'text-embedding-004';
-const DEFAULT_GEMINI_MODEL_KEY = 'gemini-embedding-001';
 
 export function hydratePluginSettings(data: Record<string, unknown> | null): {
   settings: PluginSettings;
@@ -90,29 +88,8 @@ export function hydratePluginSettings(data: Record<string, unknown> | null): {
     removedLegacyKeys = true;
   }
 
-  const upstageAdapter = settings.smart_sources?.embed_model as Record<string, unknown> | undefined;
-  if (upstageAdapter?.adapter === 'upstage') {
-    let upstageSettings = upstageAdapter['upstage'] as Record<string, unknown> | undefined;
-    if (!upstageSettings) {
-      upstageSettings = { model_key: 'embedding-passage' };
-      upstageAdapter['upstage'] = upstageSettings;
-      removedLegacyKeys = true;
-    } else if (upstageSettings.model_key && upstageSettings.model_key !== 'embedding-passage') {
-      upstageSettings.model_key = 'embedding-passage';
-      removedLegacyKeys = true;
-    }
-  }
-
-  if (upstageAdapter?.adapter === 'gemini') {
-    let geminiSettings = upstageAdapter['gemini'] as Record<string, unknown> | undefined;
-    if (!geminiSettings) {
-      geminiSettings = { model_key: DEFAULT_GEMINI_MODEL_KEY };
-      upstageAdapter['gemini'] = geminiSettings;
-      removedLegacyKeys = true;
-    } else if (!geminiSettings.model_key || geminiSettings.model_key === LEGACY_GEMINI_MODEL_KEY) {
-      geminiSettings.model_key = DEFAULT_GEMINI_MODEL_KEY;
-      removedLegacyKeys = true;
-    }
+  if (normalizeProviderEmbedModelSettings(settings.smart_sources.embed_model)) {
+    removedLegacyKeys = true;
   }
 
   return { settings, removedLegacyKeys };

@@ -8,6 +8,10 @@ import {
   EmbedModelRequestAdapter,
   EmbedModelResponseAdapter,
 } from './api-base';
+import {
+  UPSTAGE_INDEX_MODEL_KEY,
+  UPSTAGE_SEARCH_MODEL_KEY,
+} from '../../domain/embed-provider-policy';
 import type { EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 
@@ -29,8 +33,8 @@ export const UPSTAGE_SIGNUP_URL = 'https://console.upstage.ai/';
  * `embed_query()`. Both share the same 4096-dim vector space.
  */
 export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
-  'embedding-passage': {
-    model_key: 'embedding-passage',
+  [UPSTAGE_INDEX_MODEL_KEY]: {
+    model_key: UPSTAGE_INDEX_MODEL_KEY,
     model_name: 'Upstage Solar (passage)',
     batch_size: 50,
     dims: 4096,
@@ -43,8 +47,8 @@ export const UPSTAGE_EMBED_MODELS: Record<string, ModelInfo> = {
       safety_ratio: 0.9,
     },
   },
-  'embedding-query': {
-    model_key: 'embedding-query',
+  [UPSTAGE_SEARCH_MODEL_KEY]: {
+    model_key: UPSTAGE_SEARCH_MODEL_KEY,
     model_name: 'Upstage Solar (query)',
     batch_size: 50,
     dims: 4096,
@@ -85,7 +89,7 @@ export class UpstageEmbedAdapter extends EmbedModelApiAdapter {
    */
   async embed_query(query: string): Promise<EmbedResult[]> {
     const originalKey = this.model_key;
-    this.model_key = 'embedding-query';
+    this.model_key = UPSTAGE_SEARCH_MODEL_KEY;
     try {
       return await this.embed_batch([{ embed_input: query }]);
     } finally {
