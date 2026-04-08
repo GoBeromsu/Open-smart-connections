@@ -1,5 +1,3 @@
-import { Setting } from 'obsidian';
-
 import type { ModelPickerDeps } from './settings-model-picker-shared';
 import { getKnownModels } from './settings-model-picker-shared';
 import { renderFreeformModelInput } from './settings-model-dropdown-freeform';
