@@ -1,5 +1,5 @@
-import type SmartConnectionsPlugin from '../../main';
-import { EmbeddingPipeline } from '../../domain/embedding-pipeline';
+import type SmartConnectionsPlugin from '../main';
+import { EmbeddingPipeline } from '../domain/embedding-pipeline';
 
 export function initPipeline(plugin: SmartConnectionsPlugin): void {
   if (!plugin.embed_adapter) {
