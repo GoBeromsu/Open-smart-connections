@@ -8,6 +8,7 @@ import {
   getRuntimeState,
 } from './settings-status-runtime-state';
 import { renderStatCard, renderStatusPill, setElementText } from './settings-status-pill-render';
+import { renderStatsGrid, updateStatsGrid } from './settings-status-stats-grid';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
 
 function updateStatusPills(plugin: SmartConnectionsPlugin, statusRow: HTMLElement): void {
@@ -24,22 +25,13 @@ export function renderEmbeddingStatus(
   containerEl: HTMLElement,
   plugin: SmartConnectionsPlugin,
 ): EmbeddingStatusElements {
-  const collection = plugin.source_collection;
-  const total = collection?.size ?? 0;
-  const embedded = plugin.block_collection?.embeddedSourceCount ?? 0;
-  const pending = Math.max(0, total - embedded);
-  const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
   const activeCtx = plugin.getActiveEmbeddingContext?.() ?? null;
   const status = plugin.status_state ?? 'idle';
 
   const statusRowEl = containerEl.createDiv({ cls: 'osc-model-status' });
   updateStatusPills(plugin, statusRowEl);
 
-  const statsGridEl = containerEl.createDiv({ cls: 'osc-stats-grid' });
-  renderStatCard(statsGridEl, 'Total', total.toLocaleString());
-  renderStatCard(statsGridEl, 'Embedded', embedded.toLocaleString(), 'green');
-  renderStatCard(statsGridEl, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
-  renderStatCard(statsGridEl, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
+  const statsGridEl = renderStatsGrid(containerEl, plugin);
 
   const embedProgress = renderEmbedProgress(containerEl, plugin);
   const runSetting = new Setting(containerEl)
@@ -70,15 +62,7 @@ export function updateEmbeddingStatusOnly(
   if (elements.statusRowEl) updateStatusPills(plugin, elements.statusRowEl);
 
   if (elements.statsGridEl) {
-    const total = plugin.source_collection?.size ?? 0;
-    const embedded = plugin.block_collection?.embeddedSourceCount ?? 0;
-    const pending = Math.max(0, total - embedded);
-    const pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
-    elements.statsGridEl.empty();
-    renderStatCard(elements.statsGridEl, 'Total', total.toLocaleString());
-    renderStatCard(elements.statsGridEl, 'Embedded', embedded.toLocaleString(), 'green');
-    renderStatCard(elements.statsGridEl, 'Pending', pending.toLocaleString(), pending > 0 ? 'amber' : undefined);
-    renderStatCard(elements.statsGridEl, 'Progress', `${pct}%`, pct >= 100 ? 'green' : undefined);
+    updateStatsGrid(elements.statsGridEl, plugin);
   }
 
   elements.embedProgress?.update();
