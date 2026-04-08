@@ -1,5 +1,5 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbedProgressEventPayload } from '../../types/embed-runtime';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbedProgressEventPayload } from '../types/embed-runtime';
 
 const NOISY_EVENTS = new Set([
   'run-progress',
