@@ -1,7 +1,7 @@
 import { Setting } from 'obsidian';
 
 import type { ModelPickerDeps } from './settings-model-picker-shared';
-import { getKnownModels, OLLAMA_QUICK_PICKS } from './settings-model-picker-shared';
+import { getKnownModels } from './settings-model-picker-shared';
 import { renderOllamaModelPicker } from './settings-model-dropdown-ollama';
 
 function renderKnownModelDropdown(
