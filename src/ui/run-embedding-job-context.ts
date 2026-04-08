@@ -1,10 +1,10 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
-import type { EmbeddingEntity } from '../../types/entities';
-import type { EmbeddingRunContext } from '../../types/embed-runtime';
-import { clearEmbedNotice, showEmbeddingFailureNotice, updateEmbedNotice } from '../embed-notices';
-import { emitEmbedProgress } from '../embed-progress-events';
-import { getCurrentModelInfo, publishEmbedContext } from '../embed-model-info';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbedQueueStats } from '../domain/embedding-pipeline';
+import type { EmbeddingEntity } from '../types/entities';
+import type { EmbeddingRunContext } from '../types/embed-runtime';
+import { clearEmbedNotice, showEmbeddingFailureNotice, updateEmbedNotice } from './embed-notices';
+import { emitEmbedProgress } from './embed-progress-events';
+import { getCurrentModelInfo, publishEmbedContext } from './embed-model-info';
 
 export function createRunContext(
   plugin: SmartConnectionsPlugin,
