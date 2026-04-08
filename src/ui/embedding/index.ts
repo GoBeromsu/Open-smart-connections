@@ -4,7 +4,7 @@ export { emitEmbedProgress } from '../embed-progress-events';
 export { initEmbedModel, initSearchEmbedModel, getModelLoadTimeoutMs } from './init-embed-model';
 export { initPipeline } from './init-pipeline';
 export { logEmbed } from '../embed-log';
-export { getActiveEmbeddingContext, getCurrentModelInfo, publishEmbedContext } from './model-info';
+export { getActiveEmbeddingContext, getCurrentModelInfo, publishEmbedContext } from '../embed-model-info';
 export { reembedStaleEntities, runEmbeddingJob, scheduleFollowupRun } from './run-embedding-job';
 export { runEmbeddingJobNow } from './run-embedding-job-now';
 export { switchEmbeddingModel } from './switch-embedding-model';

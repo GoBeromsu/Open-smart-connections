@@ -1,5 +1,5 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbeddingRunContext } from '../../types/embed-runtime';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbeddingRunContext } from '../types/embed-runtime';
 
 export function getCurrentModelInfo(
   plugin: SmartConnectionsPlugin,

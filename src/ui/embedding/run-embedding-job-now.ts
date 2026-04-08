@@ -7,7 +7,7 @@ import { saveCollections } from '../embed-collection-persistence';
 import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
 import { emitEmbedProgress } from '../embed-progress-events';
 import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
-import { publishEmbedContext } from './model-info';
+import { publishEmbedContext } from '../embed-model-info';
 import { scheduleFollowupRun } from './run-embedding-job';
 
 function updateRunProgress(

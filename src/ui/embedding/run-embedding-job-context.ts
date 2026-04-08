@@ -4,7 +4,7 @@ import type { EmbeddingEntity } from '../../types/entities';
 import type { EmbeddingRunContext } from '../../types/embed-runtime';
 import { clearEmbedNotice, showEmbeddingFailureNotice, updateEmbedNotice } from './embed-notices';
 import { emitEmbedProgress } from '../embed-progress-events';
-import { getCurrentModelInfo, publishEmbedContext } from './model-info';
+import { getCurrentModelInfo, publishEmbedContext } from '../embed-model-info';
 
 export function createRunContext(
   plugin: SmartConnectionsPlugin,
