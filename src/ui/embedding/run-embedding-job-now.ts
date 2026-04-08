@@ -4,7 +4,7 @@ import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
 import type { EmbeddingEntity } from '../../types/entities';
 import { errorMessage } from '../../utils';
 import { saveCollections } from '../embed-collection-persistence';
-import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
+import { updateEmbedNotice, showEmbeddingFailureNotice } from '../embed-notices';
 import { emitEmbedProgress } from '../embed-progress-events';
 import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
 import { publishEmbedContext } from '../embed-model-info';

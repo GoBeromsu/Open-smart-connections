@@ -1,7 +1,7 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbeddingRunContext } from '../../types/embed-runtime';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbeddingRunContext } from '../types/embed-runtime';
 import { ItemView } from 'obsidian';
-import { CONNECTIONS_VIEW_TYPE } from '../ConnectionsView';
+import { CONNECTIONS_VIEW_TYPE } from './ConnectionsView';
 
 export function clearEmbedNotice(plugin: SmartConnectionsPlugin): void {
   plugin.notices.remove('embedding_progress');
