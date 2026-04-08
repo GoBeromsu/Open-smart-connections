@@ -1,59 +1,14 @@
 import { Setting } from 'obsidian';
 
-import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import { renderEmbedProgress } from './embed-progress';
+import {
+  getEmbeddingPill,
+  getRunStateLabel,
+  getRunStateTone,
+  getRuntimeState,
+} from './settings-status-runtime-state';
 import { renderStatCard, renderStatusPill, setElementText } from './settings-status-pill-render';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
-
-function getRuntimeState(plugin: SmartConnectionsPlugin): ParsedEmbedRuntimeState | null {
-  return plugin.getEmbedRuntimeState?.() ?? null;
-}
-
-function getRunStateLabel(
-  status: NonNullable<SmartConnectionsPlugin['status_state']>,
-  runtime: ParsedEmbedRuntimeState | null,
-): string {
-  if (runtime?.serving.kind === 'degraded') return 'Degraded';
-  switch (status) {
-    case 'embedding':
-      return 'Running';
-    case 'error':
-      return 'Error';
-    default:
-      return 'Idle';
-  }
-}
-
-function getRunStateTone(
-  status: NonNullable<SmartConnectionsPlugin['status_state']>,
-  runtime: ParsedEmbedRuntimeState | null,
-): 'ready' | 'loading' | 'error' {
-  if (runtime?.serving.kind === 'degraded') return 'error';
-  switch (status) {
-    case 'error':
-      return 'error';
-    case 'embedding':
-      return 'ready';
-    default:
-      return 'loading';
-  }
-}
-
-function getEmbeddingPill(
-  plugin: SmartConnectionsPlugin,
-  runtime: ParsedEmbedRuntimeState | null,
-): { value: string; active: boolean; tone: 'ready' | 'loading' | 'error' } {
-  if (runtime?.serving.kind === 'degraded') {
-    return { value: 'Degraded', active: false, tone: 'error' };
-  }
-  if (runtime?.serving.kind === 'unavailable') {
-    return { value: 'Unavailable', active: false, tone: 'error' };
-  }
-  if (runtime?.serving.kind === 'loading') {
-    return { value: 'Loading', active: false, tone: 'loading' };
-  }
-  return { value: plugin.embed_ready ? 'Ready' : 'Loading', active: !!plugin.embed_ready, tone: plugin.embed_ready ? 'ready' : 'loading' };
-}
 
 function updateStatusPills(plugin: SmartConnectionsPlugin, statusRow: HTMLElement): void {
   const status = plugin.status_state ?? 'idle';
