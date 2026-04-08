@@ -1,5 +1,5 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbedProgressEventPayload, EmbeddingRunContext } from '../../types/embed-runtime';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbedProgressEventPayload, EmbeddingRunContext } from '../types/embed-runtime';
 
 export function emitEmbedProgress(
   plugin: SmartConnectionsPlugin,

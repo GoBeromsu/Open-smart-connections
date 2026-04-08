@@ -5,7 +5,7 @@ import type { EmbeddingEntity } from '../../types/entities';
 import { errorMessage } from '../../utils';
 import { saveCollections } from './collection-persistence';
 import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
-import { emitEmbedProgress } from './embed-progress-events';
+import { emitEmbedProgress } from '../embed-progress-events';
 import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
 import { publishEmbedContext } from './model-info';
 import { scheduleFollowupRun } from './run-embedding-job';
