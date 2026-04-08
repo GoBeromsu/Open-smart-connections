@@ -35,7 +35,7 @@ Obsidian-dependent UI layer for open-connections. Contains all views, settings, 
 ### Working In This Directory
 - May import from `obsidian` — this is the Obsidian-dependent layer
 - Custom workspace events typed in `src/types/obsidian-augments.d.ts` — no `as any` on event names
-- `embed-orchestrator.ts` activates adapters via side-effect imports — add new adapters there
+- `embed-orchestrator.ts` is the facade entrypoint and activates adapters via side-effect imports — add new adapters there
 - Settings tab (`settings.ts`) uses live event listeners — clean them up in `unregisterEmbedStatus()`
 
 ## Dependencies

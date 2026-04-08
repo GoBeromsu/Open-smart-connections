@@ -17,7 +17,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 | `src/domain/flat-vector-index.ts` | In-memory Float32Array vector index — cosine similarity search (5-15ms, yields every 1000 vectors) |
 | `src/ui/ConnectionsView.ts` | Related notes panel (ItemView) |
 | `src/ui/LookupView.ts` | Semantic search panel (ItemView) |
-| `src/ui/embed-orchestrator.ts` | Model lifecycle, embed jobs, phase transitions |
+| `src/ui/embed-orchestrator.ts` | Facade exports for the flattened embedding/runtime helper surface |
 | `src/ui/collection-loader.ts` | Source/Block collection init and chunked loading |
 | `src/ui/plugin-initialization.ts` | 3-phase init: Phase 1 (core), Phase 2 (embedding), Phase 3 (background block import) |
 | `src/ui/settings.ts` | Settings tab with live embedding status |
@@ -58,7 +58,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 ### Testing Requirements
 ```bash
 pnpm run ci          # build + lint + test (must pass before any commit)
-pnpm run test        # Vitest unit tests (295 tests, ~4s)
+pnpm run test        # Vitest unit tests (382 tests, ~4s)
 pnpm run typecheck   # tsc --noEmit
 pnpm run lint        # ESLint — 0 errors required
 ```
