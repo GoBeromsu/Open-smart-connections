@@ -1,7 +1,7 @@
 export { saveCollections } from '../embed-collection-persistence';
 export { clearEmbedNotice, showEmbeddingFailureNotice, updateEmbedNotice } from '../embed-notices';
 export { emitEmbedProgress } from '../embed-progress-events';
-export { initEmbedModel, initSearchEmbedModel, getModelLoadTimeoutMs } from './init-embed-model';
+export { initEmbedModel, initSearchEmbedModel, getModelLoadTimeoutMs } from '../init-embed-model';
 export { initPipeline } from '../init-embedding-pipeline';
 export { logEmbed } from '../embed-log';
 export { getActiveEmbeddingContext, getCurrentModelInfo, publishEmbedContext } from '../embed-model-info';
