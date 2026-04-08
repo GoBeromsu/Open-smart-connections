@@ -1,4 +1,4 @@
-import type SmartConnectionsPlugin from '../../main';
+import type SmartConnectionsPlugin from '../main';
 
 export async function saveCollections(plugin: SmartConnectionsPlugin): Promise<void> {
   if (!plugin.source_collection) return;

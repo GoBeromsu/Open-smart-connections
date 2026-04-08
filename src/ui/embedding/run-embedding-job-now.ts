@@ -3,7 +3,7 @@ import { resolveEmbeddingRunPolicy } from '../../domain/embed-provider-policy';
 import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
 import type { EmbeddingEntity } from '../../types/entities';
 import { errorMessage } from '../../utils';
-import { saveCollections } from './collection-persistence';
+import { saveCollections } from '../embed-collection-persistence';
 import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
 import { emitEmbedProgress } from '../embed-progress-events';
 import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
