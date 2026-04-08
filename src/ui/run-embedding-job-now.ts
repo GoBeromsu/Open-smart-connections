@@ -1,14 +1,14 @@
-import type SmartConnectionsPlugin from '../../main';
-import { resolveEmbeddingRunPolicy } from '../../domain/embed-provider-policy';
-import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
-import type { EmbeddingEntity } from '../../types/entities';
-import { errorMessage } from '../../utils';
-import { saveCollections } from '../embed-collection-persistence';
-import { updateEmbedNotice, showEmbeddingFailureNotice } from '../embed-notices';
-import { emitEmbedProgress } from '../embed-progress-events';
-import { createRunContext, finalizeFailedStats, finishRun, startRun } from '../run-embedding-job-context';
-import { publishEmbedContext } from '../embed-model-info';
-import { scheduleFollowupRun } from '../run-embedding-job';
+import type SmartConnectionsPlugin from '../main';
+import { resolveEmbeddingRunPolicy } from '../domain/embed-provider-policy';
+import type { EmbedQueueStats } from '../domain/embedding-pipeline';
+import type { EmbeddingEntity } from '../types/entities';
+import { errorMessage } from '../utils';
+import { saveCollections } from './embed-collection-persistence';
+import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
+import { emitEmbedProgress } from './embed-progress-events';
+import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
+import { publishEmbedContext } from './embed-model-info';
+import { scheduleFollowupRun } from './run-embedding-job';
 
 function updateRunProgress(
   plugin: SmartConnectionsPlugin,
