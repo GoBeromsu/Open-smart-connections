@@ -1,4 +1,4 @@
-import type { EmbeddingKernelJob } from './types';
+import type { EmbeddingKernelJob } from './embedding/kernel/types';
 
 interface PendingJob<T = unknown> {
   job: EmbeddingKernelJob<T>;
