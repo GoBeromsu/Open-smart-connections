@@ -1,25 +1,11 @@
 import { Setting } from 'obsidian';
 
 import { renderEmbedProgress } from './embed-progress';
-import {
-  getEmbeddingPill,
-  getRunStateLabel,
-  getRunStateTone,
-  getRuntimeState,
-} from './settings-status-runtime-state';
-import { renderStatCard, renderStatusPill, setElementText } from './settings-status-pill-render';
+import { getRuntimeState } from './settings-status-runtime-state';
+import { setElementText } from './settings-status-pill-render';
+import { updateStatusPills } from './settings-status-pills';
 import { renderStatsGrid, updateStatsGrid } from './settings-status-stats-grid';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
-
-function updateStatusPills(plugin: SmartConnectionsPlugin, statusRow: HTMLElement): void {
-  const status = plugin.status_state ?? 'idle';
-  const runtime = getRuntimeState(plugin);
-  const embeddingPill = getEmbeddingPill(plugin, runtime);
-  statusRow.empty();
-  renderStatusPill(statusRow, 'Core', plugin.ready ? 'Ready' : 'Loading', !!plugin.ready);
-  renderStatusPill(statusRow, 'Embedding', embeddingPill.value, embeddingPill.active, embeddingPill.tone);
-  renderStatusPill(statusRow, 'Run', getRunStateLabel(status, runtime), status === 'embedding', getRunStateTone(status, runtime));
-}
 
 export function renderEmbeddingStatus(
   containerEl: HTMLElement,
