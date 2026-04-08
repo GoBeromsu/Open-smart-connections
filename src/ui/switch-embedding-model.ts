@@ -1,10 +1,10 @@
-import type SmartConnectionsPlugin from '../../main';
-import { buildKernelModel } from '../../domain/embedding/kernel';
-import { errorMessage } from '../../utils';
-import { saveCollections } from '../embed-collection-persistence';
-import { getModelLoadTimeoutMs, initSearchEmbedModel } from '../init-embed-model';
-import { getCurrentModelInfo } from '../embed-model-info';
-import { withTimeout } from '../embed-timeout';
+import type SmartConnectionsPlugin from '../main';
+import { buildKernelModel } from '../domain/embedding/kernel';
+import { errorMessage } from '../utils';
+import { saveCollections } from './embed-collection-persistence';
+import { getModelLoadTimeoutMs, initSearchEmbedModel } from './init-embed-model';
+import { getCurrentModelInfo } from './embed-model-info';
+import { withTimeout } from './embed-timeout';
 
 export async function switchEmbeddingModel(
   plugin: SmartConnectionsPlugin,

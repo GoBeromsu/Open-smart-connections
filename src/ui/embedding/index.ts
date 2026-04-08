@@ -7,4 +7,4 @@ export { logEmbed } from '../embed-log';
 export { getActiveEmbeddingContext, getCurrentModelInfo, publishEmbedContext } from '../embed-model-info';
 export { reembedStaleEntities, runEmbeddingJob, scheduleFollowupRun } from '../run-embedding-job';
 export { runEmbeddingJobNow } from './run-embedding-job-now';
-export { switchEmbeddingModel } from './switch-embedding-model';
+export { switchEmbeddingModel } from '../switch-embedding-model';
