@@ -50,7 +50,9 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 - Embedding kernel (`domain/embedding/kernel/`) uses Redux-style pattern: dispatch events, reducer handles transitions
 - 3-phase initialization: Phase 1 (core, blocking), Phase 2 (embedding, background), Phase 3 (deferred block import via setTimeout 5s)
 - UI is usable before Phase 2 completes; blocks are imported in Phase 3 background
-- Vector search uses in-memory `FlatVectorIndex` (contiguous Float32Array) — loaded from SQLite at startup, kept in sync via upsert/remove
+- Vector search uses in-memory `FlatVectorIndex` when safe; oversized indexes must fall back to SQLite nearest-query behavior instead of risking memory blowups
+- Large behavior-preserving refactors must land as very small checkpoint commits; do not mix wide file moves with logic changes
+- Prefer tests/static enforcement as the main proof, and use `obsidian-cli` runtime smoke only for behavior that tests cannot fully prove (default vault for smoke: `Test`)
 - WebGPU confirmed active (Metal-3, fp32) — `[SC:GPU]` diagnostic logging in EMBED_CONNECTOR, queryable via `get_gpu_diag`
 
 ### Testing Requirements

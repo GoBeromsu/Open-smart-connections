@@ -45,6 +45,8 @@ Composition and layer organization for open-connections. Contains the 4-layer ar
 - Obsidian type references in domain/types/utils are satisfied via shim interfaces in `src/types/obsidian-shims.ts` (structural typing)
 
 - Custom workspace events are typed in `src/types/obsidian-augments.d.ts` via module augmentation — no `as any` casts needed
+- Behavior-preserving refactors should prefer structural tests and lint rules first; use runtime smoke only when tests cannot fully prove a runtime-sensitive path
+- When flattening structure, keep move-only commits separate from logic-simplification commits
 
 ### Common Patterns
 
