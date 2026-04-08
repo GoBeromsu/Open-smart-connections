@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { embedAdapterRegistry } from '../src/domain/embed-model';
-import { RUNTIME_REGISTERED_EMBED_ADAPTERS } from '../src/ui/embedding/register-embed-adapters';
+import { RUNTIME_REGISTERED_EMBED_ADAPTERS } from '../src/ui/register-embed-adapters';
 
 describe('EmbedAdapterRegistry', () => {
   it('registers the supported runtime adapters', () => {

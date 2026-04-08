@@ -1,7 +1,7 @@
 import type SmartConnectionsPlugin from '../../main';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 import { errorMessage } from '../../utils';
-import './register-embed-adapters';
+import '../register-embed-adapters';
 
 function shouldDeferAdapterLoad(adapterType: string): boolean {
   return adapterType === 'transformers';

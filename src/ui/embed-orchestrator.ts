@@ -3,7 +3,7 @@
  * @description Facade exports for embedding orchestration.
  */
 
-import './embedding/register-embed-adapters';
+import './register-embed-adapters';
 
 export {
   clearEmbedNotice,
