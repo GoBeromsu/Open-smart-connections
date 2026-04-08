@@ -32,7 +32,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 | `src/` | Source layers (see `src/AGENTS.md`) |
 | `src/domain/` | Business logic — NO obsidian imports (see `src/domain/AGENTS.md`) |
 | `src/domain/entities/` | EmbeddingSource, EmbeddingBlock, EntityCollection, SQLite adapter (see `src/domain/entities/AGENTS.md`) |
-| `src/domain/embedding/kernel/` | Redux-style embedding state machine (see `src/domain/embedding/kernel/AGENTS.md`) |
+| `src/domain/embedding/kernel/` | Kernel barrel + types for embedding queue/model helpers (see `src/domain/embedding/kernel/AGENTS.md`) |
 | `src/ui/` | Obsidian-dependent views, modals, commands, settings, adapters (see `src/ui/AGENTS.md`) |
 | `src/ui/embed-adapters/` | Provider adapters (see `src/ui/embed-adapters/AGENTS.md`) |
 | `src/types/` | Pure type definitions + obsidian-augments.d.ts (see `src/types/AGENTS.md`) |
@@ -47,7 +47,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 - 4-layer architecture enforced by ESLint `no-restricted-imports`: `domain/`, `types/`, `utils/` must NEVER import `obsidian`
 - Custom workspace events (e.g. `open-connections:embed-progress`) are typed in `src/types/obsidian-augments.d.ts` — no `as any` casts on event names
 - `src/shared/` is synced from `obsidian-boiler-template` — never edit directly
-- Embedding kernel (`domain/embedding/kernel/`) uses Redux-style pattern: dispatch events, reducer handles transitions
+- Embedding kernel (`domain/embedding/kernel/`) is now a slim barrel/types surface; queue and model helpers were flattened outward
 - 3-phase initialization: Phase 1 (core, blocking), Phase 2 (embedding, background), Phase 3 (deferred block import via setTimeout 5s)
 - UI is usable before Phase 2 completes; blocks are imported in Phase 3 background
 - Vector search uses in-memory `FlatVectorIndex` when safe; oversized indexes must fall back to SQLite nearest-query behavior instead of risking memory blowups
