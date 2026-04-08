@@ -14,8 +14,8 @@ import { renderBlockSettings, renderNoticeSettings, renderSourceSettings, render
 import { createSettingsConfigAccessor } from './settings-config-accessor';
 import { confirmWithModal } from './settings-confirm-modal';
 import { renderEmbeddingModelSection } from './settings-embedding-model-section';
+import { renderMcpSettingsSection } from './settings-mcp-section';
 import { renderEmbeddingStatus, updateEmbeddingStatusOnly } from './settings-status-section';
-import { parseMcpSettings } from '../mcp/settings';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
 
 export class SmartConnectionsSettingsTab extends PluginSettingTab {
@@ -85,91 +85,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     new Setting(containerEl).setName('Notices').setHeading();
     renderNoticeSettings(containerEl, this.plugin, () => this.display());
 
-    const existingMcpSettings = this.plugin.settings?.mcp;
-    const mcpSettings = parseMcpSettings(existingMcpSettings);
-    if (this.plugin.settings) {
-      this.plugin.settings.mcp = mcpSettings;
-    }
-    new Setting(containerEl).setName('MCP').setHeading();
-    new Setting(containerEl)
-      .setName('Enable local server')
-      .setDesc('Expose the current vault through a local endpoint at http://127.0.0.1:<port>/mcp')
-      .addToggle((toggle) => {
-        toggle.setValue(Boolean(mcpSettings.enabled));
-        toggle.onChange(async (value) => {
-          mcpSettings.enabled = value;
-          await this.plugin.saveSettings?.();
-          try {
-            await this.plugin.syncMcpServer?.();
-          } catch (error) {
-            this.plugin.notices?.show?.('mcp_server_failed', {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-          this.display();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName('Local server port')
-      .setDesc('Localhost port for the local endpoint.')
-      .addText((text) => {
-        text.inputEl.type = 'number';
-        text.setValue(String(mcpSettings.port));
-        text.onChange(async (value) => {
-          const port = parseMcpSettings({ ...mcpSettings, port: value }).port;
-          mcpSettings.port = port;
-          await this.plugin.saveSettings?.();
-          if (mcpSettings.enabled) {
-            try {
-              await this.plugin.syncMcpServer?.();
-            } catch (error) {
-              this.plugin.notices?.show?.('mcp_server_failed', {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
-          }
-          this.display();
-        });
-      });
-
-    const mcpServer = this.plugin.getMcpServer?.();
-    new Setting(containerEl)
-      .setName('Local server status')
-      .setDesc(mcpServer?.isRunning ? mcpServer.endpointUrl : 'Server stopped')
-      .addButton((button) => {
-        button
-          .setButtonText(mcpServer?.isRunning ? 'Restart' : 'Start')
-          .onClick(async () => {
-            mcpSettings.enabled = true;
-            await this.plugin.saveSettings?.();
-            try {
-              await this.plugin.syncMcpServer?.();
-            } catch (error) {
-              this.plugin.notices?.show?.('mcp_server_failed', {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
-            this.display();
-          });
-      })
-      .addButton((button) => {
-        button
-          .setButtonText('Stop')
-          .setDisabled(!mcpServer?.isRunning)
-          .onClick(async () => {
-            mcpSettings.enabled = false;
-            await this.plugin.saveSettings?.();
-            try {
-              await this.plugin.syncMcpServer?.();
-            } catch (error) {
-              this.plugin.notices?.show?.('mcp_server_failed', {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
-            this.display();
-          });
-      });
+    renderMcpSettingsSection(containerEl, this.plugin, () => this.display());
 
     new Setting(containerEl).setName('Embedding status').setHeading();
     this.statusElements = renderEmbeddingStatus(containerEl, this.plugin);
@@ -227,4 +143,5 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
   private setConfig(path: string, value: unknown): void {
     createSettingsConfigAccessor(this.app, this.plugin).setConfig(path, value);
   }
+
 }
