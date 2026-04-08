@@ -7,7 +7,7 @@ import { Plugin, TFile } from 'obsidian';
 import type { EmbedModelAdapter } from './types/models';
 import type { EmbedQueueStats, EmbeddingPipeline } from './domain/embedding-pipeline';
 import type { BlockCollection, SourceCollection } from './domain/entities';
-import type { EmbeddingKernelJob } from './domain/embedding/kernel/types';
+import type { EmbeddingKernelJob } from './domain/embedding-kernel-types';
 import type { PluginSettings } from './types/settings';
 import type {
   EmbedProgressEventPayload,
