@@ -10,11 +10,12 @@ import {
   Setting,
 } from 'obsidian';
 
-import { renderBlockSettings, renderNoticeSettings, renderSourceSettings, renderViewSettings } from './settings-basic-sections';
+import { renderBlockSettings, renderSourceSettings, renderViewSettings } from './settings-basic-sections';
 import { createSettingsConfigAccessor } from './settings-config-accessor';
 import { confirmWithModal } from './settings-confirm-modal';
 import { renderEmbeddingModelSection } from './settings-embedding-model-section';
 import { renderMcpSettingsSection } from './settings-mcp-section';
+import { renderNoticeSettings } from './settings-notice-section';
 import { renderEmbeddingStatus, updateEmbeddingStatusOnly } from './settings-status-section';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
 
