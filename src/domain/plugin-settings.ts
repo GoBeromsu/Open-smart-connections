@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from './config';
 import { normalizeProviderEmbedModelSettings } from './embed-provider-policy';
+import { parseMcpSettings } from '../mcp/settings';
 import type { PluginSettings } from '../types/settings';
 
 export function hydratePluginSettings(data: Record<string, unknown> | null): {
@@ -63,12 +64,7 @@ export function hydratePluginSettings(data: Record<string, unknown> | null): {
     };
   }
 
-  if (loadedSettings.mcp && typeof loadedSettings.mcp === 'object') {
-    settings.mcp = {
-      ...DEFAULT_SETTINGS.mcp,
-      ...(loadedSettings.mcp as Record<string, unknown>),
-    };
-  }
+  settings.mcp = parseMcpSettings(loadedSettings.mcp);
 
   const legacyMuted = (settings.smart_notices as Record<string, unknown> | undefined)?.muted;
   if (legacyMuted && typeof legacyMuted === 'object' && Object.keys(legacyMuted).length > 0) {

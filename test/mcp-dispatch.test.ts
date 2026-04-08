@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dispatchMcpRequest } from '../src/domain/mcp-dispatch';
+import { dispatchMcpRequest } from '../src/mcp/dispatch';
 import type { McpContext, McpSearchResult, McpCollectionStats, McpModelInfo } from '../src/types/mcp-context';
 
 function makeCtx(overrides: Partial<McpContext> = {}): McpContext {

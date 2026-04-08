@@ -1,4 +1,9 @@
-import { toolTextResult } from './mcp-rpc';
+/**
+ * @file note-tools.ts
+ * @description MCP note/status tool implementations.
+ */
+
+import { toolTextResult } from './rpc';
 import type { McpContext } from '../types/mcp-context';
 import type { McpToolResult } from '../types/mcp';
 

@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type Server as HttpServer, type Ser
 
 import type SmartConnectionsPlugin from '../main';
 import type { JsonRpcRequest, JsonRpcResponse } from '../types/mcp';
-import { dispatchMcpRequest } from '../domain/mcp-dispatch';
-import { PluginMcpContext } from './mcp-plugin-context';
+import { dispatchMcpRequest } from '../mcp/dispatch';
+import { PluginMcpContext } from '../mcp/plugin-context';
 
 function isAllowedOrigin(origin: string | undefined): boolean {
   // Non-browser MCP clients (curl, SDK) omit Origin — allow them

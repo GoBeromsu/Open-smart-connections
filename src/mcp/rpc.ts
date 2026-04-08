@@ -1,3 +1,8 @@
+/**
+ * @file rpc.ts
+ * @description JSON-RPC response/result helpers for MCP handlers.
+ */
+
 import type { JsonRpcResponse, McpToolResult } from '../types/mcp';
 
 export function jsonRpcResult(id: string | number | null, result: unknown): JsonRpcResponse {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchMcpRequest } from '../src/domain/mcp-dispatch';
+import { dispatchMcpRequest } from '../src/mcp/dispatch';
 import type { McpContext } from '../src/types/mcp-context';
 
 const ENDPOINT = 'http://127.0.0.1:27124/mcp';

@@ -15,6 +15,7 @@ import { createSettingsConfigAccessor } from './settings-config-accessor';
 import { confirmWithModal } from './settings-confirm-modal';
 import { renderEmbeddingModelSection } from './settings-embedding-model-section';
 import { renderEmbeddingStatus, updateEmbeddingStatusOnly } from './settings-status-section';
+import { parseMcpSettings } from '../mcp/settings';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
 
 export class SmartConnectionsSettingsTab extends PluginSettingTab {
@@ -85,9 +86,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     renderNoticeSettings(containerEl, this.plugin, () => this.display());
 
     const existingMcpSettings = this.plugin.settings?.mcp;
-    const mcpSettings = existingMcpSettings && typeof existingMcpSettings === 'object'
-      ? existingMcpSettings
-      : { enabled: false, port: 27124 };
+    const mcpSettings = parseMcpSettings(existingMcpSettings);
     if (this.plugin.settings) {
       this.plugin.settings.mcp = mcpSettings;
     }
@@ -118,7 +117,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
         text.inputEl.type = 'number';
         text.setValue(String(mcpSettings.port));
         text.onChange(async (value) => {
-          const port = Math.max(1024, Math.min(65535, parseInt(value, 10) || 27124));
+          const port = parseMcpSettings({ ...mcpSettings, port: value }).port;
           mcpSettings.port = port;
           await this.plugin.saveSettings?.();
           if (mcpSettings.enabled) {

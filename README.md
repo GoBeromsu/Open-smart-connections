@@ -50,6 +50,28 @@ pnpm run build
 
 Copy `dist/` contents to your vault's `.obsidian/plugins/open-connections/` directory.
 
+### MCP Usage from the Same Repo/Package
+
+Open Connections ships MCP support from this same repository/package in two ways:
+
+1. **Inside Obsidian** — enable **Settings → Open Connections → MCP** and start the local server, or run the existing command palette actions:
+   - `Open Connections: Start local server`
+   - `Open Connections: Stop local server`
+2. **Standalone CLI** — use the packaged bin entry:
+
+```bash
+pnpm install
+pnpm exec open-connections-mcp /path/to/your/vault
+```
+
+HTTP mode is also available:
+
+```bash
+pnpm exec open-connections-mcp /path/to/your/vault --http --port 27124
+```
+
+The standalone process reads the vault plugin data from `.obsidian/plugins/open-connections/`, so the plugin must already be installed and run at least once for the target vault.
+
 ### First Steps
 
 1. Open **Settings > Open Connections**

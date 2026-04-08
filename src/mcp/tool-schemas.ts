@@ -1,3 +1,8 @@
+/**
+ * @file tool-schemas.ts
+ * @description Static tool definitions for the Open Connections MCP surface.
+ */
+
 export function toolDefinitions() {
   return [
     {

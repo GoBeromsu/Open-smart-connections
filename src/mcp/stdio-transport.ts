@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 
 import type { McpContext } from '../types/mcp-context';
 import type { JsonRpcRequest } from '../types/mcp';
-import { dispatchMcpRequest } from '../domain/mcp-dispatch';
+import { dispatchMcpRequest } from './dispatch';
 
 export function startStdioTransport(ctx: McpContext): void {
   const rl = createInterface({ input: process.stdin, terminal: false });

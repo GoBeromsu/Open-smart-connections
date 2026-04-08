@@ -1,10 +1,15 @@
+/**
+ * @file dispatch.ts
+ * @description MCP JSON-RPC request routing shared by plugin and standalone runtimes.
+ */
+
 import type { JsonRpcRequest, JsonRpcResponse } from '../types/mcp';
 import type { McpToolResult } from '../types/mcp';
 import type { McpContext } from '../types/mcp-context';
-import { jsonRpcResult, jsonRpcError, toolTextResult } from './mcp-rpc';
-import { toolDefinitions } from './mcp-tool-schemas';
-import { queryTool, connectionsTool } from './mcp-query-tools';
-import { getTool, multiGetTool, statusTool } from './mcp-note-tools';
+import { jsonRpcResult, jsonRpcError, toolTextResult } from './rpc';
+import { toolDefinitions } from './tool-schemas';
+import { queryTool, connectionsTool } from './query-tools';
+import { getTool, multiGetTool, statusTool } from './note-tools';
 
 export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'] as const;
 export const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];

@@ -1,5 +1,5 @@
 /**
- * @file mcp-plugin-context.ts
+ * @file plugin-context.ts
  * @description Plugin-mode McpContext adapter.
  *
  * Wraps the live SmartConnectionsPlugin instance to satisfy the McpContext
@@ -17,7 +17,7 @@ import type {
 } from '../types/mcp-context';
 import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
-import { getBlockConnections } from './block-connections';
+import { getBlockConnections } from '../ui/block-connections';
 
 export class PluginMcpContext implements McpContext {
   constructor(private readonly plugin: SmartConnectionsPlugin) {}

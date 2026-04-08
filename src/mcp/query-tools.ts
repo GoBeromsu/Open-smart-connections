@@ -1,4 +1,9 @@
-import { toolTextResult, clampLimit } from './mcp-rpc';
+/**
+ * @file query-tools.ts
+ * @description MCP query/connections tool implementations.
+ */
+
+import { toolTextResult, clampLimit } from './rpc';
 import type { McpContext, McpSearchResult } from '../types/mcp-context';
 import type { McpToolResult } from '../types/mcp';
 
