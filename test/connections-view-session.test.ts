@@ -170,6 +170,39 @@ describe('ConnectionsView rendering states', () => {
     expect((view as any).container.textContent).not.toContain('Embedding model failed to initialize');
   });
 
+
+  it('shows degraded messaging instead of generic model-init messaging when serving is degraded', async () => {
+    const plugin = createPluginStub();
+    plugin.status_state = 'error';
+    plugin.embed_ready = false;
+    plugin.getEmbedRuntimeState = vi.fn(() => ({
+      snapshot: { phase: 'error', modelFingerprint: 'upstage:embedding-passage:4096', lastError: 'Array buffer allocation failed' },
+      model: { kind: 'ready', fingerprint: 'upstage:embedding-passage:4096' },
+      backfill: { kind: 'failed', error: 'Array buffer allocation failed' },
+      serving: { kind: 'degraded', reason: 'backfill_failed', error: 'Array buffer allocation failed' },
+    }));
+
+    const unembeddedBlock = {
+      key: 'note.md#Section',
+      source_key: 'note.md',
+      vec: null,
+      is_unembedded: true,
+      has_embed: () => false,
+      queue_embed: vi.fn(),
+      _queue_embed: false,
+    };
+    plugin.block_collection.all = [unembeddedBlock];
+
+    const view = new ConnectionsView({} as any, plugin);
+    (view as any).container = createObsidianLikeContainer();
+
+    await view.renderView('note.md');
+
+    const text = (view as any).container.textContent;
+    expect(text).toContain('Embedding backlog hit an error');
+    expect(text).not.toContain('Embedding model failed to initialize');
+  });
+
   it('refresh button triggers re-embed from loading state', async () => {
     const plugin = createPluginStub();
     const view = new ConnectionsView({} as any, plugin);

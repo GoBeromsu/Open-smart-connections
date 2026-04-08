@@ -75,6 +75,21 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
   const modelTag = `${model.adapter}/${model.modelKey}`;
   const ctx = plugin.current_embed_context;
   const vaultTag = getVaultTag(plugin);
+  const runtime = plugin.getEmbedRuntimeState();
+
+  if (runtime.serving.kind === 'degraded') {
+    setStatusIcon(plugin, 'alert-triangle');
+    plugin.status_msg.setText(`OC: ${vaultTag}`);
+    plugin.status_container.setAttribute(
+      'title',
+      `Embedding backlog degraded
+Progress: ${vaultTag}
+Model: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}
+Indexed notes remain queryable${runtime.serving.error ? `
+Last error: ${runtime.serving.error}` : ''}`,
+    );
+    return;
+  }
 
   switch (plugin.status_state) {
     case 'idle':
@@ -82,7 +97,9 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
       plugin.status_msg.setText(`OC: ${vaultTag}`);
       plugin.status_container.setAttribute(
         'title',
-        `Open Connections is ready\nEmbedded: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
+        `Open Connections is ready
+Embedded: ${vaultTag}
+Model: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}`,
       );
       break;
     case 'embedding': {
@@ -94,15 +111,28 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
       const currentNote = ctx?.currentSourcePath ?? '-';
       plugin.status_container.setAttribute(
         'title',
-        `Embedding in progress\nRun: #${ctx?.runId ?? '-'}\nRun: ${runCurrent}/${runTotal} (${runPercent}%)\nVault: ${vaultTag}\nModel: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}\nCurrent: ${currentNote}`,
+        `Embedding in progress
+Run: #${ctx?.runId ?? '-'}
+Run: ${runCurrent}/${runTotal} (${runPercent}%)
+Vault: ${vaultTag}
+Model: ${modelTag}${model.dims ? ` (${model.dims}d)` : ''}
+Current: ${currentNote}`,
       );
       break;
     }
-    case 'error':
+    case 'error': {
       setStatusIcon(plugin, 'alert-triangle');
       plugin.status_msg.setText(`OC: ${vaultTag}`);
-      plugin.status_container.setAttribute('title', `Embedding error\nProgress: ${vaultTag}\nClick to open settings`);
+      const unavailableError = runtime.serving.kind === 'unavailable' ? runtime.serving.error : null;
+      plugin.status_container.setAttribute(
+        'title',
+        `Embedding model unavailable
+Progress: ${vaultTag}
+Click to open settings${unavailableError ? `
+Last error: ${unavailableError}` : ''}`,
+      );
       break;
+    }
   }
 }
 
@@ -110,12 +140,10 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
  * Handle clicks on the status bar item.
  */
 export function handleStatusBarClick(plugin: SmartConnectionsPlugin): void {
-  switch (plugin.status_state) {
-    case 'error':
-      (plugin.app as unknown as { setting?: { open?(): void } }).setting?.open?.();
-      break;
-    default:
-      ConnectionsView.open(plugin.app.workspace);
-      break;
+  const runtime = plugin.getEmbedRuntimeState();
+  if (runtime.serving.kind === 'unavailable') {
+    (plugin.app as unknown as { setting?: { open?(): void } }).setting?.open?.();
+    return;
   }
+  ConnectionsView.open(plugin.app.workspace);
 }

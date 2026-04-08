@@ -38,8 +38,17 @@ export function updateConnectionsProgressBanner(view: ConnectionsView): void {
   const totalBlocks = view.plugin.block_collection?.effectiveTotal ?? 0;
   const embeddedBlocks = view.plugin.block_collection?.embeddedCount ?? 0;
   const isComplete = totalBlocks > 0 && embeddedBlocks >= totalBlocks;
-  const modelLoading = !view.plugin.embed_ready && view.plugin.status_state !== 'error';
-  const shouldShow = modelLoading || view.plugin.status_state === 'embedding' || (totalBlocks > 0 && !isComplete);
+  const runtime = view.plugin.getEmbedRuntimeState?.() ?? null;
+
+  const modelLoading = runtime
+    ? runtime.serving.kind === 'loading'
+    : !view.plugin.embed_ready && view.plugin.status_state !== 'error';
+  const isRunning = runtime
+    ? runtime.backfill.kind === 'running'
+    : view.plugin.status_state === 'embedding';
+  const shouldShow = runtime
+    ? modelLoading || isRunning || (totalBlocks > 0 && !isComplete && runtime.serving.kind === 'ready')
+    : modelLoading || view.plugin.status_state === 'embedding' || (totalBlocks > 0 && !isComplete);
 
   if (!shouldShow) {
     clearEmbedProgress(view);

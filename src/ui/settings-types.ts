@@ -1,5 +1,6 @@
 import type { App, EventRef, Plugin } from 'obsidian';
 
+import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import type { PluginSettings } from '../types/settings';
 
 export interface SmartConnectionsPlugin extends Plugin {
@@ -32,6 +33,7 @@ export interface SmartConnectionsPlugin extends Plugin {
     currentEntityKey?: string | null;
     currentSourcePath?: string | null;
   } | null;
+  getEmbedRuntimeState?: () => ParsedEmbedRuntimeState;
   notices?: {
     show?: (id: string, params?: Record<string, unknown>, opts?: Record<string, unknown>) => unknown;
     listMuted?: () => string[];

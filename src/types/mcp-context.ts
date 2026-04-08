@@ -7,6 +7,8 @@
  * layer programs against McpContext only — no Obsidian imports required.
  */
 
+import type { ParsedEmbedRuntimeState } from './embed-runtime';
+
 // ---------------------------------------------------------------------------
 // Search result shape returned by query / connections tools
 // ---------------------------------------------------------------------------
@@ -77,6 +79,9 @@ export interface McpContext {
 
   /** High-level status of the embedding subsystem. */
   readonly statusState: 'idle' | 'embedding' | 'error';
+
+  /** Optional parsed runtime state for richer status reporting. */
+  getRuntimeState?(): ParsedEmbedRuntimeState;
 
   /** Plugin / server version string (surfaced in initialize response). */
   readonly version: string;

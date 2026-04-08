@@ -15,6 +15,7 @@ import type {
   McpModelInfo,
   McpContextLogger,
 } from '../types/mcp-context';
+import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
 import { getBlockConnections } from './block-connections';
 
@@ -26,6 +27,7 @@ export class PluginMcpContext implements McpContext {
   get statusState(): 'idle' | 'embedding' | 'error' { return this.plugin.status_state; }
   get version(): string { return this.plugin.manifest.version; }
   get logger(): McpContextLogger { return this.plugin.logger; }
+  getRuntimeState(): ParsedEmbedRuntimeState { return this.plugin.getEmbedRuntimeState(); }
 
   noteExists(path: string): boolean {
     return this.plugin.app.vault.getAbstractFileByPath(path) instanceof TFile;

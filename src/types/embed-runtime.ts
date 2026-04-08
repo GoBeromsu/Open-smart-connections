@@ -69,3 +69,70 @@ export interface EmbedStateChangePayload {
   phase: EmbedStatePhase;
   prev: EmbedStatePhase;
 }
+
+export type EmbedModelState =
+  | { kind: 'warming_up' }
+  | { kind: 'ready'; fingerprint: string }
+  | { kind: 'unavailable'; error: string | null };
+
+export type EmbedBackfillState =
+  | { kind: 'idle' }
+  | { kind: 'running'; context: EmbeddingRunContext | null }
+  | { kind: 'failed'; error: string | null };
+
+export type EmbedServingState =
+  | { kind: 'loading' }
+  | { kind: 'ready' }
+  | { kind: 'degraded'; reason: 'backfill_failed'; error: string | null }
+  | { kind: 'unavailable'; reason: 'model_unavailable'; error: string | null };
+
+export interface ParsedEmbedRuntimeState {
+  snapshot: EmbedStateSnapshot;
+  model: EmbedModelState;
+  backfill: EmbedBackfillState;
+  serving: EmbedServingState;
+}
+
+export function parseEmbedRuntimeState(
+  snapshot: EmbedStateSnapshot,
+  currentContext: EmbeddingRunContext | null = null,
+): ParsedEmbedRuntimeState {
+  const model: EmbedModelState = snapshot.modelFingerprint
+    ? { kind: 'ready', fingerprint: snapshot.modelFingerprint }
+    : snapshot.phase === 'error'
+      ? { kind: 'unavailable', error: snapshot.lastError }
+      : { kind: 'warming_up' };
+
+  const backfill: EmbedBackfillState = snapshot.phase === 'running'
+    ? { kind: 'running', context: currentContext }
+    : snapshot.phase === 'error'
+      ? { kind: 'failed', error: snapshot.lastError }
+      : { kind: 'idle' };
+
+  const serving: EmbedServingState = snapshot.modelFingerprint === null
+    ? snapshot.phase === 'error'
+      ? { kind: 'unavailable', reason: 'model_unavailable', error: snapshot.lastError }
+      : { kind: 'loading' }
+    : snapshot.phase === 'error'
+      ? { kind: 'degraded', reason: 'backfill_failed', error: snapshot.lastError }
+      : { kind: 'ready' };
+
+  return {
+    snapshot,
+    model,
+    backfill,
+    serving,
+  };
+}
+
+export function toLegacyStatusState(
+  runtime: ParsedEmbedRuntimeState,
+): 'idle' | 'embedding' | 'error' {
+  if (runtime.backfill.kind === 'running') return 'embedding';
+  if (runtime.serving.kind === 'degraded' || runtime.serving.kind === 'unavailable') return 'error';
+  return 'idle';
+}
+
+export function isEmbedModelReady(runtime: ParsedEmbedRuntimeState): boolean {
+  return runtime.model.kind === 'ready' && runtime.backfill.kind !== 'failed';
+}

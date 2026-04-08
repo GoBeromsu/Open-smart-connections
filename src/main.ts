@@ -14,7 +14,9 @@ import type {
   EmbedStatePhase,
   EmbedStateSnapshot,
   EmbeddingRunContext,
+  ParsedEmbedRuntimeState,
 } from './types/embed-runtime';
+import { isEmbedModelReady, parseEmbedRuntimeState, toLegacyStatusState } from './types/embed-runtime';
 import { NOTICE_CATALOG } from './domain/config';
 import { EmbeddingKernelJobQueue } from './domain/embedding/kernel';
 import { PluginLogger } from './shared/plugin-logger';
@@ -121,9 +123,10 @@ export default class SmartConnectionsPlugin extends Plugin {
     return this._notices;
   }
 
-  get embed_ready(): boolean { return this._embed_state.phase !== 'error' && this._embed_state.modelFingerprint !== null; }
+  get embed_ready(): boolean { return isEmbedModelReady(this.getEmbedRuntimeState()); }
   get search_embed_model(): EmbedModelAdapter | undefined { return this._search_embed_model ?? this.embed_adapter; }
-  get status_state(): 'idle' | 'embedding' | 'error' { return this._embed_state.phase === 'running' ? 'embedding' : this._embed_state.phase; }
+  get status_state(): 'idle' | 'embedding' | 'error' { return toLegacyStatusState(this.getEmbedRuntimeState()); }
+  getEmbedRuntimeState(): ParsedEmbedRuntimeState { return parseEmbedRuntimeState(this._embed_state, this.current_embed_context); }
 
   setEmbedPhase(phase: EmbedStatePhase, opts: { error?: string; fingerprint?: string } = {}): void { _setEmbedPhase(this, phase, opts); }
   resetError(): void { _resetEmbedError(this); }

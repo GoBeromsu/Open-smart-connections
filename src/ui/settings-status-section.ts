@@ -1,9 +1,18 @@
 import { Setting } from 'obsidian';
 
+import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import { renderEmbedProgress } from './embed-progress';
 import type { EmbeddingStatusElements, SmartConnectionsPlugin } from './settings-types';
 
-function getRunStateLabel(status: NonNullable<SmartConnectionsPlugin['status_state']>): string {
+function getRuntimeState(plugin: SmartConnectionsPlugin): ParsedEmbedRuntimeState | null {
+  return plugin.getEmbedRuntimeState?.() ?? null;
+}
+
+function getRunStateLabel(
+  status: NonNullable<SmartConnectionsPlugin['status_state']>,
+  runtime: ParsedEmbedRuntimeState | null,
+): string {
+  if (runtime?.serving.kind === 'degraded') return 'Degraded';
   switch (status) {
     case 'embedding':
       return 'Running';
@@ -16,7 +25,9 @@ function getRunStateLabel(status: NonNullable<SmartConnectionsPlugin['status_sta
 
 function getRunStateTone(
   status: NonNullable<SmartConnectionsPlugin['status_state']>,
+  runtime: ParsedEmbedRuntimeState | null,
 ): 'ready' | 'loading' | 'error' {
+  if (runtime?.serving.kind === 'degraded') return 'error';
   switch (status) {
     case 'error':
       return 'error';
@@ -25,6 +36,22 @@ function getRunStateTone(
     default:
       return 'loading';
   }
+}
+
+function getEmbeddingPill(
+  plugin: SmartConnectionsPlugin,
+  runtime: ParsedEmbedRuntimeState | null,
+): { value: string; active: boolean; tone: 'ready' | 'loading' | 'error' } {
+  if (runtime?.serving.kind === 'degraded') {
+    return { value: 'Degraded', active: false, tone: 'error' };
+  }
+  if (runtime?.serving.kind === 'unavailable') {
+    return { value: 'Unavailable', active: false, tone: 'error' };
+  }
+  if (runtime?.serving.kind === 'loading') {
+    return { value: 'Loading', active: false, tone: 'loading' };
+  }
+  return { value: plugin.embed_ready ? 'Ready' : 'Loading', active: !!plugin.embed_ready, tone: plugin.embed_ready ? 'ready' : 'loading' };
 }
 
 function renderStatusPill(
@@ -69,10 +96,12 @@ function setElementText(element: HTMLElement, text: string): void {
 
 function updateStatusPills(plugin: SmartConnectionsPlugin, statusRow: HTMLElement): void {
   const status = plugin.status_state ?? 'idle';
+  const runtime = getRuntimeState(plugin);
+  const embeddingPill = getEmbeddingPill(plugin, runtime);
   statusRow.empty();
   renderStatusPill(statusRow, 'Core', plugin.ready ? 'Ready' : 'Loading', !!plugin.ready);
-  renderStatusPill(statusRow, 'Embedding', plugin.embed_ready ? 'Ready' : 'Loading', !!plugin.embed_ready);
-  renderStatusPill(statusRow, 'Run', getRunStateLabel(status), status === 'embedding', getRunStateTone(status));
+  renderStatusPill(statusRow, 'Embedding', embeddingPill.value, embeddingPill.active, embeddingPill.tone);
+  renderStatusPill(statusRow, 'Run', getRunStateLabel(status, runtime), status === 'embedding', getRunStateTone(status, runtime));
 }
 
 export function renderEmbeddingStatus(
@@ -120,6 +149,8 @@ export function updateEmbeddingStatusOnly(
   activeCtx = plugin.getActiveEmbeddingContext?.() ?? null,
   status = plugin.status_state ?? 'idle',
 ): void {
+  const runtime = getRuntimeState(plugin);
+
   if (elements.statusRowEl) updateStatusPills(plugin, elements.statusRowEl);
 
   if (elements.statsGridEl) {
@@ -154,13 +185,28 @@ export function updateEmbeddingStatusOnly(
     return;
   }
 
+  if (runtime?.serving.kind === 'degraded') {
+    if (typeof (elements.currentRunSettingEl as HTMLElement & { removeClass?: (cls: string) => void })?.removeClass === 'function') {
+      (elements.currentRunSettingEl as HTMLElement & { removeClass: (cls: string) => void }).removeClass('osc-hidden');
+    } else {
+      elements.currentRunSettingEl?.classList.remove('osc-hidden');
+    }
+    setElementText(
+      elements.currentRunEl,
+      runtime.serving.error
+        ? `Background embedding degraded. Indexed notes remain queryable. Last error: ${runtime.serving.error}`
+        : 'Background embedding degraded. Indexed notes remain queryable.',
+    );
+    return;
+  }
+
   if (status === 'error') {
     if (typeof (elements.currentRunSettingEl as HTMLElement & { removeClass?: (cls: string) => void })?.removeClass === 'function') {
       (elements.currentRunSettingEl as HTMLElement & { removeClass: (cls: string) => void }).removeClass('osc-hidden');
     } else {
       elements.currentRunSettingEl?.classList.remove('osc-hidden');
     }
-    setElementText(elements.currentRunEl, 'Embedding run encountered an error. Check notices for details.');
+    setElementText(elements.currentRunEl, 'Embedding model is unavailable. Check settings and notices for details.');
     return;
   }
 

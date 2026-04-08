@@ -8,6 +8,7 @@ export type ViewState =
   | { type: 'plugin_loading' }
   | { type: 'model_error' }
   | { type: 'embed_loading' }
+  | { type: 'embed_degraded'; error?: string | null }
   | { type: 'pending_import'; path: string }
   | { type: 'note_too_short' }
   | { type: 'embedding_in_progress'; path: string }
@@ -15,6 +16,7 @@ export type ViewState =
   | { type: 'results'; path: string; results: ConnectionResult[] };
 
 const EMBED_ERROR_MSG = 'Embedding model failed to initialize. Check Open Connections settings.';
+const EMBED_DEGRADED_MSG = 'Embedding backlog hit an error. Existing indexed notes can still show connections. Check notices for details.';
 
 export async function deriveConnectionsViewState(
   view: ConnectionsView,
@@ -29,7 +31,6 @@ export async function deriveConnectionsViewState(
     if (view.plugin.pendingReImportPaths.has(targetPath)) {
       return { type: 'pending_import', path: targetPath };
     }
-    // Lazy block import: parse blocks on-demand for the opened file
     const source = view.plugin.source_collection?.get(targetPath);
     if (source) {
       await view.plugin.block_collection.import_source_blocks(source);
@@ -45,6 +46,20 @@ export async function deriveConnectionsViewState(
     return results.length === 0
       ? { type: 'no_connections' }
       : { type: 'results', path: targetPath, results };
+  }
+
+  const runtime = view.plugin.getEmbedRuntimeState?.() ?? null;
+  if (runtime) {
+    switch (runtime.serving.kind) {
+      case 'unavailable':
+        return { type: 'model_error' };
+      case 'degraded':
+        return { type: 'embed_degraded', error: runtime.serving.error };
+      case 'loading':
+        return { type: 'embed_loading' };
+      case 'ready':
+        break;
+    }
   }
 
   if (view.plugin.status_state === 'error') return { type: 'model_error' };
@@ -67,6 +82,11 @@ export function applyConnectionsViewState(view: ConnectionsView, state: ViewStat
       return;
     case 'embed_loading':
       view.showLoading('Open Connections is loading... Connections will appear when embedding is complete.');
+      return;
+    case 'embed_degraded':
+      view.showError(state.error ? `${EMBED_DEGRADED_MSG}
+
+Last error: ${state.error}` : EMBED_DEGRADED_MSG);
       return;
     case 'pending_import':
       view.showLoading('Importing note... Connections will appear when embedding is complete.');

@@ -53,10 +53,12 @@ export async function multiGetTool(ctx: McpContext, args: MultiGetArgs): Promise
 export function statusTool(ctx: McpContext, endpointUrl: string): McpToolResult {
   const model = ctx.getModelInfo();
   const stats = ctx.getStats();
+  const runtimeState = ctx.getRuntimeState?.();
   const status = {
     ready: ctx.ready,
     embed_ready: ctx.embedReady,
     status_state: ctx.statusState,
+    runtime_state: runtimeState ?? null,
     endpoint_url: endpointUrl,
     model,
     source_count: stats.sourceCount,
