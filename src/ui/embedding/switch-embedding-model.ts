@@ -4,7 +4,7 @@ import { errorMessage } from '../../utils';
 import { saveCollections } from './collection-persistence';
 import { getModelLoadTimeoutMs, initSearchEmbedModel } from './init-embed-model';
 import { getCurrentModelInfo } from './model-info';
-import { withTimeout } from './timeout';
+import { withTimeout } from '../embed-timeout';
 
 export async function switchEmbeddingModel(
   plugin: SmartConnectionsPlugin,
