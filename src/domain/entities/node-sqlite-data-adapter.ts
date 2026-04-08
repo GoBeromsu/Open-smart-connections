@@ -26,6 +26,7 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
   private _db: DatabaseSync | null = null;
   private _closed = false;
   private _vectorIndex: FlatVectorIndex | null = null;
+  private static readonly MAX_VECTOR_INDEX_BYTES = 512 * 1024 * 1024;
 
   constructor(
     collection: EntityCollection<T>,
@@ -64,6 +65,11 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     const modelKey = this.collection.embed_model_key;
     const dims = this.collection.embed_model_dims;
     if (!modelKey || modelKey === 'None' || !dims) {
+      this._vectorIndex = null;
+      return;
+    }
+    const approximateBytes = this.collection.size * dims * Float32Array.BYTES_PER_ELEMENT;
+    if (approximateBytes > NodeSqliteDataAdapter.MAX_VECTOR_INDEX_BYTES) {
       this._vectorIndex = null;
       return;
     }

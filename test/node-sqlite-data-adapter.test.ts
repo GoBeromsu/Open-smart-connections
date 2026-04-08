@@ -292,6 +292,28 @@ describe.skipIf(!hasNodeSqlite)('NodeSqliteDataAdapter', () => {
     expect(results.map((r) => r.entity_key)).toContain('b.md');
   });
 
+  it('skips the in-memory vector index when the projected matrix would exceed the memory guard', async () => {
+    collection.embed_model_dims = 4096;
+    collection.size = 40_000;
+
+    const vec = new Float32Array(4096);
+    vec[0] = 1;
+
+    await adapter.save_batch([
+      makeEntity('guard-a.md', Array.from(vec)),
+      makeEntity('guard-b.md', Array.from(vec)),
+    ]);
+
+    await adapter.load();
+
+    expect((adapter as { _vectorIndex: unknown })._vectorIndex).toBeNull();
+
+    const results = await adapter.query_nearest(vec, { limit: 2 });
+    expect(results.map((item) => item.entity_key)).toEqual(
+      expect.arrayContaining(['guard-a.md', 'guard-b.md']),
+    );
+  });
+
   // ── Rollback on mid-batch error ───────────────────────────────────────────
 
   it('batch save rolls back on mid-batch error', async () => {

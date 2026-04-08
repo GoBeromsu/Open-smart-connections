@@ -37,6 +37,12 @@ Rules:
 - `main.ts` is the composition root and may bridge every layer.
 - `shared/` is boiler-template synced; avoid edits there unless the change belongs in the template itself.
 
+## Mechanical Enforcement Status
+
+- The `obsidian` boundary for `domain/`, `types/`, and `utils/` is mechanically enforced.
+- The currently trusted lower-layer boundaries are mechanically checked in tests so `domain/` does not reach into `ui/`/`main.ts`, and `types/`/`utils/` do not reach into `domain/`/`ui/`/`main.ts`.
+- This document is still subordinate to runtime evidence. If live behavior disagrees with the document, fix the behavior first and then correct the document before widening enforcement.
+
 ## Runtime State Domains
 
 The runtime must distinguish **three different concerns** that were previously too easy to collapse together:
@@ -56,6 +62,13 @@ The runtime must distinguish **three different concerns** that were previously t
 ### Why this split matters
 
 The user-facing failure that triggered this work was not a literal model-init failure. Runtime evidence showed a failure during `Auto embed blocks for connections view`, while the UI still collapsed the result into a generic model-init/settings message. That ambiguity makes both debugging and future agent work harder.
+
+## Memory-Safety Invariant
+
+The in-memory flat vector index is an optimization, not a correctness requirement.
+
+- If rebuilding the contiguous `Float32Array` matrix would exceed the runtime memory budget, the plugin must skip the in-memory index and fall back to SQLite-backed nearest-query behavior.
+- A slower query path is acceptable; crashing the embedding/backfill pipeline with an `Array buffer allocation failed` error is not.
 
 ## Current Phase Boundary
 

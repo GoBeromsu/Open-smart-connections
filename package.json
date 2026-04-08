@@ -17,6 +17,7 @@
     "test": "vitest run --workspace vitest.workspace.ts",
     "test:watch": "vitest --workspace vitest.workspace.ts",
     "verify:test-vault": "node scripts/verify-test-vault.mjs",
+    "verify:vault-freshness": "node scripts/check-vault-build-freshness.mjs",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "ci": "pnpm run build && pnpm run lint && pnpm run test",
