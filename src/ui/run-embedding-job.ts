@@ -1,6 +1,6 @@
-import type SmartConnectionsPlugin from '../../main';
-import type { EmbedQueueStats } from '../../domain/embedding-pipeline';
-import { runEmbeddingJobNow } from './run-embedding-job-now';
+import type SmartConnectionsPlugin from '../main';
+import type { EmbedQueueStats } from '../domain/embedding-pipeline';
+import { runEmbeddingJobNow } from './embedding/run-embedding-job-now';
 
 export async function reembedStaleEntities(
   plugin: SmartConnectionsPlugin,
