@@ -35,6 +35,7 @@ export interface SmartConnectionsPlugin extends Plugin {
   switchEmbeddingModel?: (reason?: string) => Promise<void>;
   reembedStaleEntities?: (reason?: string) => Promise<number>;
   processNewSourcesChunked?: () => Promise<void>;
+  queueSourceReImport?: (path: string) => void;
   removeSource?: (path: string) => void;
   enqueueEmbeddingJob?: <T = unknown>(job: EmbeddingKernelJob<T>) => Promise<T>;
   refreshStatus?: () => void;

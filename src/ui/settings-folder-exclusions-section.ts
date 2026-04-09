@@ -1,6 +1,10 @@
 import { Setting, type App } from 'obsidian';
 
-import { buildFolderExclusionConfirmMessage, queueExcludedFolderReconcile } from './folder-exclusion-actions';
+import {
+  buildFolderExclusionConfirmMessage,
+  queueExcludedFolderReconcile,
+  queueRemovedFolderReembed,
+} from './folder-exclusion-actions';
 import { FolderExclusionPickerModal } from './folder-exclusion-modal';
 import {
   addExcludedFolderPath,
@@ -43,7 +47,7 @@ async function handleRemoveExcludedFolder(
 ): Promise<void> {
   const existing = config.getConfig('smart_sources.folder_exclusions', '');
   config.setConfig('smart_sources.folder_exclusions', removeExcludedFolderPath(existing, folderPath));
-  await queueExcludedFolderReconcile(plugin, `Excluded folder removed: ${folderPath}`);
+  await queueRemovedFolderReembed(plugin, folderPath);
   redisplay();
 }
 

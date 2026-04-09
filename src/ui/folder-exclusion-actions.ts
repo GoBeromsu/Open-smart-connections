@@ -1,3 +1,5 @@
+import { TFile } from 'obsidian';
+
 import type { SmartConnectionsPlugin } from './settings-types';
 
 function normalizeFolderPath(value: string): string {
@@ -12,6 +14,18 @@ function isPathInsideFolder(path: string, folderPath: string): boolean {
   const normalizedFolder = normalizeFolderPath(folderPath);
   if (!normalizedFolder) return false;
   return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+}
+
+function getVaultSourcePathsInFolder(plugin: SmartConnectionsPlugin, folderPath: string): string[] {
+  const normalizedFolder = normalizeFolderPath(folderPath);
+  if (!normalizedFolder) return [];
+
+  const loadedFiles = plugin.app.vault.getAllLoadedFiles?.() ?? [];
+  return loadedFiles
+    .filter((entry): entry is TFile => entry instanceof TFile)
+    .filter((entry) => ['md', 'txt'].includes(entry.extension))
+    .map((entry) => entry.path)
+    .filter((path) => isPathInsideFolder(path, normalizedFolder));
 }
 
 function getExcludedFolders(plugin: SmartConnectionsPlugin): string[] {
@@ -85,4 +99,21 @@ export async function queueExcludedFolderReconcile(
   });
 
   plugin.logger?.info?.(`[SC] Scheduled folder exclusion reconcile: ${reason}`);
+}
+
+export async function queueRemovedFolderReembed(
+  plugin: SmartConnectionsPlugin,
+  folderPath: string,
+): Promise<void> {
+  const sourcePaths = getVaultSourcePathsInFolder(plugin, folderPath);
+  for (const path of sourcePaths) {
+    plugin.queueSourceReImport?.(path);
+  }
+
+  if (sourcePaths.length === 0) {
+    await plugin.processNewSourcesChunked?.();
+  }
+
+  plugin.refreshStatus?.();
+  plugin.app.workspace.trigger('open-connections:discovery-complete');
 }
