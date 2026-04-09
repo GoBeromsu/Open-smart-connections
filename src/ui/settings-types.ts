@@ -1,5 +1,6 @@
 import type { App, EventRef, Plugin } from 'obsidian';
 
+import type { EmbeddingKernelJob } from '../domain/embedding-kernel-types';
 import type { ParsedEmbedRuntimeState } from '../types/embed-runtime';
 import type { PluginSettings } from '../types/settings';
 
@@ -7,8 +8,19 @@ export interface SmartConnectionsPlugin extends Plugin {
   settings?: PluginSettings;
   saveSettings?: () => Promise<void>;
   embed_model?: unknown;
-  source_collection?: { size?: number };
-  block_collection?: { embeddedSourceCount?: number };
+  source_collection?: {
+    size?: number;
+    all?: Array<{ key: string }>;
+    data_adapter?: { save: () => Promise<void> };
+    recomputeEmbeddedCount?: () => void;
+  };
+  block_collection?: {
+    embeddedSourceCount?: number;
+    embeddedCount?: number;
+    effectiveTotal?: number;
+    data_adapter?: { save: () => Promise<void> };
+    recomputeEmbeddedCount?: () => void;
+  };
   embed_ready?: boolean;
   ready?: boolean;
   status_state?: 'idle' | 'embedding' | 'error';
@@ -22,7 +34,11 @@ export interface SmartConnectionsPlugin extends Plugin {
   } | null;
   switchEmbeddingModel?: (reason?: string) => Promise<void>;
   reembedStaleEntities?: (reason?: string) => Promise<number>;
+  processNewSourcesChunked?: () => Promise<void>;
+  removeSource?: (path: string) => void;
+  enqueueEmbeddingJob?: <T = unknown>(job: EmbeddingKernelJob<T>) => Promise<T>;
   refreshStatus?: () => void;
+  logger?: { info: (message: string) => void };
   getMcpServer?: () => { isRunning: boolean; endpointUrl: string };
   syncMcpServer?: () => Promise<void>;
   getActiveEmbeddingContext?: () => {

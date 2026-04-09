@@ -75,7 +75,7 @@ export class SmartConnectionsSettingsTab extends PluginSettingTab {
     );
 
     new Setting(containerEl).setName('Sources').setHeading();
-    renderSourceSettings(containerEl, config);
+    renderSourceSettings(containerEl, this.app, this.plugin, config, () => this.display());
 
     new Setting(containerEl).setName('Blocks').setHeading();
     renderBlockSettings(containerEl, config);

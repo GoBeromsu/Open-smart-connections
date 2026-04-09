@@ -155,6 +155,14 @@ export const NOTICE_CATALOG: NoticeCatalog = {
   no_stale_entities: {
     template: 'No stale entities to re-embed.',
   },
+  folder_exclusion_reconcile_deferred: {
+    template: 'Folder exclusion changes will apply after the current embedding run finishes.',
+    timeout: 9000,
+  },
+  folder_exclusion_reconcile_applied: {
+    template: 'Folder exclusion changes applied.',
+    timeout: 5000,
+  },
   reinitializing_embedding_model: {
     template: 'Re-initializing embedding model...',
   },

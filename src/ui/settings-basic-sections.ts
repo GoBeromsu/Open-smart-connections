@@ -1,8 +1,15 @@
-import { Setting } from 'obsidian';
+import { Setting, type App } from 'obsidian';
 
-import type { SettingsConfigAccessor } from './settings-types';
+import { renderFolderExclusionSettings } from './settings-folder-exclusions-section';
+import type { SettingsConfigAccessor, SmartConnectionsPlugin } from './settings-types';
 
-export function renderSourceSettings(containerEl: HTMLElement, config: SettingsConfigAccessor): void {
+export function renderSourceSettings(
+  containerEl: HTMLElement,
+  app: App,
+  plugin: SmartConnectionsPlugin,
+  config: SettingsConfigAccessor,
+  redisplay: () => void,
+): void {
   new Setting(containerEl)
     .setName('Minimum characters')
     .setDesc('Skip files shorter than this character count')
@@ -23,14 +30,7 @@ export function renderSourceSettings(containerEl: HTMLElement, config: SettingsC
       text.onChange((value) => config.setConfig('smart_sources.file_exclusions', value));
     });
 
-  new Setting(containerEl)
-    .setName('Folder exclusions')
-    .setDesc('Comma-separated folder paths to exclude')
-    .addText((text) => {
-      text.setPlaceholder('Archive/, templates/');
-      text.setValue(config.getConfig('smart_sources.folder_exclusions', ''));
-      text.onChange((value) => config.setConfig('smart_sources.folder_exclusions', value));
-    });
+  renderFolderExclusionSettings(containerEl, app, plugin, config, redisplay);
 
   new Setting(containerEl)
     .setName('Excluded headings')
