@@ -37,6 +37,8 @@ export interface SmartConnectionsPlugin extends Plugin {
   processNewSourcesChunked?: () => Promise<void>;
   queueSourceReImport?: (path: string) => void;
   removeSource?: (path: string) => void;
+  applyExcludedFolder?: (folderPath: string) => Promise<void>;
+  removeExcludedFolder?: (folderPath: string) => Promise<void>;
   enqueueEmbeddingJob?: <T = unknown>(job: EmbeddingKernelJob<T>) => Promise<T>;
   refreshStatus?: () => void;
   logger?: { info: (message: string) => void };

@@ -50,6 +50,10 @@ import {
   runReImport as _runReImport,
 } from './ui/file-watcher';
 import {
+  applyExcludedFolder as _applyExcludedFolder,
+  removeExcludedFolder as _removeExcludedFolder,
+} from './ui/folder-exclusion-actions';
+import {
   initializeCore as _initializeCore,
   initializeEmbedding as _initializeEmbedding,
   initializePlugin as _initializePlugin,
@@ -162,6 +166,8 @@ export default class SmartConnectionsPlugin extends Plugin {
   registerFileWatchers(): void { _registerFileWatchers(this); }
   isSourceFile(file: TFile): boolean { return _isSourceFile(file, this); }
   queueSourceReImport(path: string): void { _queueSourceReImport(this, path); }
+  applyExcludedFolder(folderPath: string): Promise<void> { return _applyExcludedFolder(this, folderPath); }
+  removeExcludedFolder(folderPath: string): Promise<void> { return _removeExcludedFolder(this, folderPath); }
   removeSource(path: string): void { _removeSource(this, path); }
   debounceReImport(): void { _debounceReImport(this); }
   runReImport(): Promise<void> { return _runReImport(this); }

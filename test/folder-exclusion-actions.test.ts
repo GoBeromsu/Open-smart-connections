@@ -4,6 +4,7 @@ import {
   buildFolderExclusionConfirmMessage,
   queueExcludedFolderReconcile,
   queueRemovedFolderReembed,
+  reconcileExcludedFoldersOnStartup,
 } from '../src/ui/folder-exclusion-actions';
 import { TFile, TFolder } from 'obsidian';
 
@@ -82,6 +83,18 @@ describe('queueExcludedFolderReconcile', () => {
     await queueExcludedFolderReconcile(plugin, 'active run');
 
     expect(plugin.notices.show).toHaveBeenCalledWith('folder_exclusion_reconcile_deferred');
+  });
+});
+
+describe('reconcileExcludedFoldersOnStartup', () => {
+  it('removes excluded indexed content without triggering discovery', async () => {
+    const plugin = createPlugin();
+
+    await reconcileExcludedFoldersOnStartup(plugin);
+
+    expect(plugin.removeSource).toHaveBeenCalledWith('Archive/a.md');
+    expect(plugin.removeSource).not.toHaveBeenCalledWith('Keep/b.md');
+    expect(plugin.processNewSourcesChunked).not.toHaveBeenCalled();
   });
 });
 

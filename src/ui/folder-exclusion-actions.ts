@@ -1,6 +1,7 @@
 import { TFile } from 'obsidian';
 
 import type { SmartConnectionsPlugin } from './settings-types';
+import { addExcludedFolderPath, removeExcludedFolderPath } from './folder-exclusion-state';
 
 function normalizeFolderPath(value: string): string {
   return value
@@ -57,7 +58,10 @@ export function buildFolderExclusionConfirmMessage(
   return lines.join('\n');
 }
 
-async function reconcileExcludedFoldersNow(plugin: SmartConnectionsPlugin): Promise<void> {
+async function reconcileExcludedFoldersNow(
+  plugin: SmartConnectionsPlugin,
+  opts: { rediscover?: boolean } = {},
+): Promise<void> {
   const excludedFolders = getExcludedFolders(plugin);
   const sourcePaths = (plugin.source_collection?.all ?? []).map((source) => source.key);
   const toRemove = sourcePaths.filter((path) =>
@@ -73,9 +77,17 @@ async function reconcileExcludedFoldersNow(plugin: SmartConnectionsPlugin): Prom
   plugin.source_collection?.recomputeEmbeddedCount?.();
   plugin.block_collection?.recomputeEmbeddedCount?.();
 
-  await plugin.processNewSourcesChunked?.();
+  if (opts.rediscover !== false) {
+    await plugin.processNewSourcesChunked?.();
+  }
   plugin.refreshStatus?.();
   plugin.app.workspace.trigger('open-connections:discovery-complete');
+}
+
+export async function reconcileExcludedFoldersOnStartup(
+  plugin: SmartConnectionsPlugin,
+): Promise<void> {
+  await reconcileExcludedFoldersNow(plugin, { rediscover: false });
 }
 
 export async function queueExcludedFolderReconcile(
@@ -116,4 +128,26 @@ export async function queueRemovedFolderReembed(
 
   plugin.refreshStatus?.();
   plugin.app.workspace.trigger('open-connections:discovery-complete');
+}
+
+export async function applyExcludedFolder(
+  plugin: SmartConnectionsPlugin,
+  folderPath: string,
+): Promise<void> {
+  if (!plugin.settings) return;
+  const existing = plugin.settings.smart_sources.folder_exclusions ?? '';
+  plugin.settings.smart_sources.folder_exclusions = addExcludedFolderPath(existing, folderPath);
+  await plugin.saveSettings?.();
+  await queueExcludedFolderReconcile(plugin, `Excluded folder selected: ${folderPath}`);
+}
+
+export async function removeExcludedFolder(
+  plugin: SmartConnectionsPlugin,
+  folderPath: string,
+): Promise<void> {
+  if (!plugin.settings) return;
+  const existing = plugin.settings.smart_sources.folder_exclusions ?? '';
+  plugin.settings.smart_sources.folder_exclusions = removeExcludedFolderPath(existing, folderPath);
+  await plugin.saveSettings?.();
+  await queueRemovedFolderReembed(plugin, folderPath);
 }

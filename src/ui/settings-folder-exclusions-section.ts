@@ -1,16 +1,14 @@
 import { Setting, type App } from 'obsidian';
 
 import {
+  applyExcludedFolder,
   buildFolderExclusionConfirmMessage,
-  queueExcludedFolderReconcile,
-  queueRemovedFolderReembed,
+  removeExcludedFolder,
 } from './folder-exclusion-actions';
 import { FolderExclusionPickerModal } from './folder-exclusion-modal';
 import {
-  addExcludedFolderPath,
   listVaultFolderPaths,
   parseExcludedFolderPaths,
-  removeExcludedFolderPath,
 } from './folder-exclusion-state';
 import { confirmWithModal } from './settings-confirm-modal';
 import type { SettingsConfigAccessor, SmartConnectionsPlugin } from './settings-types';
@@ -34,8 +32,7 @@ async function handleAddExcludedFolder(
   );
   if (!confirmed) return;
 
-  config.setConfig('smart_sources.folder_exclusions', addExcludedFolderPath(existing, selected));
-  await queueExcludedFolderReconcile(plugin, `Excluded folder selected: ${selected}`);
+  await applyExcludedFolder(plugin, selected);
   redisplay();
 }
 
@@ -45,9 +42,7 @@ async function handleRemoveExcludedFolder(
   redisplay: () => void,
   folderPath: string,
 ): Promise<void> {
-  const existing = config.getConfig('smart_sources.folder_exclusions', '');
-  config.setConfig('smart_sources.folder_exclusions', removeExcludedFolderPath(existing, folderPath));
-  await queueRemovedFolderReembed(plugin, folderPath);
+  await removeExcludedFolder(plugin, folderPath);
   redisplay();
 }
 

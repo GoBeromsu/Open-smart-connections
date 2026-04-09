@@ -7,6 +7,7 @@ import {
   importBlocksChunked,
   queueUnembeddedEntities,
 } from './collection-loader';
+import { reconcileExcludedFoldersOnStartup } from './folder-exclusion-actions';
 import { debounceReImport, registerFileWatchers } from './file-watcher';
 import { isCurrentLifecycle } from './plugin-lifecycle';
 import { setupStatusBar } from './status-bar';
@@ -73,6 +74,8 @@ export async function initializeCore(
   if (!await runInitStep(plugin, lifecycle, 'Init collections', () => initCollections(plugin), true)) return;
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
   if (!await runInitStep(plugin, lifecycle, 'Load collections', () => loadCollections(plugin), true)) return;
+  if (!isCurrentLifecycle(plugin, lifecycle)) return;
+  await runInitStep(plugin, lifecycle, 'Reconcile excluded folders on startup', () => reconcileExcludedFoldersOnStartup(plugin));
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
   void detectStaleSourcesOnStartup(plugin);
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
