@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Composition and layer organization for open-connections. Contains the 4-layer architecture: domain (business logic), ui (Obsidian-dependent), types (pure types), utils (pure functions), and shared (boiler-template synced). Main entry point `main.ts` wires all layers together.
+Composition and layer organization for open-connections. Contains the 4-layer architecture: domain (business logic), ui (Obsidian-dependent), types (pure types), and utils (pure functions). Main entry point `main.ts` wires all layers together.
 
 ## Key Files
 
@@ -21,7 +21,6 @@ Composition and layer organization for open-connections. Contains the 4-layer ar
 | `ui/` | Obsidian-dependent code — views, modals, settings, commands, file watchers, embed adapters |
 | `types/` | Pure type definitions — NO obsidian imports (except obsidian-augments.d.ts which augments) |
 | `utils/` | Pure utility functions — NO obsidian imports, zero state, zero side effects |
-| `shared/` | Boiler-template synced files — DO NOT EDIT directly; includes plugin-logger, plugin-notices, settings-migration, debounce-controller |
 
 ## For AI Agents
 
@@ -38,9 +37,9 @@ Composition and layer organization for open-connections. Contains the 4-layer ar
   ```
   utils/ ──┐
   types/ ──┼── domain/ ── ui/ ── main.ts
-  shared/ ─┘               │
-                            └── shared/
   ```
+
+- Repo-local notice/logging helpers live in `ui/` and may be consumed by `main.ts`.
 
 - Obsidian type references in domain/types/utils are satisfied via shim interfaces in `src/types/obsidian-shims.ts` (structural typing)
 
@@ -67,7 +66,7 @@ plugin.app.workspace.trigger('open-connections:embed-progress', payload);
 ## Dependencies
 
 ### Internal
-- `obsidian-boiler-template` — source of truth for `src/shared/` files
+- `obsidian-boiler-template` remains the source of truth for shared contracts, docs, and harnesses
 
 ### External
 - `obsidian` — Obsidian Plugin API (imported only by `ui/` and `main.ts`)

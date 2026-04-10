@@ -37,7 +37,6 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 | `src/ui/embed-adapters/` | Provider adapters (see `src/ui/embed-adapters/AGENTS.md`) |
 | `src/types/` | Pure type definitions + obsidian-augments.d.ts (see `src/types/AGENTS.md`) |
 | `src/utils/` | Pure utility functions (see `src/utils/AGENTS.md`) |
-| `src/shared/` | Boiler-template synced files — DO NOT EDIT (see `src/shared/AGENTS.md`) |
 | `scripts/` | Autoresearch harness scripts (check-freeze, check-webgpu, check-connections, check-e2e) |
 | `test/` | Vitest unit + sqlite-integration tests |
 
@@ -46,7 +45,7 @@ Open Smart Connections — Obsidian plugin that uses local embeddings (Transform
 ### Working In This Directory
 - 4-layer architecture enforced by ESLint `no-restricted-imports`: `domain/`, `types/`, `utils/` must NEVER import `obsidian`
 - Custom workspace events (e.g. `open-connections:embed-progress`) are typed in `src/types/obsidian-augments.d.ts` — no `as any` casts on event names
-- `src/shared/` is synced from `obsidian-boiler-template` — never edit directly
+- Shared contracts, docs, and harnesses still come from `obsidian-boiler-template`, but runtime helper implementations now stay repo-local under `src/ui/`
 - Embedding kernel (`domain/embedding/kernel/`) is now a slim barrel/types surface; queue and model helpers were flattened outward
 - 3-phase initialization: Phase 1 (core, blocking), Phase 2 (embedding, background), Phase 3 (deferred block import via setTimeout 5s)
 - UI is usable before Phase 2 completes; blocks are imported in Phase 3 background
@@ -87,7 +86,7 @@ const entities = this.block_collection.all; // EmbeddingBlock[]
 ## Dependencies
 
 ### Internal
-- `obsidian-boiler-template` — source of truth for `src/shared/` files
+- `obsidian-boiler-template` — source of truth for shared contracts, docs, and harnesses
 
 ### External
 - `obsidian` — Obsidian Plugin API

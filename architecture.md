@@ -27,15 +27,16 @@ src/main.ts -> composition root / plugin runtime
 ```text
 utils/ ──┐
 types/ ──┼── domain/ ── ui/ ── main.ts
-shared/ ─┘               │
-                          └── shared/
+          └───────────────▲
+                          │
+                  repo-local UI helpers
 ```
 
 Rules:
 - `domain/`, `types/`, and `utils/` must not import `obsidian`.
-- `ui/` may depend on `domain/`, `types/`, `utils/`, and `shared/`.
+- `ui/` may depend on `domain/`, `types/`, and `utils/`.
 - `main.ts` is the composition root and may bridge every layer.
-- `shared/` is boiler-template synced; avoid edits there unless the change belongs in the template itself.
+- Shared contracts and harnesses still come from the boiler template, but runtime helper implementations stay repo-local.
 
 ## Mechanical Enforcement Status
 

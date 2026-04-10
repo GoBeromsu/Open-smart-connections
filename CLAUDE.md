@@ -60,7 +60,6 @@ The codebase follows a strict 4-layer architecture enforced by ESLint `no-restri
 | UI | `src/ui/` | Obsidian-dependent views, modals, settings |
 | Types | `src/types/` | NO `obsidian` imports — pure type definitions |
 | Utils | `src/utils/` | NO `obsidian` imports — pure functions, zero state |
-| Shared | `src/shared/` | Boiler-template synced files only — DO NOT EDIT |
 
 ```
 src/
@@ -93,10 +92,6 @@ src/
 │   ├── entities.ts, models.ts, settings.ts, obsidian-shims.ts
 ├── utils/                    # Pure utility functions (single file)
 │   └── index.ts              # cos_sim, create_hash, results_acc, etc.
-└── shared/                   # Boiler-template synced — DO NOT EDIT
-    ├── plugin-logger.ts, plugin-notices.ts
-    ├── settings-migration.ts, debounce-controller.ts
-    └── styles.base.css
 
 scripts/
 ├── check-freeze.sh            # Autoresearch harness: UI freeze detection
@@ -133,7 +128,7 @@ The embedding subsystem uses a Redux-style state machine (`domain/embedding/kern
 
 ## Notices
 
-`plugin.notices` is a `PluginNotices` instance (from `src/shared/plugin-notices.ts`, synced from boiler template). The catalog of all notice types is defined in `src/domain/notices.ts` as `NOTICE_CATALOG`. `SmartConnectionsNotices` is just a type alias for `PluginNotices`.
+`plugin.notices` is a `PluginNotices` instance from `src/ui/plugin-notices.ts`. The catalog of all notice types is defined in `src/domain/config.ts` as `NOTICE_CATALOG`. `SmartConnectionsNotices` is just a type alias for `PluginNotices`.
 
 - Muted notice IDs are persisted under `settings.plugin_notices.muted`.
 - Existing `smart_notices.muted` entries are migrated on first load.

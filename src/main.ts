@@ -20,8 +20,8 @@ import type {
 import { isEmbedModelReady, parseEmbedRuntimeState, toLegacyStatusState } from './types/embed-runtime';
 import { NOTICE_CATALOG } from './domain/config';
 import { EmbeddingKernelJobQueue } from './domain/embedding/kernel';
-import { PluginLogger } from './shared/plugin-logger';
-import { PluginNotices as SmartConnectionsNotices } from './shared/plugin-notices';
+import { PluginLogger } from './ui/plugin-logger';
+import { PluginNotices as SmartConnectionsNotices } from './ui/plugin-notices';
 import {
   detectStaleSourcesOnStartup as _detectStaleSourcesOnStartup,
   getEmbedAdapterSettings as _getEmbedAdapterSettings,

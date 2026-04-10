@@ -153,7 +153,7 @@
   align-items: center;
 }
 
-/* Shared icon button styles (inlined from src/shared/styles.base.css) */
+/* Shared icon button styles kept repo-local in this plugin */
 .plugin-icon-btn {
   display: flex;
   align-items: center;
@@ -855,4 +855,3 @@ div.workspace-leaf-content[data-type="open-connections-view"] > .view-content {
   width: 48px;
   height: 48px;
 }
-

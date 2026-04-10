@@ -243,8 +243,7 @@ open-connections/
 │   │   ├── status-bar.ts         # Progress bar
 │   │   └── commands.ts           # Command palette commands
 │   ├── types/                    # Pure type definitions
-│   ├── utils/                    # Pure utility functions
-│   └── shared/                   # Shared boiler-template code
+│   └── utils/                    # Pure utility functions
 ├── worker/
 │   └── embed-worker.ts           # Web Worker for Transformers.js
 ├── test/                         # Vitest unit tests

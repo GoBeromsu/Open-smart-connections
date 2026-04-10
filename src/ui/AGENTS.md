@@ -41,4 +41,4 @@ Obsidian-dependent UI layer for open-connections. Contains all views, settings, 
 ## Dependencies
 - `src/domain/` — business logic, entity model, embedding kernel
 - `src/types/obsidian-augments.d.ts` — typed workspace event overloads
-- `src/shared/` — PluginLogger, PluginNotices
+- `src/ui/plugin-logger.ts` and `src/ui/plugin-notices.ts` provide the repo-local notice/logging helpers used by `main.ts`
