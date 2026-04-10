@@ -26,7 +26,8 @@
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major",
-    "prepare": "husky"
+    "prepare": "husky",
+    "profile:scaling": "node scripts/profile-scaling.mjs"
   },
   "repository": {
     "type": "git",
