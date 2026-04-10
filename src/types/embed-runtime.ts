@@ -14,6 +14,38 @@ export type EmbedRunPhase =
 
 export type EmbedStatePhase = 'idle' | 'running' | 'error';
 
+export type EmbedProfilingStageName =
+  | 'init:core'
+  | 'init:embedding'
+  | 'init:background-import'
+  | 'reconcile:excluded-folders'
+  | 'discovery:process-new-sources'
+  | 'embedding:run'
+  | 'embedding:save'
+  | 'embedding:followup-schedule'
+  | 'ui:connections-view:render';
+
+export interface EmbedStageMeasurement {
+  name: EmbedProfilingStageName;
+  startedAt: number;
+  finishedAt: number;
+  durationMs: number;
+}
+
+export interface EmbedProfilingCounters {
+  saveCount: number;
+  followupScheduledCount: number;
+  progressEventCount: number;
+  connectionsViewRenderCount: number;
+}
+
+export interface EmbedProfilingState {
+  activeStage: EmbedProfilingStageName | null;
+  activeSince: number | null;
+  recentStages: EmbedStageMeasurement[];
+  counters: EmbedProfilingCounters;
+}
+
 export interface EmbeddingRunContext {
   runId: number;
   phase: EmbedRunPhase;
@@ -91,11 +123,25 @@ export interface ParsedEmbedRuntimeState {
   model: EmbedModelState;
   backfill: EmbedBackfillState;
   serving: EmbedServingState;
+  profiling: EmbedProfilingState;
 }
+
+const EMPTY_PROFILING: EmbedProfilingState = {
+  activeStage: null,
+  activeSince: null,
+  recentStages: [],
+  counters: {
+    saveCount: 0,
+    followupScheduledCount: 0,
+    progressEventCount: 0,
+    connectionsViewRenderCount: 0,
+  },
+};
 
 export function parseEmbedRuntimeState(
   snapshot: EmbedStateSnapshot,
   currentContext: EmbeddingRunContext | null = null,
+  profiling: EmbedProfilingState = EMPTY_PROFILING,
 ): ParsedEmbedRuntimeState {
   const model: EmbedModelState = snapshot.modelFingerprint
     ? { kind: 'ready', fingerprint: snapshot.modelFingerprint }
@@ -122,6 +168,7 @@ export function parseEmbedRuntimeState(
     model,
     backfill,
     serving,
+    profiling,
   };
 }
 

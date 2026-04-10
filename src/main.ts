@@ -10,6 +10,7 @@ import type { BlockCollection, SourceCollection } from './domain/entities';
 import type { EmbeddingKernelJob } from './domain/embedding-kernel-types';
 import type { PluginSettings } from './types/settings';
 import type {
+  EmbedProfilingState,
   EmbedProgressEventPayload,
   EmbedStatePhase,
   EmbedStateSnapshot,
@@ -60,6 +61,7 @@ import {
   obsidianIsSyncing as _obsidianIsSyncing,
   waitForSync as _waitForSync,
 } from './ui/plugin-initialization';
+import { createEmbedProfilingState } from './ui/embed-profiling-state';
 import {
   resetEmbedError as _resetEmbedError,
   setEmbedPhase as _setEmbedPhase,
@@ -111,6 +113,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   mcp_server?: OpenConnectionsMcpServer;
   _lifecycle_epoch = 0;
   _embed_state: EmbedStateSnapshot = { phase: 'idle', modelFingerprint: null, lastError: null };
+  _embed_profiling: EmbedProfilingState = createEmbedProfilingState();
   _notices?: SmartConnectionsNotices;
 
   get notices(): SmartConnectionsNotices {
@@ -130,7 +133,17 @@ export default class SmartConnectionsPlugin extends Plugin {
   get embed_ready(): boolean { return isEmbedModelReady(this.getEmbedRuntimeState()); }
   get search_embed_model(): EmbedModelAdapter | undefined { return this._search_embed_model ?? this.embed_adapter; }
   get status_state(): 'idle' | 'embedding' | 'error' { return toLegacyStatusState(this.getEmbedRuntimeState()); }
-  getEmbedRuntimeState(): ParsedEmbedRuntimeState { return parseEmbedRuntimeState(this._embed_state, this.current_embed_context); }
+  getEmbedProfilingState(): EmbedProfilingState {
+    return {
+      activeStage: this._embed_profiling.activeStage,
+      activeSince: this._embed_profiling.activeSince,
+      recentStages: this._embed_profiling.recentStages.map((stage) => ({ ...stage })),
+      counters: { ...this._embed_profiling.counters },
+    };
+  }
+  getEmbedRuntimeState(): ParsedEmbedRuntimeState {
+    return parseEmbedRuntimeState(this._embed_state, this.current_embed_context, this.getEmbedProfilingState());
+  }
 
   setEmbedPhase(phase: EmbedStatePhase, opts: { error?: string; fingerprint?: string } = {}): void { _setEmbedPhase(this, phase, opts); }
   resetError(): void { _resetEmbedError(this); }

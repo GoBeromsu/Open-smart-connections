@@ -9,6 +9,7 @@ import {
 } from './collection-loader';
 import { reconcileExcludedFoldersOnStartup } from './folder-exclusion-actions';
 import { debounceReImport, registerFileWatchers } from './file-watcher';
+import { beginEmbedProfilingStage, endEmbedProfilingStage, profileAsyncStage } from './embed-profiling-state';
 import { isCurrentLifecycle } from './plugin-lifecycle';
 import { setupStatusBar } from './status-bar';
 import { handleNewUser, loadUserState } from './user-state';
@@ -65,6 +66,7 @@ export async function initializeCore(
 
   const start = performance.now();
   plugin.logger.debug('[SC][Init] ▶ Phase 1: Core initialization');
+  beginEmbedProfilingStage(plugin, 'init:core');
   setupStatusBar(plugin);
 
   await runInitStep(plugin, lifecycle, 'Load user state', () => loadUserState(plugin));
@@ -75,7 +77,14 @@ export async function initializeCore(
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
   if (!await runInitStep(plugin, lifecycle, 'Load collections', () => loadCollections(plugin), true)) return;
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
-  await runInitStep(plugin, lifecycle, 'Reconcile excluded folders on startup', () => reconcileExcludedFoldersOnStartup(plugin));
+  await runInitStep(
+    plugin,
+    lifecycle,
+    'Reconcile excluded folders on startup',
+    () => profileAsyncStage(plugin, 'reconcile:excluded-folders', async () => {
+      await reconcileExcludedFoldersOnStartup(plugin);
+    }),
+  );
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
   void detectStaleSourcesOnStartup(plugin);
   if (!isCurrentLifecycle(plugin, lifecycle)) return;
@@ -99,6 +108,7 @@ export async function initializeCore(
   plugin.logger.debug(
     `[SC][Init] ✓ Phase 1 complete (${(performance.now() - start).toFixed(0)}ms) — ${sourceCount} sources, ${blockCount} blocks`,
   );
+  endEmbedProfilingStage(plugin, 'init:core');
 }
 
 export async function initializeEmbedding(
@@ -111,12 +121,15 @@ export async function initializeEmbedding(
 
   const start = performance.now();
   plugin.logger.debug('[SC][Init] ▶ Phase 2: Embedding initialization');
+  beginEmbedProfilingStage(plugin, 'init:embedding');
 
   try {
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
     await plugin.switchEmbeddingModel('Initial embedding setup');
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
-    await processNewSourcesChunked(plugin);
+    await profileAsyncStage(plugin, 'discovery:process-new-sources', async () => {
+      await processNewSourcesChunked(plugin);
+    });
     if (!isCurrentLifecycle(plugin, lifecycle)) return;
 
     if (!plugin._unloading && plugin.pendingReImportPaths.size > 0) {
@@ -142,6 +155,7 @@ export async function initializeEmbedding(
         void (async () => {
           if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
           plugin.logger.debug('[SC][Init] ▶ Phase 3: Background block import');
+          beginEmbedProfilingStage(plugin, 'init:background-import');
           await importBlocksChunked(plugin);
           if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
           const queued = queueUnembeddedEntities(plugin);
@@ -151,6 +165,7 @@ export async function initializeEmbedding(
           }
           plugin.app.workspace.trigger('open-connections:discovery-complete');
           plugin.logger.debug('[SC][Init] ✓ Phase 3 complete');
+          endEmbedProfilingStage(plugin, 'init:background-import');
         })();
       }, 5000);
     }
@@ -159,6 +174,8 @@ export async function initializeEmbedding(
     plugin.init_errors.push({ phase: 'initializeEmbedding', error: error as Error });
     plugin.logger.error('[SC][Init] ✗ Phase 2 failed:', error);
     plugin.setEmbedPhase('error', { error: error instanceof Error ? error.message : String(error) });
+  } finally {
+    endEmbedProfilingStage(plugin, 'init:embedding');
   }
 }
 

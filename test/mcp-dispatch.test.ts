@@ -87,7 +87,25 @@ describe('dispatchMcpRequest', () => {
 
   it('returns status payload for tools/call', async () => {
     const response = await dispatchMcpRequest(
-      makeCtx(),
+      makeCtx({
+        getRuntimeState: () => ({
+          snapshot: { phase: 'idle', modelFingerprint: 'upstage:embedding-passage:4096', lastError: null },
+          model: { kind: 'ready', fingerprint: 'upstage:embedding-passage:4096' },
+          backfill: { kind: 'idle' },
+          serving: { kind: 'ready' },
+          profiling: {
+            activeStage: 'ui:connections-view:render',
+            activeSince: 10,
+            recentStages: [],
+            counters: {
+              saveCount: 1,
+              followupScheduledCount: 0,
+              progressEventCount: 4,
+              connectionsViewRenderCount: 2,
+            },
+          },
+        }),
+      }),
       { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'status', arguments: {} } },
       'http://127.0.0.1:27124/mcp',
     );
@@ -95,6 +113,12 @@ describe('dispatchMcpRequest', () => {
     const result = response?.result as { structuredContent: Record<string, unknown> };
     expect(result.structuredContent.endpoint_url).toBe('http://127.0.0.1:27124/mcp');
     expect(result.structuredContent.model).toEqual({ adapter: 'upstage', modelKey: 'embedding-passage', dims: 4096 });
+    expect(result.structuredContent.runtime_state).toMatchObject({
+      profiling: {
+        activeStage: 'ui:connections-view:render',
+        counters: { connectionsViewRenderCount: 2 },
+      },
+    });
   });
 
   it('dedupes query results to note-level matches by default', async () => {

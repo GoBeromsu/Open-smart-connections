@@ -25,6 +25,7 @@ import {
   showConnectionsError,
   showConnectionsLoading,
 } from './connections-view-results';
+import { bumpEmbedProfilingCounter, profileAsyncStage } from './embed-profiling-state';
 import { invalidateConnectionsCache } from './block-connections';
 
 export const CONNECTIONS_VIEW_TYPE = 'open-connections-view';
@@ -130,7 +131,10 @@ export class ConnectionsView extends ItemView {
     this.lastRenderedPath = targetPath;
 
     try {
-      const state = await this.deriveViewState(targetPath);
+      bumpEmbedProfilingCounter(this.plugin, 'connectionsViewRenderCount');
+      const state = await profileAsyncStage(this.plugin, 'ui:connections-view:render', async () => {
+        return await this.deriveViewState(targetPath);
+      });
       if (this.scheduleRetryIfStale(gen)) return;
       this.applyViewState(state);
       this.updateProgressBanner();

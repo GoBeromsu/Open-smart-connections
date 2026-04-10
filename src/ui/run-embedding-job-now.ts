@@ -8,6 +8,12 @@ import { updateEmbedNotice, showEmbeddingFailureNotice } from './embed-notices';
 import { emitEmbedProgress } from './embed-progress-events';
 import { createRunContext, finalizeFailedStats, finishRun, startRun } from './run-embedding-job-context';
 import { publishEmbedContext } from './embed-model-info';
+import {
+  beginEmbedProfilingStage,
+  bumpEmbedProfilingCounter,
+  endEmbedProfilingStage,
+  profileAsyncStage,
+} from './embed-profiling-state';
 import { scheduleFollowupRun } from './run-embedding-job';
 
 function updateRunProgress(
@@ -26,6 +32,7 @@ function updateRunProgress(
   if (progress?.current_source_path) context.currentSourcePath = progress.current_source_path;
   context.phase = 'running';
   context.outcome = undefined;
+  bumpEmbedProfilingCounter(plugin, 'progressEventCount');
   publishEmbedContext(plugin, context);
 }
 
@@ -50,6 +57,7 @@ export async function runEmbeddingJobNow(
   }
 
   const context = createRunContext(plugin, reason, entitiesToEmbed);
+  beginEmbedProfilingStage(plugin, 'embedding:run');
   startRun(plugin, context);
   let unresolvedAfterRun = 0;
   let lastProgressEmit = 0;
@@ -76,12 +84,16 @@ export async function runEmbeddingJobNow(
         }
       },
       on_save: async () => {
-        await saveCollections(plugin);
+        await profileAsyncStage(plugin, 'embedding:save', async () => {
+          await saveCollections(plugin);
+        });
         plugin.block_collection?.recomputeEmbeddedCount();
         plugin.source_collection?.recomputeEmbeddedCount();
+        bumpEmbedProfilingCounter(plugin, 'saveCount');
         if (plugin.current_embed_context?.runId === context.runId) {
           plugin.current_embed_context.saveCount += 1;
           publishEmbedContext(plugin, plugin.current_embed_context);
+          beginEmbedProfilingStage(plugin, 'embedding:run');
         }
       },
       save_interval: effectiveSaveInterval,
@@ -104,10 +116,14 @@ export async function runEmbeddingJobNow(
     context.error = stats.error ?? null;
 
     if (stats.outcome === 'completed') {
-      await saveCollections(plugin);
+      await profileAsyncStage(plugin, 'embedding:save', async () => {
+        await saveCollections(plugin);
+      });
       plugin.block_collection?.recomputeEmbeddedCount();
       plugin.source_collection?.recomputeEmbeddedCount();
       context.saveCount += 1;
+      bumpEmbedProfilingCounter(plugin, 'saveCount');
+      beginEmbedProfilingStage(plugin, 'embedding:run');
     }
 
     unresolvedAfterRun = plugin.queueUnembeddedEntities();
@@ -137,7 +153,11 @@ export async function runEmbeddingJobNow(
       });
     }
     if (context.followupQueued) {
+      bumpEmbedProfilingCounter(plugin, 'followupScheduledCount');
+      beginEmbedProfilingStage(plugin, 'embedding:followup-schedule');
       scheduleFollowupRun(plugin, `${reason} (follow-up)`, context.runId);
+      endEmbedProfilingStage(plugin, 'embedding:followup-schedule');
+      beginEmbedProfilingStage(plugin, 'embedding:run');
     }
 
     plugin.logEmbed('run-finished', {
@@ -175,6 +195,7 @@ export async function runEmbeddingJobNow(
     showEmbeddingFailureNotice(plugin, context, context.error);
     throw error;
   } finally {
+    endEmbedProfilingStage(plugin, 'embedding:run');
     finishRun(plugin, context);
   }
 }

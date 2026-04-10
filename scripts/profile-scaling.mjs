@@ -267,7 +267,7 @@ async function captureScreenshot(vaultName) {
 }
 
 async function readRuntimeState(vaultName, pluginId) {
-  const code = `code=(() => { const plugins = app.plugins?.plugins ?? {}; const plugin = plugins["${pluginId}"]; return JSON.stringify({ pluginCount: Object.keys(plugins).length, pluginKeys: Object.keys(plugins).sort(), openConnectionsLoaded: !!plugin, noteCount: app.vault.getMarkdownFiles().length, ready: !!plugin?.ready, embedReady: !!plugin?.embed_ready }); })()`;
+  const code = `code=(() => { const plugins = app.plugins?.plugins ?? {}; const plugin = plugins["${pluginId}"]; return JSON.stringify({ pluginCount: Object.keys(plugins).length, pluginKeys: Object.keys(plugins).sort(), openConnectionsLoaded: !!plugin, noteCount: app.vault.getMarkdownFiles().length, ready: !!plugin?.ready, embedReady: !!plugin?.embed_ready, profiling: plugin?.getEmbedRuntimeState?.().profiling ?? null }); })()`;
   const result = await runProcess('obsidian', obsidianArgs(vaultName, 'eval', code));
   if (result.code !== 0 || result.timedOut) {
     throw new Error(`Failed to read runtime state: ${result.stderr.trim()}`);
@@ -326,6 +326,8 @@ async function main() {
       connectionsView: ['command', `id=${options.pluginId}:connections-view`],
       evalState: ['eval', `code=(() => JSON.stringify({ pluginReady: !!app.plugins?.plugins["${options.pluginId}"]?.ready, noteCount: app.vault.getMarkdownFiles().length }))()`],
     });
+    await runProcess('obsidian', obsidianArgs(options.vaultName, 'command', `id=${options.pluginId}:connections-view`));
+    await sleep(500);
     await waitForPluginReady(options.vaultName, options.pluginId);
     await waitForRuntimeNoteCount(options.vaultName, batch.testVaultMarkdownCount);
     batch.runtimeStateAfter = await readRuntimeState(options.vaultName, options.pluginId);
