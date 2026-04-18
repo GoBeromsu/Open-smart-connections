@@ -14,6 +14,8 @@ import { isCurrentLifecycle } from './plugin-lifecycle';
 import { setupStatusBar } from './status-bar';
 import { handleNewUser, loadUserState } from './user-state';
 
+const STARTUP_BACKGROUND_IMPORT_LIMIT = 50;
+
 async function runInitStep(
   plugin: SmartConnectionsPlugin,
   lifecycle: number,
@@ -156,8 +158,15 @@ export async function initializeEmbedding(
           if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
           plugin.logger.debug('[SC][Init] ▶ Phase 3: Background block import');
           beginEmbedProfilingStage(plugin, 'init:background-import');
-          await importBlocksChunked(plugin);
+          const importResult = await importBlocksChunked(plugin, {
+            limit: STARTUP_BACKGROUND_IMPORT_LIMIT,
+          });
           if (plugin._unloading || !isCurrentLifecycle(plugin, lifecycle)) return;
+          if (importResult.remainingCount > 0) {
+            plugin.logger.info(
+              `[SC][Init] Phase 3 deferred ${importResult.remainingCount} sources to on-demand import`,
+            );
+          }
           const queued = queueUnembeddedEntities(plugin);
           if (queued > 0 && plugin.embedding_pipeline) {
             plugin.logger.debug(`[SC][Init] Phase 3: ${queued} blocks to embed`);
