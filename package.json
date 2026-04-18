@@ -27,7 +27,9 @@
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major",
     "prepare": "husky",
-    "profile:scaling": "node scripts/profile-scaling.mjs"
+    "profile:scaling": "node scripts/profile-scaling.mjs",
+    "profile:freeze-flows": "node scripts/profile-freeze-flows.mjs",
+    "profile:live-vault": "node scripts/profile-live-vault.mjs"
   },
   "repository": {
     "type": "git",

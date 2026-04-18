@@ -8,7 +8,8 @@ set -euo pipefail
 VAULT="${1:-Test}"
 WAIT="${2:-30}"
 PLUGIN="open-connections"
-VAULT_PATH="$HOME/Documents/01. Obsidian/$VAULT"
+VAULT_ROOT="${OC_VAULT_ROOT:-$HOME/Documents/01. Obsidian}"
+VAULT_PATH="${OC_VAULT_PATH:-$VAULT_ROOT/$VAULT}"
 PLUGIN_DIR="$VAULT_PATH/.obsidian/plugins/$PLUGIN"
 
 if [[ ! -d "$VAULT_PATH" ]]; then

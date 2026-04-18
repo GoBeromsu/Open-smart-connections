@@ -8,7 +8,8 @@ set -euo pipefail
 VAULT="${1:-Test}"
 MAX_WAIT="${2:-300}"
 PLUGIN="open-connections"
-VAULT_PATH="$HOME/Documents/01. Obsidian/$VAULT"
+VAULT_ROOT="${OC_VAULT_ROOT:-$HOME/Documents/01. Obsidian}"
+VAULT_PATH="${OC_VAULT_PATH:-$VAULT_ROOT/$VAULT}"
 PLUGIN_DIR="$VAULT_PATH/.obsidian/plugins/$PLUGIN"
 LOGFILE="artifacts/e2e-check-$(date +%Y%m%d-%H%M%S).log"
 
