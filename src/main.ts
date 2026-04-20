@@ -9,6 +9,7 @@ import type { EmbedQueueStats, EmbeddingPipeline } from './domain/embedding-pipe
 import type { BlockCollection, SourceCollection } from './domain/entities';
 import type { EmbeddingKernelJob } from './domain/embedding-kernel-types';
 import type { PluginSettings } from './types/settings';
+import type { ConnectionsReader } from './types/connections-reader';
 import type {
   EmbedProfilingState,
   EmbedProgressEventPayload,
@@ -62,6 +63,7 @@ import {
   waitForSync as _waitForSync,
 } from './ui/plugin-initialization';
 import { createEmbedProfilingState } from './ui/embed-profiling-state';
+import { createConnectionsReader } from './ui/connections-reader-adapter';
 import {
   resetEmbedError as _resetEmbedError,
   setEmbedPhase as _setEmbedPhase,
@@ -111,6 +113,7 @@ export default class SmartConnectionsPlugin extends Plugin {
   embedding_job_queue?: EmbeddingKernelJobQueue;
   pendingReImportPaths = new Set<string>();
   mcp_server?: OpenConnectionsMcpServer;
+  private _connectionsReader?: ConnectionsReader;
   _lifecycle_epoch = 0;
   _embed_state: EmbedStateSnapshot = { phase: 'idle', modelFingerprint: null, lastError: null };
   _embed_profiling: EmbedProfilingState = createEmbedProfilingState();
@@ -131,6 +134,10 @@ export default class SmartConnectionsPlugin extends Plugin {
   }
 
   get embed_ready(): boolean { return isEmbedModelReady(this.getEmbedRuntimeState()); }
+  get connectionsReader(): ConnectionsReader {
+    if (!this._connectionsReader) this._connectionsReader = createConnectionsReader(this);
+    return this._connectionsReader;
+  }
   get search_embed_model(): EmbedModelAdapter | undefined { return this._search_embed_model ?? this.embed_adapter; }
   get status_state(): 'idle' | 'embedding' | 'error' { return toLegacyStatusState(this.getEmbedRuntimeState()); }
   getEmbedProfilingState(): EmbedProfilingState {

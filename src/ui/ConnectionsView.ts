@@ -2,6 +2,9 @@ import { ItemView, Workspace, WorkspaceLeaf, TFile } from 'obsidian';
 
 import type SmartConnectionsPlugin from '../main';
 import type { ConnectionResult } from '../types/entities';
+import type { ConnectionsReader } from '../types/connections-reader';
+import { ConnectionsResultCache } from '../domain/connections/result-cache';
+import { decideRender } from '../domain/connections/render-orchestration';
 import { applyConnectionsViewState, deriveConnectionsViewState, scheduleConnectionsRetry } from './connections-view-state';
 import {
   cancelPendingRetry,
@@ -32,11 +35,14 @@ export const CONNECTIONS_VIEW_TYPE = 'open-connections-view';
 
 export class ConnectionsView extends ItemView {
   plugin: SmartConnectionsPlugin;
+  reader: ConnectionsReader;
+  resultsCache = new ConnectionsResultCache();
   container: HTMLElement;
   session: ConnectionsSessionState = { pinnedKeys: [], hiddenKeys: [], paused: false };
   folderFilter = '';
   embedProgress: { update(): void; destroy(): void } | null = null;
   lastRenderedPath: string | null = null;
+  lastSearchFingerprint: string | null = null;
   autoEmbedRequestedForPath: string | null = null;
   _autoEmbedTimeout: number | null = null;
   _needsRefresh = false;
@@ -45,9 +51,10 @@ export class ConnectionsView extends ItemView {
   _lastResultKeys: string[] = [];
   _pendingRetry: number | null = null;
 
-  constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: SmartConnectionsPlugin, reader: ConnectionsReader) {
     super(leaf);
     this.plugin = plugin;
+    this.reader = reader;
     this.navigation = false;
     loadConnectionsSession(this);
   }
@@ -84,6 +91,7 @@ export class ConnectionsView extends ItemView {
       this.updateProgressBanner();
       if (payload?.prev === 'running' && payload?.phase === 'idle' && this.lastRenderedPath) {
         invalidateConnectionsCache();
+        this.resultsCache.invalidate(this.lastRenderedPath);
         this.autoEmbedRequestedForPath = null;
         this.clearAutoEmbedTimeout();
         void this.renderView(this.lastRenderedPath);
@@ -114,7 +122,7 @@ export class ConnectionsView extends ItemView {
   async renderView(targetPath?: string): Promise<void> {
     const gen = ++this._renderGen;
     if (!this.container) return;
-    if ((this.plugin as unknown as { _discovering?: boolean })._discovering) {
+    if (this.reader.isDiscovering()) {
       this._needsRefresh = true;
       return;
     }
@@ -129,6 +137,47 @@ export class ConnectionsView extends ItemView {
       return;
     }
     this.lastRenderedPath = targetPath;
+    const fingerprint = this.reader.getSearchModelFingerprint();
+    const hasPendingReImport = this.reader.hasPendingReImport(targetPath);
+
+    if (hasPendingReImport) {
+      this.resultsCache.invalidate(targetPath);
+      invalidateConnectionsCache(targetPath);
+    }
+
+    if (fingerprint !== this.lastSearchFingerprint) {
+      if (this.lastSearchFingerprint !== null) {
+        this.resultsCache.invalidateAll();
+        invalidateConnectionsCache();
+        this.lastRenderFingerprint = null;
+        this.showLoading('Embedding model changed. Re-embedding in progress.');
+      }
+      this.lastSearchFingerprint = fingerprint;
+    }
+
+    if (!fingerprint) {
+      this.resultsCache.invalidate(targetPath);
+      invalidateConnectionsCache(targetPath);
+    }
+
+    if (fingerprint) {
+      const decision = decideRender(
+        { path: targetPath, fingerprint, kernelPhase: this.reader.getKernelPhase() },
+        this.resultsCache,
+      );
+      if (decision.kind === 'serve_cached') {
+        if (this.scheduleRetryIfStale(gen)) return;
+        this.applyViewState({ type: 'results', path: targetPath, results: [...decision.results] });
+        this.updateProgressBanner();
+        return;
+      }
+      if (decision.kind === 'revalidate_in_background') {
+        if (this.scheduleRetryIfStale(gen)) return;
+        this.applyViewState({ type: 'results', path: targetPath, results: [...decision.staleResults] });
+        this.updateProgressBanner();
+        return;
+      }
+    }
 
     try {
       bumpEmbedProfilingCounter(this.plugin, 'connectionsViewRenderCount');
@@ -136,6 +185,9 @@ export class ConnectionsView extends ItemView {
         return await this.deriveViewState(targetPath);
       });
       if (this.scheduleRetryIfStale(gen)) return;
+      if (state.type === 'results' && fingerprint) {
+        this.resultsCache.set(targetPath, fingerprint, state.results);
+      }
       this.applyViewState(state);
       this.updateProgressBanner();
     } catch (error) {

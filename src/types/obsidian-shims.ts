@@ -71,3 +71,19 @@ export interface CachedMetadataShim {
 export interface MetadataCacheShim {
   getFileCache(file: TFileShim): CachedMetadataShim | null;
 }
+
+export interface EmbeddingBlockLike {
+  has_embed(): boolean;
+  key?: string;
+  source_key?: string;
+  queue_embed?(): void;
+}
+
+export interface EmbeddingSourceLike {
+  key: string;
+  path: string;
+  file?: TFileShim;
+  vault?: VaultShim;
+  cached_metadata?: CachedMetadataShim;
+  read?(): Promise<string>;
+}

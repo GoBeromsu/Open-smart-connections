@@ -18,7 +18,7 @@ export class TFile {
   constructor(path: string) {
     this.path = path;
     const parts = path.split('/');
-    const filename = parts[parts.length - 1];
+    const filename = parts.at(-1) ?? path;
     const dotIndex = filename.lastIndexOf('.');
     this.basename = dotIndex >= 0 ? filename.substring(0, dotIndex) : filename;
     this.extension = dotIndex >= 0 ? filename.substring(dotIndex + 1) : '';
@@ -37,7 +37,7 @@ export class TFolder {
   constructor(path: string) {
     this.path = path;
     const parts = path.split('/');
-    this.name = parts[parts.length - 1];
+    this.name = parts.at(-1) ?? path;
     this.children = [];
   }
 }
@@ -91,6 +91,7 @@ export class MetadataCache {
  */
 export class Workspace {
   activeLeaf: any = null;
+  private listeners: Map<string, Set<(payload?: unknown) => unknown>> = new Map();
 
   getActiveFile(): TFile | null {
     return null;
@@ -107,8 +108,26 @@ export class Workspace {
     };
   }
 
-  on = vi.fn();
-  off = vi.fn();
+  on(name: string, handler: (payload?: unknown) => unknown): { name: string; handler: (payload?: unknown) => unknown } {
+    const listeners = this.listeners.get(name) ?? new Set<(payload?: unknown) => unknown>();
+    listeners.add(handler);
+    this.listeners.set(name, listeners);
+    return { name, handler };
+  }
+
+  off(name: string, handler: (payload?: unknown) => unknown): void {
+    this.listeners.get(name)?.delete(handler);
+  }
+
+  offref(ref: { name: string; handler: (payload?: unknown) => unknown }): void {
+    this.off(ref.name, ref.handler);
+  }
+
+  trigger(name: string, payload?: unknown): void {
+    for (const handler of this.listeners.get(name) ?? []) {
+      handler(payload);
+    }
+  }
 }
 
 /**
@@ -214,7 +233,7 @@ export class ItemView {
   contentEl: HTMLElement = document.createElement('div');
 
   constructor(leaf: any) {
-    this.app = new App();
+    this.app = leaf?.app ?? new App();
   }
 
   getViewType(): string {
@@ -222,7 +241,11 @@ export class ItemView {
   }
 
   getDisplayText(): string {
-    return 'Mock View';
+    return 'Mock view';
+  }
+
+  registerEvent(eventRef: any): any {
+    return eventRef;
   }
 
   async onOpen(): Promise<void> {}
@@ -511,7 +534,7 @@ export class ButtonComponent {
 
   onClick(callback: (evt: MouseEvent) => unknown | Promise<unknown>): this {
     this.buttonEl.addEventListener('click', (evt) => {
-      void callback(evt as MouseEvent);
+      void callback(evt);
     });
     return this;
   }
@@ -547,7 +570,7 @@ export function setIcon(parent: HTMLElement, iconId: string): void {
  */
 export const MarkdownRenderer = {
   renderMarkdown: vi.fn((markdown: string, el: HTMLElement, sourcePath: string, component: Component) => {
-    el.innerHTML = markdown;
+    el.textContent = markdown;
     return Promise.resolve();
   }),
 };

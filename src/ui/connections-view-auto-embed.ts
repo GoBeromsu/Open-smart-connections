@@ -1,9 +1,9 @@
-import type { EmbeddingBlock } from '../domain/entities/EmbeddingBlock';
+import type { EmbeddingBlockLike } from '../types/obsidian-shims';
 import type { ConnectionsView } from './ConnectionsView';
 
-export function enqueueBlocksForEmbedding(blocks: EmbeddingBlock[]): void {
+export function enqueueBlocksForEmbedding(blocks: readonly EmbeddingBlockLike[]): void {
   for (const block of blocks) {
-    block.queue_embed();
+    block.queue_embed?.();
   }
 }
 
@@ -13,7 +13,7 @@ export function clearAutoEmbedTimeout(view: ConnectionsView): void {
   view._autoEmbedTimeout = null;
 }
 
-export function autoQueueBlockEmbedding(view: ConnectionsView, blocks: EmbeddingBlock[]): void {
+export function autoQueueBlockEmbedding(view: ConnectionsView, blocks: readonly EmbeddingBlockLike[]): void {
   if (!view.plugin.embed_ready) return;
   const firstKey = blocks[0]?.key;
   if (!firstKey) return;
