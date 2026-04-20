@@ -6,9 +6,11 @@ import { registerSmartConnectionsCodeBlock } from './plugin-codeblock';
 import { SmartConnectionsSettingsTab } from './settings';
 
 export function registerPluginUi(plugin: SmartConnectionsPlugin): void {
-  plugin.registerView(CONNECTIONS_VIEW_TYPE, (leaf) => new ConnectionsView(leaf, plugin));
+  const reader = plugin.connectionsReader;
+
+  plugin.registerView(CONNECTIONS_VIEW_TYPE, (leaf) => new ConnectionsView(leaf, plugin, reader));
   plugin.registerView(LOOKUP_VIEW_TYPE, (leaf) => new LookupView(leaf, plugin));
-  plugin.registerView('smart-connections-view', (leaf) => new ConnectionsView(leaf, plugin));
+  plugin.registerView('smart-connections-view', (leaf) => new ConnectionsView(leaf, plugin, reader));
   plugin.registerView('smart-connections-lookup', (leaf) => new LookupView(leaf, plugin));
 
   plugin.addSettingTab(new SmartConnectionsSettingsTab(plugin.app, plugin));

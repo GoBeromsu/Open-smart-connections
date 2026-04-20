@@ -1,5 +1,4 @@
 import type { ConnectionResult } from '../types/entities';
-import { getBlockConnections } from './block-connections';
 import { autoQueueBlockEmbedding } from './connections-view-auto-embed';
 import type { ConnectionsView } from './ConnectionsView';
 
@@ -22,33 +21,28 @@ export async function deriveConnectionsViewState(
   view: ConnectionsView,
   targetPath: string,
 ): Promise<ViewState> {
-  if (!view.plugin.ready || !view.plugin.block_collection) {
+  const reader = view.reader;
+
+  if (!reader.isReady()) {
     return { type: 'plugin_loading' };
   }
 
-  let allFileBlocks = view.plugin.block_collection.for_source(targetPath);
-  if (allFileBlocks.length === 0) {
-    if (view.plugin.pendingReImportPaths.has(targetPath)) {
-      return { type: 'pending_import', path: targetPath };
-    }
-    const source = view.plugin.source_collection?.get(targetPath);
-    if (source) {
-      await view.plugin.block_collection.import_source_blocks(source);
-      await view.plugin.block_collection.data_adapter.save();
-      allFileBlocks = view.plugin.block_collection.for_source(targetPath);
-    }
-    if (allFileBlocks.length === 0) return { type: 'note_too_short' };
+  if (reader.hasPendingReImport(targetPath)) {
+    return { type: 'pending_import', path: targetPath };
   }
+
+  const allFileBlocks = await reader.ensureBlocksForSource(targetPath);
+  if (allFileBlocks.length === 0) return { type: 'note_too_short' };
 
   const embedded = allFileBlocks.filter((block) => block.has_embed());
   if (embedded.length > 0) {
-    const results = await getBlockConnections(view.plugin.block_collection, targetPath, { limit: 50 });
+    const results = await reader.getConnectionsForSource(targetPath, 50);
     return results.length === 0
       ? { type: 'no_connections' }
-      : { type: 'results', path: targetPath, results };
+      : { type: 'results', path: targetPath, results: [...results] };
   }
 
-  const runtime = view.plugin.getEmbedRuntimeState?.() ?? null;
+  const runtime = reader.getEmbedRuntimeState();
   if (runtime) {
     switch (runtime.serving.kind) {
       case 'unavailable':
@@ -62,8 +56,8 @@ export async function deriveConnectionsViewState(
     }
   }
 
-  if (view.plugin.status_state === 'error') return { type: 'model_error' };
-  if (!view.plugin.embed_ready) return { type: 'embed_loading' };
+  if (reader.getStatusState() === 'error') return { type: 'model_error' };
+  if (!reader.isEmbedReady()) return { type: 'embed_loading' };
 
   autoQueueBlockEmbedding(view, allFileBlocks);
   return { type: 'embedding_in_progress', path: targetPath };

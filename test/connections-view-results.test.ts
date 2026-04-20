@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConnectionsView } from '../src/ui/ConnectionsView';
+import { createConnectionsReader } from '../src/ui/connections-reader-adapter';
 
 function createPluginStub() {
   return {
@@ -85,7 +86,9 @@ function createObsidianLikeContainer(): any {
 describe('ConnectionsView render cache', () => {
   it('re-renders when folderFilter changes even if raw results are unchanged', () => {
     const plugin = createPluginStub();
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
     (view as any).registerDomEvent = vi.fn();
 

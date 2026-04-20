@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionsView } from '../src/ui/ConnectionsView';
+import { createConnectionsReader } from '../src/ui/connections-reader-adapter';
 
 function createPluginStub() {
   return {
@@ -111,7 +112,9 @@ describe('ConnectionsView rendering states', () => {
       { item: { key: 'other.md#Topic', source_key: 'other.md' }, score: 0.9 },
     ]);
 
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
@@ -134,7 +137,9 @@ describe('ConnectionsView rendering states', () => {
     plugin.block_collection.all = [unembeddedBlock];
     plugin.runEmbeddingJob = vi.fn(async () => ({}));
 
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
@@ -161,7 +166,9 @@ describe('ConnectionsView rendering states', () => {
       { item: { key: 'other.md#Topic', source_key: 'other.md' }, score: 0.9 },
     ]);
 
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('failed-note.md');
@@ -193,7 +200,9 @@ describe('ConnectionsView rendering states', () => {
     };
     plugin.block_collection.all = [unembeddedBlock];
 
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
 
     await view.renderView('note.md');
@@ -205,7 +214,9 @@ describe('ConnectionsView rendering states', () => {
 
   it('refresh button triggers re-embed from loading state', async () => {
     const plugin = createPluginStub();
-    const view = new ConnectionsView({} as any, plugin);
+    const reader = plugin.connectionsReader ?? createConnectionsReader(plugin);
+  plugin.connectionsReader = reader;
+  const view = new ConnectionsView({} as any, plugin, reader);
     (view as any).container = createObsidianLikeContainer();
 
     view.showLoading('Loading...');

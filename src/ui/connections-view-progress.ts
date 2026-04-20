@@ -30,10 +30,12 @@ export function handleConnectionsModelSwitched(view: ConnectionsView): void {
   clearEmbedProgress(view);
   clearConnectionsBanner(view);
   invalidateConnectionsCache();
+  view.resultsCache.invalidateAll();
   view.container.empty();
   addConnectionsBanner(view, 'Embedding model changed. Re-embedding in progress.');
   view.lastRenderedPath = null;
   view.lastRenderFingerprint = null;
+  view.lastSearchFingerprint = null;
   view._lastResultKeys = [];
   view.autoEmbedRequestedForPath = null;
 }
