@@ -1,8 +1,7 @@
-import { ButtonComponent, Modal, Setting, type App } from 'obsidian';
+import { FuzzySuggestModal, type App } from 'obsidian';
 
-export class FolderExclusionPickerModal extends Modal {
+export class FolderExclusionPickerModal extends FuzzySuggestModal<string> {
   private resolvePromise!: (value: string | null) => void;
-  private searchValue = '';
   private resolved = false;
 
   constructor(
@@ -10,35 +9,15 @@ export class FolderExclusionPickerModal extends Modal {
     private readonly folderPaths: string[],
   ) {
     super(app);
-  }
-
-  onOpen(): void {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl('h3', { text: 'Select folder to exclude' });
-
-    const searchSetting = new Setting(contentEl)
-      .setName('Find folder')
-      .setDesc('Choose a folder path from the current vault.');
-
-    searchSetting.addText((text) => {
-      text.setPlaceholder('Type to filter folders');
-      text.onChange((value) => {
-        this.searchValue = value.trim().toLowerCase();
-        this.renderFolderList();
-      });
-    });
-
-    contentEl.createDiv({ cls: 'osc-folder-picker-list' });
-    this.renderFolderList();
+    this.setPlaceholder('Type to search vault folders…');
   }
 
   onClose(): void {
-    this.contentEl.empty();
     if (!this.resolved) {
       this.resolvePromise(null);
       this.resolved = true;
     }
+    super.onClose();
   }
 
   openModal(): Promise<string | null> {
@@ -48,43 +27,16 @@ export class FolderExclusionPickerModal extends Modal {
     });
   }
 
-  private renderFolderList(): void {
-    const list = this.contentEl.querySelector<HTMLElement>('.osc-folder-picker-list');
-    if (!list) return;
-    list.empty();
+  getItems(): string[] {
+    return this.folderPaths;
+  }
 
-    const folders = this.folderPaths.filter((path) => {
-      if (!this.searchValue) return true;
-      return path.toLowerCase().includes(this.searchValue);
-    });
+  getItemText(folderPath: string): string {
+    return folderPath;
+  }
 
-    if (folders.length === 0) {
-      list.createEl('p', { text: 'No matching folders found.', cls: 'setting-item-description' });
-      return;
-    }
-
-    for (const folderPath of folders) {
-      new Setting(list)
-        .setName(folderPath)
-        .addButton((button) => {
-          button
-            .setButtonText('Select')
-            .setCta()
-            .onClick(() => {
-              this.resolved = true;
-              this.resolvePromise(folderPath);
-              this.close();
-            });
-        });
-    }
-
-    const footer = list.createDiv({ cls: 'modal-button-container' });
-    new ButtonComponent(footer)
-      .setButtonText('Cancel')
-      .onClick(() => {
-        this.resolved = true;
-        this.resolvePromise(null);
-        this.close();
-      });
+  onChooseItem(folderPath: string): void {
+    this.resolved = true;
+    this.resolvePromise(folderPath);
   }
 }

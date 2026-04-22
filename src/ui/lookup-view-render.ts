@@ -150,10 +150,9 @@ export function renderLookupResults(
   }
 }
 
-export function showLookupLoading(view: LookupViewRenderContext, message = 'Loading...'): void {
+export function showLookupLoading(view: LookupViewRenderContext, message = 'Loading…'): void {
   clearElement(view.resultsContainer);
   const wrapper = createDiv(view.resultsContainer, { cls: 'osc-state' });
-  createDiv(wrapper, { cls: 'osc-spinner' });
   createElement(wrapper, 'p', { text: message, cls: 'osc-state-text osc-lookup-loading-text' });
 }
 

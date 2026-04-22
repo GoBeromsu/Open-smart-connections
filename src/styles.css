@@ -398,20 +398,6 @@
   margin: 0;
 }
 
-/* Spinner */
-.osc-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--background-modifier-border);
-  border-top-color: var(--interactive-accent, #7f6df2);
-  border-radius: 50%;
-  animation: osc-spin 0.6s linear infinite;
-}
-
-@keyframes osc-spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ─── Advanced (Collapsible) Section ─── */
 .osc-advanced-section {
   margin: 8px 0 4px;
