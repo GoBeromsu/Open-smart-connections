@@ -300,6 +300,24 @@ export class Modal extends Component {
   onClose(): void {}
 }
 
+export class FuzzySuggestModal<T> extends Modal {
+  placeholder = '';
+
+  setPlaceholder(value: string): void {
+    this.placeholder = value;
+  }
+
+  getItems(): T[] {
+    return [];
+  }
+
+  getItemText(_item: T): string {
+    return '';
+  }
+
+  onChooseItem(_item: T): void {}
+}
+
 /**
  * Mock Notice
  */
@@ -606,6 +624,7 @@ export default {
   ItemView,
   Component,
   Modal,
+  FuzzySuggestModal,
   Notice,
   DropdownComponent,
   TextComponent,

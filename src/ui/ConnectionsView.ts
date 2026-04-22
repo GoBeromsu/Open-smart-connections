@@ -197,7 +197,7 @@ export class ConnectionsView extends ItemView {
     }
   }
 
-  showLoading(message = 'Loading...'): void { showConnectionsLoading(this, message); }
+  showLoading(message = 'Loading…'): void { showConnectionsLoading(this, message); }
   showEmpty(message = 'No similar notes found', clear = true): void { showConnectionsEmpty(this, message, clear); }
   showError(message = 'An error occurred'): void { showConnectionsError(this, message); }
   renderResults(targetPath: string, results: ConnectionResult[]): void { renderConnectionsResults(this, targetPath, results); }

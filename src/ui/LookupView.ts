@@ -124,11 +124,11 @@ export class LookupView extends ItemView {
 
     this.lastQuery = query;
     if (!this.plugin.embed_ready || !this.plugin.embed_adapter) {
-      this.showLoading('Embedding model is still loading...');
+      this.showLoading('Embedding model is still loading…');
       return;
     }
 
-    this.showLoading(`Searching across ${getLookupEntityCount(this.plugin, this.activeFilter)} items...`);
+    this.showLoading(`Searching across ${getLookupEntityCount(this.plugin, this.activeFilter)} items…`);
     const startTime = performance.now();
 
     try {
@@ -159,7 +159,7 @@ export class LookupView extends ItemView {
 
   renderResults(query: string, results: ConnectionResult[], elapsedMs?: number): void { renderLookupResults(this.createRenderContext(), query, results, elapsedMs); }
 
-  showLoading(message = 'Loading...'): void { showLookupLoading(this.createRenderContext(), message); }
+  showLoading(message = 'Loading…'): void { showLookupLoading(this.createRenderContext(), message); }
 
   showEmpty(message = 'No results', clear = true): void { showLookupEmpty(this.createRenderContext(), message, clear); }
 

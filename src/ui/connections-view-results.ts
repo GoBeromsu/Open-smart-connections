@@ -80,12 +80,11 @@ export function renderConnectionsResults(
   updateConnectionsProgressBanner(view);
 }
 
-export function showConnectionsLoading(view: ConnectionsView, message = 'Loading...'): void {
+export function showConnectionsLoading(view: ConnectionsView, message = 'Loading…'): void {
   view._lastResultKeys = [];
   clearEmbedProgress(view);
   view.container.empty();
   const wrapper = view.container.createDiv({ cls: 'osc-state' });
-  wrapper.createDiv({ cls: 'osc-spinner' });
   wrapper.createEl('p', { text: message, cls: 'osc-state-text' });
   if (!view.plugin.ready) return;
   new ButtonComponent(wrapper)

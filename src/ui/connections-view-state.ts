@@ -69,13 +69,13 @@ export function applyConnectionsViewState(view: ConnectionsView, state: ViewStat
       view.showEmpty('No active file');
       return;
     case 'plugin_loading':
-      view.showLoading('Open Connections is initializing...');
+      view.showLoading('Open Connections is initializing…');
       return;
     case 'model_error':
       view.showError(EMBED_ERROR_MSG);
       return;
     case 'embed_loading':
-      view.showLoading('Open Connections is loading... Connections will appear when embedding is complete.');
+      view.showLoading('Open Connections is loading… Connections will appear when embedding is complete.');
       return;
     case 'embed_degraded':
       view.showError(state.error ? `${EMBED_DEGRADED_MSG}
@@ -83,13 +83,13 @@ export function applyConnectionsViewState(view: ConnectionsView, state: ViewStat
 Last error: ${state.error}` : EMBED_DEGRADED_MSG);
       return;
     case 'pending_import':
-      view.showLoading('Importing note... Connections will appear when embedding is complete.');
+      view.showLoading('Importing note… Connections will appear when embedding is complete.');
       return;
     case 'note_too_short':
       view.showEmpty('Note is too short to find connections.');
       return;
     case 'embedding_in_progress':
-      view.showLoading('Embedding this note... Results will appear when ready.');
+      view.showLoading('Embedding this note… Results will appear when ready.');
       return;
     case 'no_connections':
       view.showEmpty('No related notes found.');

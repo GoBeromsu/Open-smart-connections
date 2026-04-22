@@ -66,8 +66,8 @@ export function refreshStatus(plugin: SmartConnectionsPlugin): void {
 
   if (!plugin.block_collection) {
     setStatusIcon(plugin, 'network');
-    plugin.status_msg.setText('Oc: loading...');
-    plugin.status_container.setAttribute('title', 'Open connections is loading...');
+    plugin.status_msg.setText('Oc: loading…');
+    plugin.status_container.setAttribute('title', 'Open connections is loading…');
     return;
   }
 

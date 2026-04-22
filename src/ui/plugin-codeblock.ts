@@ -17,7 +17,7 @@ function parseCodeblockConfig(source: string): Record<string, string> {
 export function registerSmartConnectionsCodeBlock(plugin: SmartConnectionsPlugin): void {
   plugin.registerMarkdownCodeBlockProcessor('smart-connections', async (source, el) => {
     if (!plugin.block_collection) {
-      el.createEl('p', { text: 'Open connections is loading...', cls: 'osc-state-text' });
+      el.createEl('p', { text: 'Open connections is loading…', cls: 'osc-state-text' });
       return;
     }
 
