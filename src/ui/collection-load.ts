@@ -12,8 +12,8 @@ export async function loadCollections(plugin: SmartConnectionsPlugin): Promise<v
       throw new Error('Collections must be initialized before loading');
     }
 
-    plugin.source_collection.data_adapter.load();
-    plugin.block_collection.data_adapter.load();
+    await plugin.source_collection.data_adapter.load();
+    await plugin.block_collection.data_adapter.load();
     plugin.source_collection.loaded = true;
     plugin.block_collection.loaded = true;
 

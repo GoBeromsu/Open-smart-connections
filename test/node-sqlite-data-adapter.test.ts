@@ -91,12 +91,12 @@ describe.skipIf(!hasNodeSqlite)('NodeSqliteDataAdapter', () => {
   let collection: ReturnType<typeof makeCollection>;
   let adapter: NodeSqliteDataAdapter<any>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = join(tmpdir(), `nsq-test-${randomUUID()}`);
     dbPath = join(tmpDir, '.obsidian', 'plugins', 'test-plugin', 'test-plugin.db');
     collection = makeCollection();
     adapter = new NodeSqliteDataAdapter(collection, 'smart_blocks', 'test-ns');
-    adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
+    await adapter.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
   });
 
   afterEach(() => {
@@ -159,7 +159,7 @@ describe.skipIf(!hasNodeSqlite)('NodeSqliteDataAdapter', () => {
     closeNodeSqliteDatabases();
     const collection2 = makeCollection();
     const adapter2 = new NodeSqliteDataAdapter(collection2, 'smart_blocks', 'test-ns-2');
-    adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
+    await adapter2.initVaultContext({ getBasePath: () => tmpDir }, '.obsidian', 'test-plugin');
 
     await adapter2.load();
 

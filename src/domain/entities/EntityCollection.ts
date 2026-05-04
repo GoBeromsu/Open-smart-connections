@@ -1,11 +1,12 @@
 import type { EmbeddingEntity } from './EmbeddingEntity';
 import type { EntityData, ConnectionResult, SearchFilter } from '../../types/entities';
 import { NodeSqliteDataAdapter } from './node-sqlite-data-adapter';
+import type { EntityDataAdapter } from './entity-data-adapter';
 import { ensureEntityVector } from './entity-collection-vectors';
 
 export abstract class EntityCollection<T extends EmbeddingEntity> {
   items: Record<string, T> = {};
-  data_adapter: NodeSqliteDataAdapter<T>;
+  data_adapter: EntityDataAdapter<T>;
   settings: Record<string, unknown>;
   data_dir: string;
   collection_key: string;
@@ -104,8 +105,8 @@ export abstract class EntityCollection<T extends EmbeddingEntity> {
     }
   }
 
-  load(): void {
-    this.data_adapter.load();
+  async load(): Promise<void> {
+    await this.data_adapter.load();
     this.loaded = true;
   }
 
