@@ -89,10 +89,10 @@ export class EmbeddingBlock extends EmbeddingEntity {
     const raw = `${this.breadcrumbs}\n${content}`;
     // Cap embed input to fit within the model's context window.
     // Local models like nomic-embed-text have only 2048 tokens.
-    // Use a conservative 3 chars/token ratio to guarantee we never
-    // exceed the limit regardless of how the model tokenizes.
+    // Worst-case tokenization (single-char words) yields ~2 chars/token,
+    // so we use that ratio to guarantee safety for any input.
     const max_chars = Math.floor(
-      ((this.collection.settings?.max_embed_tokens as number | undefined) || 2048) * 3,
+      ((this.collection.settings?.max_embed_tokens as number | undefined) || 2048) * 2,
     );
     this._embed_input = raw.length > max_chars ? raw.substring(0, max_chars) : raw;
   }

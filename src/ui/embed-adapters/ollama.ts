@@ -134,11 +134,13 @@ class OllamaEmbedRequestAdapter extends EmbedModelRequestAdapter {
    */
   to_platform(): Record<string, unknown> {
     // Hard safety net: truncate inputs that would exceed the model's context window.
-    // Use a conservative 3 chars/token ratio — real-world testing with
-    // nomic-embed-text shows failure around 9000 chars for 2048 tokens (~4.4 c/t),
-    // so 3 c/t provides comfortable margin.
+    // Worst-case tokenization (single-character words like "I a ") yields ~2
+    // chars/token, so we use 2x as the absolute safe ceiling. Tested against
+    // nomic-embed-text (2048 tokens): natural prose passes up to ~9000 chars,
+    // but pathological short-word input fails at ~4100 chars. 2x guarantees
+    // safety for any content.
     const max_tokens = this.adapter.max_tokens || 2048;
-    const max_chars = max_tokens * 3;
+    const max_chars = max_tokens * 2;
     const safe_inputs = this.embed_inputs.map((input) =>
       input.length > max_chars ? input.slice(0, max_chars) : input,
     );
