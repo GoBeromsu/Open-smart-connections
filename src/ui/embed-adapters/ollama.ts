@@ -124,13 +124,22 @@ class OllamaEmbedRequestAdapter extends EmbedModelRequestAdapter {
    * Convert request to Ollama's embed API format
    */
   to_platform(): Record<string, unknown> {
+    // Truncate inputs that exceed the model's context window.
+    // The character-based token estimator can undercount, letting oversized
+    // inputs reach Ollama and trigger "input length exceeds context length".
+    // Use a conservative 4 chars/token ratio as a hard safety net.
+    const max_tokens = this.adapter.max_tokens || 8192;
+    const max_chars = max_tokens * 4;
+    const safe_inputs = this.embed_inputs.map((input) =>
+      input.length > max_chars ? input.slice(0, max_chars) : input,
+    );
     return {
       url: (this.adapter as OllamaEmbedAdapter).endpoint,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.model_id,
-        input: this.embed_inputs,
+        input: safe_inputs,
       }),
     };
   }
