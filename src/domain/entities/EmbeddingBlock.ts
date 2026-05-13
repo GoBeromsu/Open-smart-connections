@@ -86,7 +86,14 @@ export class EmbeddingBlock extends EmbeddingEntity {
       content = await this.read();
     }
 
-    this._embed_input = `${this.breadcrumbs}\n${content}`;
+    const raw = `${this.breadcrumbs}\n${content}`;
+    // Cap embed input to the model's max token budget (estimated at ~3.7 chars/token).
+    // Without this, oversized blocks exceed local models' context windows
+    // (e.g. nomic-embed-text has only 2048 tokens).
+    const max_chars = Math.floor(
+      ((this.collection.settings?.max_embed_tokens as number | undefined) || 2048) * 3.7,
+    );
+    this._embed_input = raw.length > max_chars ? raw.substring(0, max_chars) : raw;
   }
 
   // Getters
