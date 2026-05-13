@@ -35,6 +35,15 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
     return `${this.host}/api/embed`;
   }
 
+  /**
+   * Override max_tokens with a safe default for local models.
+   * The base class defaults to 8191 (OpenAI), but most local embedding
+   * models have much smaller context windows (e.g. nomic-embed-text: 2048).
+   */
+  get max_tokens(): number {
+    return this.models[this.model_key]?.max_tokens || 2048;
+  }
+
   get models_endpoint(): string {
     return `${this.host}/api/tags`;
   }
@@ -124,12 +133,12 @@ class OllamaEmbedRequestAdapter extends EmbedModelRequestAdapter {
    * Convert request to Ollama's embed API format
    */
   to_platform(): Record<string, unknown> {
-    // Truncate inputs that exceed the model's context window.
-    // The character-based token estimator can undercount, letting oversized
-    // inputs reach Ollama and trigger "input length exceeds context length".
-    // Use a conservative 4 chars/token ratio as a hard safety net.
-    const max_tokens = this.adapter.max_tokens || 8192;
-    const max_chars = max_tokens * 4;
+    // Hard safety net: truncate inputs that would exceed the model's context window.
+    // Use a conservative 3 chars/token ratio — real-world testing with
+    // nomic-embed-text shows failure around 9000 chars for 2048 tokens (~4.4 c/t),
+    // so 3 c/t provides comfortable margin.
+    const max_tokens = this.adapter.max_tokens || 2048;
+    const max_chars = max_tokens * 3;
     const safe_inputs = this.embed_inputs.map((input) =>
       input.length > max_chars ? input.slice(0, max_chars) : input,
     );
