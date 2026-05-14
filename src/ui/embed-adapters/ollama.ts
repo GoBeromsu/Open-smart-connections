@@ -35,6 +35,14 @@ export class OllamaEmbedAdapter extends EmbedModelApiAdapter {
     return `${this.host}/api/embed`;
   }
 
+  get requires_api_key(): boolean {
+    return false;
+  }
+
+  get max_tokens(): number {
+    return this.models[this.model_key]?.max_tokens || 2048;
+  }
+
   get models_endpoint(): string {
     return `${this.host}/api/tags`;
   }
