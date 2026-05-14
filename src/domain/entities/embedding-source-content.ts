@@ -1,6 +1,7 @@
 import { create_hash } from '../../utils';
 import type { EmbeddingSource } from './EmbeddingSource';
 import type { TFileShim as TFile } from '../../types/obsidian-shims';
+import { truncateEmbedInput } from './embed-input-limit';
 
 export async function readEmbeddingSource(source: EmbeddingSource): Promise<string> {
   if (!source.vault || !source.file) return '';
@@ -25,8 +26,7 @@ export async function cacheEmbeddingSourceInput(
   }
 
   const breadcrumbs = source.path.split('/').join(' > ').replace('.md', '');
-  const max_chars = Math.floor(500 * 3.7);
-  source._embed_input = `${breadcrumbs}:\n${content}`.substring(0, max_chars);
+  source._embed_input = truncateEmbedInput(`${breadcrumbs}:\n${content}`);
 }
 
 export async function updateEmbeddingSourceFromFile(

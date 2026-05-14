@@ -18,10 +18,14 @@ export function resolve_tokenizer_provider(
 }
 
 export function prepare_request_headers(api_key?: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${api_key}`,
-  };
+  return api_key
+    ? {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${api_key}`,
+      }
+    : {
+        'Content-Type': 'application/json',
+      };
 }
 
 export async function request_api(

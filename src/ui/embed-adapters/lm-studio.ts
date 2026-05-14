@@ -52,6 +52,10 @@ export class LmStudioEmbedAdapter extends EmbedModelApiAdapter {
     return `${this.host}/api/v0/embeddings`;
   }
 
+  get requires_api_key(): boolean {
+    return false;
+  }
+
   get models_endpoint(): string {
     return `${this.host}/api/v0/models`;
   }

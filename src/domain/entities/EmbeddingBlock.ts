@@ -7,6 +7,7 @@
 import { EmbeddingEntity } from './EmbeddingEntity';
 import type { BlockData, EntityData } from '../../types/entities';
 import { getParagraphCoverage } from './block-paragraph-coverage';
+import { truncateEmbedInput } from './embed-input-limit';
 import type { BlockCollection } from './BlockCollection';
 import type { EntityCollection } from './EntityCollection';
 import type { EmbeddingSource } from './EmbeddingSource';
@@ -86,7 +87,7 @@ export class EmbeddingBlock extends EmbeddingEntity {
       content = await this.read();
     }
 
-    this._embed_input = `${this.breadcrumbs}\n${content}`;
+    this._embed_input = truncateEmbedInput(`${this.breadcrumbs}\n${content}`);
   }
 
   // Getters
