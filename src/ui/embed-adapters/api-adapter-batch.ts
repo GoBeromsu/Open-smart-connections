@@ -38,7 +38,7 @@ export async function embed_api_batch(
   adapter: EmbedModelApiAdapter,
   inputs: (EmbedInput | { _embed_input: string })[],
 ): Promise<EmbedResult[]> {
-  if (!adapter.api_key) throw new Error('API key not set');
+  if (adapter.requires_api_key && !adapter.api_key) throw new Error('API key not set');
 
   const normalized: Array<{ item: EmbedInput; originalIndex: number }> = [];
   for (let i = 0; i < inputs.length; i++) {

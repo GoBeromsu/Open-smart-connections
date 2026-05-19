@@ -47,6 +47,7 @@ export class EmbedModelApiAdapter {
   get req_adapter(): typeof EmbedModelRequestAdapter { return EmbedModelRequestAdapter; }
   get res_adapter(): typeof EmbedModelResponseAdapter { return EmbedModelResponseAdapter; }
   get endpoint(): string | undefined { return this.models[this.model_key]?.endpoint; }
+  get requires_api_key(): boolean { return true; }
   get api_key(): string | undefined {
     return (this.settings[`${this.adapter}.api_key`] as string | undefined) || (this.settings.api_key as string | undefined);
   }
