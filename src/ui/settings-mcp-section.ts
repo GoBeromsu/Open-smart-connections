@@ -1,6 +1,6 @@
 import { Setting } from 'obsidian';
 
-import { parseMcpSettings } from '../mcp/settings';
+import { createMcpAuthToken, parseMcpSettings } from '../mcp/settings';
 import type { SmartConnectionsPlugin } from './settings-types';
 
 export function renderMcpSettingsSection(
@@ -55,6 +55,30 @@ export function renderMcpSettingsSection(
         }
         display();
       });
+    });
+
+  new Setting(containerEl)
+    .setName('Authentication token')
+    .setDesc('Required as an authorization token for vault-data tools.')
+    .addText((text) => {
+      text.setValue(mcpSettings.authToken);
+      text.inputEl.readOnly = true;
+    })
+    .addButton((button) => {
+      button
+        .setButtonText('Copy')
+        .onClick(async () => {
+          await navigator.clipboard.writeText(mcpSettings.authToken);
+        });
+    })
+    .addButton((button) => {
+      button
+        .setButtonText('Regenerate')
+        .onClick(async () => {
+          mcpSettings.authToken = createMcpAuthToken();
+          await plugin.saveSettings?.();
+          display();
+        });
     });
 
   const mcpServer = plugin.getMcpServer?.();

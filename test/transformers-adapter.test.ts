@@ -75,8 +75,10 @@ describe('TransformersEmbedAdapter', () => {
     const pending = adapter.send_message('embed_batch', { inputs: [{ embed_input: 'hello' }] });
     const requestId = adapter.message_id - 1;
     adapter._handle_message({
+      source: adapter.iframe.contentWindow,
       data: {
         iframe_id: adapter.iframe_id,
+        channel_token: adapter.channel_token,
         type: 'fatal',
         id: requestId,
         error: 'fatal-test',
@@ -86,5 +88,72 @@ describe('TransformersEmbedAdapter', () => {
     await expect(pending).rejects.toThrow(/Transformers iframe fatal error/);
     expect(removeSpy).toHaveBeenCalled();
     expect(adapter.iframe).toBeNull();
+  });
+});
+
+describe('Transformers iframe trust boundary', () => {
+  it('sends a per-session channel token with each wildcard postMessage request', () => {
+    const adapter = createAdapter(1000) as any;
+    const postMessageSpy = vi.fn();
+    const frameWindow = { postMessage: postMessageSpy };
+    adapter.iframe = { contentWindow: frameWindow, remove: vi.fn() };
+
+    void adapter.send_message('get_gpu_diag').catch(() => undefined);
+    const message = postMessageSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+
+    expect(postMessageSpy.mock.calls[0]?.[1]).toBe('*');
+    expect(message.iframe_id).toBe(adapter.iframe_id);
+    expect(message.channel_token).toBe(adapter.channel_token);
+    expect(message.method).toBe('get_gpu_diag');
+    expect(Number.isSafeInteger(message.id)).toBe(true);
+    adapter.dispose_iframe();
+  });
+
+  it('ignores matching-token messages from the wrong source', async () => {
+    const adapter = createAdapter(20) as any;
+    const frameWindow = { postMessage: vi.fn() };
+    adapter.iframe = { contentWindow: frameWindow, remove: vi.fn() };
+
+    const pending = adapter.send_message('get_gpu_diag');
+    const requestId = adapter.message_id - 1;
+    adapter._handle_message({
+      source: { postMessage: vi.fn() },
+      data: {
+        iframe_id: adapter.iframe_id,
+        channel_token: adapter.channel_token,
+        id: requestId,
+        result: { backend: 'webgpu' },
+      },
+    });
+
+    await expect(pending).rejects.toThrow(/Timed out waiting for iframe response/i);
+  });
+
+  it('ignores wrong-token and malformed response messages', async () => {
+    const adapter = createAdapter(20) as any;
+    const frameWindow = { postMessage: vi.fn() };
+    adapter.iframe = { contentWindow: frameWindow, remove: vi.fn() };
+
+    const pending = adapter.send_message('get_gpu_diag');
+    const requestId = adapter.message_id - 1;
+    adapter._handle_message({
+      source: frameWindow,
+      data: { iframe_id: adapter.iframe_id, channel_token: 'wrong', id: requestId, result: {} },
+    });
+    adapter._handle_message({
+      source: frameWindow,
+      data: { iframe_id: adapter.iframe_id, channel_token: adapter.channel_token, id: 'bad', result: {} },
+    });
+
+    await expect(pending).rejects.toThrow(/Timed out waiting for iframe response/i);
+  });
+
+  it('rejects unknown outgoing bridge methods before posting to the iframe', async () => {
+    const adapter = createAdapter(1000) as any;
+    const postMessageSpy = vi.fn();
+    adapter.iframe = { contentWindow: { postMessage: postMessageSpy }, remove: vi.fn() };
+
+    await expect(adapter.send_message('evil_method')).rejects.toThrow(/Unsupported transformers method/);
+    expect(postMessageSpy).not.toHaveBeenCalled();
   });
 });

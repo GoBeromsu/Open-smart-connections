@@ -20,7 +20,7 @@
     "verify:vault-freshness": "node scripts/check-vault-build-freshness.mjs",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "ci": "pnpm run build && pnpm run lint && pnpm run test",
+    "ci": "pnpm run build && pnpm run typecheck && pnpm run lint && pnpm run test",
     "version": "node scripts/version.mjs",
     "postversion": "git push && git push --tags",
     "release:patch": "node scripts/release.mjs patch",

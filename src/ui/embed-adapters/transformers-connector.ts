@@ -1,4 +1,6 @@
 export const EMBED_CONNECTOR = `
+// Transformers.js is pinned and kept inside a sandboxed srcdoc iframe.
+// Parent trust is still source + channel-token + schema based, never origin based.
 let pipeline = null;
 let tokenizer = null;
 let current_model_key = null;
@@ -141,7 +143,35 @@ async function process_batch(inputs, max_tokens, batch_size) {
   return results;
 }
 
+
+function is_plain_object(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assert_request_schema(data) {
+  if (!is_plain_object(data)) throw new Error('Malformed request');
+  if (!Number.isSafeInteger(data.id) || data.id < 0) throw new Error('Malformed request id');
+  if (typeof data.iframe_id !== 'string' || typeof data.channel_token !== 'string') throw new Error('Malformed channel');
+  switch (data.method) {
+    case 'load':
+      if (!is_plain_object(data.params) || typeof data.params.model_key !== 'string' || data.params.model_key.length === 0) throw new Error('Malformed load params');
+      break;
+    case 'unload':
+    case 'get_gpu_diag':
+      break;
+    case 'count_tokens':
+      if (typeof data.params !== 'string') throw new Error('Malformed count_tokens params');
+      break;
+    case 'embed_batch':
+      if (!is_plain_object(data.params) || !Array.isArray(data.params.inputs)) throw new Error('Malformed embed_batch params');
+      break;
+    default:
+      throw new Error('Unknown method: ' + String(data.method));
+  }
+}
+
 async function process_message(data) {
+  assert_request_schema(data);
   const { method, params, id, iframe_id } = data;
   try {
     let result;

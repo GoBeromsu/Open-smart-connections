@@ -7,6 +7,11 @@ import type { EmbedInput, EmbedResult, ModelInfo } from '../../types/models';
 import { embedAdapterRegistry } from '../../domain/embed-model';
 import { build_transformers_batch_results } from './transformers-batch';
 import { create_transformers_srcdoc, wait_for_iframe_load } from './transformers-iframe';
+import {
+  build_transformers_request,
+  create_bridge_secret,
+  parse_transformers_response,
+} from './transformers-bridge-contract';
 import { TRANSFORMERS_EMBED_MODELS } from './transformers-models';
 
 type PendingRequest = {
@@ -25,6 +30,7 @@ export class TransformersEmbedAdapter {
   message_id = 0;
   pending_requests = new Map<number, PendingRequest>();
   private readonly iframe_id: string;
+  private readonly channel_token: string;
   private static readonly MESSAGE_TIMEOUTS_MS: Record<string, number> = {
     load: 180000,
     unload: 10000,
@@ -44,7 +50,8 @@ export class TransformersEmbedAdapter {
       fs_adapter?: unknown;
     },
   ) {
-    this.iframe_id = `smart_embed_iframe_${Date.now()}`;
+    this.iframe_id = `smart_embed_iframe_${create_bridge_secret()}`;
+    this.channel_token = create_bridge_secret();
   }
 
   get model_key(): string { return this.config.model_key; }
@@ -68,7 +75,8 @@ export class TransformersEmbedAdapter {
     this.iframe.id = this.iframe_id;
     document.body.appendChild(this.iframe);
     window.addEventListener('message', this._handle_message);
-    this.iframe.srcdoc = create_transformers_srcdoc(this.iframe_id);
+    this.iframe.sandbox.add('allow-scripts');
+    this.iframe.srcdoc = create_transformers_srcdoc(this.iframe_id, this.channel_token);
 
     await wait_for_iframe_load(this.iframe);
     await this.send_message('load', { model_key: this.model_key });
@@ -121,8 +129,9 @@ export class TransformersEmbedAdapter {
   }
 
   private _handle_message = (event: MessageEvent): void => {
-    const msg = event.data as { iframe_id?: unknown; type?: string; id?: number; error?: string; result?: unknown; message?: string };
-    if (msg.iframe_id !== this.iframe_id) return;
+    if (event.source !== this.iframe?.contentWindow) return;
+    const msg = parse_transformers_response(event.data, this.iframe_id, this.channel_token);
+    if (!msg) return;
     if (msg.type === 'log') {
       console.debug(String(msg.message ?? ''));
       return;
@@ -154,13 +163,14 @@ export class TransformersEmbedAdapter {
       }
 
       const id = this.message_id++;
+      const request = build_transformers_request(this.iframe_id, this.channel_token, id, method, params);
       const timeout_ms = this.get_timeout_ms(method);
       const timeout_id = window.setTimeout(() => {
         this.reject_pending(id, new Error(`Timed out waiting for iframe response: method=${method}, timeoutMs=${timeout_ms}`));
         if (method === 'load') this.dispose_iframe();
       }, timeout_ms);
       this.pending_requests.set(id, { resolve, reject, timeout_id, method });
-      this.iframe.contentWindow.postMessage({ id, method, params, iframe_id: this.iframe_id }, '*');
+      this.iframe.contentWindow.postMessage(request, '*');
     });
   }
 

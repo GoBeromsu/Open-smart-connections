@@ -1,5 +1,5 @@
-import { mkdirSync, statSync, existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { mkdirSync, statSync, existsSync, writeFileSync, realpathSync } from 'fs';
+import { join, resolve } from 'path';
 import { spawn } from 'child_process';
 
 const DEFAULT_OBSIDIAN_TIMEOUT_MS = 15_000;
@@ -11,6 +11,8 @@ if (!vaultPath) {
   console.error('OBSIDIAN_VAULT_PATH is required');
   process.exit(1);
 }
+const vaultName = process.env.OBSIDIAN_VAULT_NAME ?? 'Test';
+const vaultArg = `vault=${vaultName}`;
 
 const pluginId = 'open-connections';
 const pluginDir = join(vaultPath, '.obsidian', 'plugins', pluginId);
@@ -92,6 +94,26 @@ function getPluginSnapshot() {
   };
 }
 
+function normalizePath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+function parseObsidianEvalOutput(output) {
+  return output.trim().replace(/^=>\s*/, '').trim();
+}
+
+function hasProblemOutput(step, cleanMessages = []) {
+  const output = `${step?.stdout ?? ''}\n${step?.stderr ?? ''}`.trim();
+  if (!output) {
+    return false;
+  }
+  return !cleanMessages.some((message) => output === message);
+}
+
 async function restartObsidian() {
   const steps = [];
   steps.push(
@@ -108,7 +130,7 @@ async function restartObsidian() {
       'open-obsidian',
       'restart',
       'open',
-      ['-a', 'Obsidian'],
+      ['-a', 'Obsidian', vaultPath],
       { timeoutMs: 10_000 },
     ),
   );
@@ -119,12 +141,35 @@ async function restartObsidian() {
 async function verifyAttempt(attempt) {
   const steps = [];
 
+  const targetVaultStep = await runStep(
+    'verify-vault-target',
+    'obsidian-cli',
+    'obsidian',
+    [vaultArg, 'eval', 'code=app.vault.adapter.basePath ?? ""'],
+    { timeoutMs: DEFAULT_OBSIDIAN_TIMEOUT_MS },
+  );
+  const actualVaultPath = parseObsidianEvalOutput(targetVaultStep.stdout);
+  const expectedVaultPath = normalizePath(vaultPath);
+  const actualNormalizedPath = actualVaultPath ? normalizePath(actualVaultPath) : '';
+  if (!targetVaultStep.ok || actualNormalizedPath !== expectedVaultPath) {
+    targetVaultStep.ok = false;
+    targetVaultStep.stderr += `\nVault target mismatch: ${vaultArg} resolved to "${actualVaultPath || '<empty>'}", expected "${vaultPath}".`;
+    steps.push(targetVaultStep);
+    return {
+      attempt,
+      status: 'error',
+      steps,
+      pluginSnapshot: getPluginSnapshot(),
+    };
+  }
+  steps.push(targetVaultStep);
+
   steps.push(
     await runStep(
       'disable-plugin',
       'obsidian-cli',
       'obsidian',
-      ['vault=Test', 'plugin:disable', `id=${pluginId}`],
+      [vaultArg, 'plugin:disable', `id=${pluginId}`],
       { timeoutMs: DEFAULT_OBSIDIAN_TIMEOUT_MS },
     ),
   );
@@ -151,15 +196,16 @@ async function verifyAttempt(attempt) {
   );
 
   const responsiveSteps = [
-    ['open-smoke-note', ['vault=Test', 'create', 'name=Open Connections Smoke', 'content=Runtime verification note for Open Connections.', 'overwrite', 'open']],
-    ['enable-plugin', ['vault=Test', 'plugin:enable', `id=${pluginId}`]],
-    ['reload-plugin', ['vault=Test', 'plugin:reload', `id=${pluginId}`]],
-    ['clear-dev-errors', ['vault=Test', 'dev:errors', 'clear']],
-    ['connections-view', ['vault=Test', 'command', 'id=open-connections:connections-view']],
-    ['lookup-view', ['vault=Test', 'command', 'id=open-connections:open-lookup-view']],
-    ['refresh-embeddings', ['vault=Test', 'command', 'id=open-connections:refresh-embeddings']],
-    ['dev-errors', ['vault=Test', 'dev:errors']],
-    ['dev-console-error', ['vault=Test', 'dev:console', 'level=error']],
+    ['open-smoke-note', [vaultArg, 'create', 'name=Open Connections Smoke', 'content=Runtime verification note for Open Connections.', 'overwrite', 'open']],
+    ['enable-plugin', [vaultArg, 'plugin:enable', `id=${pluginId}`]],
+    ['reload-plugin', [vaultArg, 'plugin:reload', `id=${pluginId}`]],
+    ['clear-dev-errors', [vaultArg, 'dev:errors', 'clear']],
+    ['clear-dev-console', [vaultArg, 'dev:console', 'clear']],
+    ['connections-view', [vaultArg, 'command', 'id=open-connections:connections-view']],
+    ['lookup-view', [vaultArg, 'command', 'id=open-connections:open-lookup-view']],
+    ['refresh-embeddings', [vaultArg, 'command', 'id=open-connections:refresh-embeddings']],
+    ['dev-errors', [vaultArg, 'dev:errors']],
+    ['dev-console-error', [vaultArg, 'dev:console', 'level=error']],
   ];
 
   for (const [name, args] of responsiveSteps) {
@@ -188,10 +234,8 @@ async function verifyAttempt(attempt) {
   const devErrors = steps.find((step) => step.name === 'dev-errors');
   const devConsole = steps.find((step) => step.name === 'dev-console-error');
   const hasRuntimeErrors =
-    !!devErrors?.stdout.trim() ||
-    !!devErrors?.stderr.trim() ||
-    !!devConsole?.stdout.trim() ||
-    !!devConsole?.stderr.trim();
+    hasProblemOutput(devErrors, ['No errors captured.']) ||
+    hasProblemOutput(devConsole, ['No console messages captured.']);
 
   return {
     attempt,
@@ -205,6 +249,7 @@ async function main() {
   const run = {
     startedAt: nowIso(),
     vaultPath,
+    vaultName,
     pluginId,
     freezeTimeoutMs: DEFAULT_OBSIDIAN_TIMEOUT_MS,
     attempts: [],

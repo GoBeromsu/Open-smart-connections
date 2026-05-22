@@ -12,14 +12,19 @@ import { createServer } from 'node:http';
 import type { McpContext } from '../types/mcp-context';
 import type { JsonRpcRequest } from '../types/mcp';
 import { dispatchMcpRequest } from './dispatch';
+import { isHttpRequestAuthorized, type HttpAuthOptions } from './http-auth';
 
-export function startHttpTransport(ctx: McpContext, port: number): void {
+export function startHttpTransport(
+  ctx: McpContext,
+  port: number,
+  auth: HttpAuthOptions = {},
+): void {
   const server = createServer((req, res) => {
-    void handleRequest(req, res, ctx, port);
+    void handleRequest(req, res, ctx, port, auth);
   });
 
-  server.listen(port, () => {
-    console.error(`[open-connections] MCP HTTP server listening on http://localhost:${port}`);
+  server.listen(port, '127.0.0.1', () => {
+    console.error(`[open-connections] MCP HTTP server listening on http://127.0.0.1:${port}`);
   });
 }
 
@@ -28,10 +33,11 @@ async function handleRequest(
   res: ServerResponse,
   ctx: McpContext,
   port: number,
+  auth: HttpAuthOptions,
 ): Promise<void> {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Open-Connections-Token');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -48,7 +54,16 @@ async function handleRequest(
   try {
     const body = await readBody(req);
     const request = JSON.parse(body) as JsonRpcRequest;
-    const endpointUrl = `http://localhost:${port}`;
+    if (!isHttpRequestAuthorized(req, request, auth)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        id: request.id ?? null,
+        error: { code: -32001, message: 'Unauthorized note read' },
+      }));
+      return;
+    }
+    const endpointUrl = `http://127.0.0.1:${port}`;
     const response = await dispatchMcpRequest(ctx, request, endpointUrl);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(response ? JSON.stringify(response) : '');

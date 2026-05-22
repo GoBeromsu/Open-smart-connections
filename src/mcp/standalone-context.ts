@@ -8,7 +8,7 @@
 
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { resolve } from 'path';
 import { DatabaseSync } from 'node:sqlite';
 
 import type {
@@ -33,6 +33,7 @@ import {
   loadBlockMeta,
   type BlockMeta,
 } from './standalone-db-loader';
+import { resolveVaultNotePath, rejectUnsafeVaultPath } from './vault-path-guard';
 
 // ---------------------------------------------------------------------------
 // Factory
@@ -89,13 +90,18 @@ class StandaloneMcpContext implements McpContext {
   }
 
   async readNote(notePath: string): Promise<string | null> {
-    const full = join(this.vaultPath, notePath);
-    if (!existsSync(full)) return null;
+    const full = await resolveVaultNotePath(this.vaultPath, notePath);
+    if (!full) return null;
     return await readFile(full, 'utf8');
   }
 
   noteExists(notePath: string): boolean {
-    return existsSync(join(this.vaultPath, notePath));
+    try {
+      rejectUnsafeVaultPath(notePath);
+      return existsSync(resolve(this.vaultPath, notePath));
+    } catch {
+      return false;
+    }
   }
 
   async embedQuery(query: string): Promise<number[]> {

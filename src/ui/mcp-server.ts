@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server as HttpServer, type Ser
 import type SmartConnectionsPlugin from '../main';
 import type { JsonRpcRequest, JsonRpcResponse } from '../types/mcp';
 import { dispatchMcpRequest } from '../mcp/dispatch';
+import { isHttpRequestAuthorized } from '../mcp/http-auth';
 import { PluginMcpContext } from '../mcp/plugin-context';
 
 function isAllowedOrigin(origin: string | undefined): boolean {
@@ -112,7 +113,7 @@ export class OpenConnectionsMcpServer {
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
     res.setHeader('Access-Control-Allow-Origin', origin ?? 'http://127.0.0.1');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, MCP-Protocol-Version');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, MCP-Protocol-Version, Authorization, X-Open-Connections-Token');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
     if (!isAllowedOrigin(origin)) {
@@ -162,7 +163,14 @@ export class OpenConnectionsMcpServer {
           });
           continue;
         }
-
+        if (!isHttpRequestAuthorized(req, request, { token: this.plugin.settings.mcp.authToken })) {
+          responses.push({
+            jsonrpc: '2.0',
+            id: request.id ?? null,
+            error: { code: -32001, message: 'Unauthorized vault data request' },
+          });
+          continue;
+        }
         const response = await dispatchMcpRequest(this.ctx, request, this.endpointUrl);
         if (response) responses.push(response);
       }

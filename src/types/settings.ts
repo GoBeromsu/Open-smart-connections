@@ -159,6 +159,9 @@ export interface McpSettings {
 
   /** Localhost port for the MCP HTTP endpoint */
   port: number;
+
+  /** Bearer token required for HTTP vault-data tool calls */
+  authToken: string;
 }
 
 /**

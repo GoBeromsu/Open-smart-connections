@@ -98,6 +98,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   mcp: {
     enabled: false,
     port: 27124,
+    authToken: '',
   },
 };
 
