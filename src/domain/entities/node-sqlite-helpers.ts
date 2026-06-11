@@ -1,5 +1,5 @@
 import type { Buffer } from 'node:buffer';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
 import type { EntityData } from '../../types/entities';
 

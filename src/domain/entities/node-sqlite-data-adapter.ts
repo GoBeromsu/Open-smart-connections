@@ -39,13 +39,13 @@ export class NodeSqliteDataAdapter<T extends EmbeddingEntity> {
     this.entity_type = getEntityType(collection_key);
   }
 
-  initVaultContext(vaultAdapter: unknown, configDir: string, pluginId: string): void {
-    this._db = initNodeSqliteDatabase(vaultAdapter, configDir, pluginId);
+  async initVaultContext(vaultAdapter: unknown, configDir: string, pluginId: string): Promise<void> {
+    this._db = await initNodeSqliteDatabase(vaultAdapter, configDir, pluginId);
     this._closed = false;
   }
 
-  initDbPath(absoluteDbPath: string): void {
-    this._db = initNodeSqliteDatabaseAtPath(absoluteDbPath);
+  async initDbPath(absoluteDbPath: string): Promise<void> {
+    this._db = await initNodeSqliteDatabaseAtPath(absoluteDbPath);
     this._closed = false;
   }
 

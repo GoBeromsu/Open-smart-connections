@@ -11,3 +11,5 @@ export { SourceCollection } from './SourceCollection';
 export { BlockCollection } from './BlockCollection';
 export { parse_markdown_blocks } from './markdown-splitter';
 export { NodeSqliteDataAdapter, closeNodeSqliteDatabases } from './node-sqlite-data-adapter';
+export { VaultFileDataAdapter } from './vault-file-data-adapter';
+export type { EntityDataAdapter } from './entity-data-adapter';

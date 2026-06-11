@@ -1,6 +1,6 @@
 import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
 import { ensureSchema } from './node-sqlite-helpers';
 
@@ -24,7 +24,7 @@ export function initNodeSqliteDatabase(
   vaultAdapter: unknown,
   configDir: string,
   pluginId: string,
-): DatabaseSync {
+): Promise<DatabaseSync> {
   const adapter = vaultAdapter as { getBasePath?: () => string };
   const basePath = typeof adapter.getBasePath === 'function'
     ? adapter.getBasePath()
@@ -35,7 +35,7 @@ export function initNodeSqliteDatabase(
   return initNodeSqliteDatabaseAtPath(absoluteDbPath);
 }
 
-export function initNodeSqliteDatabaseAtPath(absoluteDbPath: string): DatabaseSync {
+export async function initNodeSqliteDatabaseAtPath(absoluteDbPath: string): Promise<DatabaseSync> {
   mkdirSync(dirname(absoluteDbPath), { recursive: true });
 
   const existing = openDatabases.get(absoluteDbPath);
@@ -43,6 +43,7 @@ export function initNodeSqliteDatabaseAtPath(absoluteDbPath: string): DatabaseSy
     return existing.db;
   }
 
+  const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(absoluteDbPath);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');

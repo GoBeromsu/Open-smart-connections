@@ -1,5 +1,5 @@
 import type SmartConnectionsPlugin from '../main';
-import { BlockCollection, SourceCollection } from '../domain/entities';
+import { BlockCollection, NodeSqliteDataAdapter, SourceCollection, VaultFileDataAdapter } from '../domain/entities';
 import type { VaultShim } from '../types/obsidian-shims';
 import { getEmbedAdapterSettings, resolveStorageNamespace } from './collection-embed-context';
 
@@ -35,8 +35,23 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     const vaultAdapter = plugin.app.vault.adapter;
     const configDir = plugin.app.vault.configDir;
     const pluginId = plugin.manifest.id;
-    plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
-    plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+    if (!hasDesktopBasePath(vaultAdapter)) {
+      plugin.source_collection.data_adapter = new VaultFileDataAdapter(plugin.source_collection, 'smart_sources');
+      plugin.block_collection.data_adapter = new VaultFileDataAdapter(plugin.block_collection, 'smart_blocks');
+    } else {
+      plugin.source_collection.data_adapter = new NodeSqliteDataAdapter(
+        plugin.source_collection,
+        'smart_sources',
+        storageNamespace,
+      );
+      plugin.block_collection.data_adapter = new NodeSqliteDataAdapter(
+        plugin.block_collection,
+        'smart_blocks',
+        storageNamespace,
+      );
+    }
+    await plugin.source_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
+    await plugin.block_collection.data_adapter.initVaultContext(vaultAdapter, configDir, pluginId);
 
     await plugin.source_collection.init();
     await plugin.block_collection.init();
@@ -45,4 +60,8 @@ export async function initCollections(plugin: SmartConnectionsPlugin): Promise<v
     plugin.logger.error('Failed to initialize collections:', error);
     throw error;
   }
+}
+
+function hasDesktopBasePath(vaultAdapter: unknown): boolean {
+  return typeof (vaultAdapter as { getBasePath?: unknown }).getBasePath === 'function';
 }
